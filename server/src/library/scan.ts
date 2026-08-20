@@ -1,8 +1,8 @@
 import { getSetting } from "../config/settings.js";
 import { scanCustomApps } from "./customApps.js";
 import { scanEpicLibrary } from "./epicScanner.js";
-import { fetchBoxArtUrl } from "./igdb.js";
-import { gamesMissingBoxArt, setBoxArt, upsertGame } from "./repo.js";
+import { fetchGameMetadata } from "./igdb.js";
+import { gamesMissingMetadata, setGameMetadata, upsertGame } from "./repo.js";
 import { scanRomFolders } from "./romScanner.js";
 import { scanSteamLibrary } from "./steamScanner.js";
 
@@ -35,13 +35,13 @@ export async function runLibraryScan(): Promise<void> {
     }
   }
 
-  await resolveMissingBoxArt();
+  await resolveMissingMetadata();
 }
 
-async function resolveMissingBoxArt(): Promise<void> {
-  const missing = gamesMissingBoxArt();
+async function resolveMissingMetadata(): Promise<void> {
+  const missing = gamesMissingMetadata();
   for (const game of missing) {
-    const url = await fetchBoxArtUrl(game.title);
-    if (url) setBoxArt(game.id, url);
+    const metadata = await fetchGameMetadata(game.title);
+    setGameMetadata(game.id, metadata);
   }
 }

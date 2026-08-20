@@ -32,11 +32,31 @@ async function getAccessToken(): Promise<string | undefined> {
   return cachedToken.accessToken;
 }
 
-/** Best-effort cover lookup by title; returns undefined on any failure (no key set, no match, network error). */
-export async function fetchBoxArtUrl(title: string): Promise<string | undefined> {
+export interface GameMetadata {
+  boxArtUrl?: string;
+  genre?: string;
+  developer?: string;
+  releaseYear?: number;
+  description?: string;
+  rating5?: number;
+}
+
+interface IgdbGameResult {
+  cover?: { image_id: string };
+  genres?: { name: string }[];
+  summary?: string;
+  aggregated_rating?: number;
+  first_release_date?: number;
+  involved_companies?: { developer: boolean; company: { name: string } }[];
+}
+
+/** Best-effort metadata lookup by title; returns {} on any failure (no key
+ * set, no match, network error) rather than throwing — box art / detail
+ * panels degrade gracefully when a game just isn't found. */
+export async function fetchGameMetadata(title: string): Promise<GameMetadata> {
   const clientId = getSetting("igdbClientId");
   const accessToken = await getAccessToken();
-  if (!clientId || !accessToken) return undefined;
+  if (!clientId || !accessToken) return {};
 
   try {
     const escaped = title.replace(/"/g, '\\"');
@@ -47,16 +67,37 @@ export async function fetchBoxArtUrl(title: string): Promise<string | undefined>
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "text/plain",
       },
-      body: `search "${escaped}"; fields name,cover.image_id; limit 1;`,
+      body:
+        `search "${escaped}"; fields name,cover.image_id,genres.name,summary,` +
+        `aggregated_rating,first_release_date,involved_companies.company.name,` +
+        `involved_companies.developer; limit 1;`,
     });
-    if (!res.ok) return undefined;
+    if (!res.ok) return {};
 
-    const results = (await res.json()) as Array<{ cover?: { image_id: string } }>;
-    const imageId = results[0]?.cover?.image_id;
-    if (!imageId) return undefined;
+    const results = (await res.json()) as IgdbGameResult[];
+    const game = results[0];
+    if (!game) return {};
 
-    return `https://images.igdb.com/igdb/image/upload/t_cover_big/${imageId}.jpg`;
+    const developer =
+      game.involved_companies?.find((c) => c.developer)?.company.name ??
+      game.involved_companies?.[0]?.company.name;
+
+    return {
+      boxArtUrl: game.cover
+        ? `https://images.igdb.com/igdb/image/upload/t_cover_big/${game.cover.image_id}.jpg`
+        : undefined,
+      genre: game.genres?.map((g) => g.name).join(", "),
+      developer,
+      releaseYear: game.first_release_date
+        ? new Date(game.first_release_date * 1000).getUTCFullYear()
+        : undefined,
+      description: game.summary,
+      rating5:
+        game.aggregated_rating !== undefined
+          ? Math.max(1, Math.min(5, Math.round(game.aggregated_rating / 20)))
+          : undefined,
+    };
   } catch {
-    return undefined;
+    return {};
   }
 }

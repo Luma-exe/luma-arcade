@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { api, type AppSettings, type CustomAppRow, type RomFolderRow } from "../lib/api.js";
+import { SELECTABLE_SYSTEM_IDS, getSystemDisplayName } from "../lib/systemNames.js";
 
 export function Settings({ onBack }: { onBack: () => void }) {
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [draft, setDraft] = useState<Partial<AppSettings>>({});
   const [romFolders, setRomFolders] = useState<RomFolderRow[]>([]);
   const [customApps, setCustomApps] = useState<CustomAppRow[]>([]);
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -14,27 +17,44 @@ export function Settings({ onBack }: { onBack: () => void }) {
     api.getCustomApps().then(setCustomApps);
   }, []);
 
-  async function save(partial: Partial<AppSettings>) {
+  function update(partial: Partial<AppSettings>) {
+    setSaved(false);
+    setDraft((d) => ({ ...d, ...partial }));
+  }
+
+  const view: AppSettings | null = settings && { ...settings, ...draft };
+  const dirty = Object.keys(draft).length > 0;
+
+  async function handleSave() {
     setError(null);
+    setSaving(true);
     try {
-      const updated = await api.updateSettings(partial);
+      const updated = await api.updateSettings(draft);
       setSettings(updated);
+      setDraft({});
       setSaved(true);
-      setTimeout(() => setSaved(false), 1500);
+      setTimeout(() => setSaved(false), 2000);
     } catch (err) {
       setError((err as Error).message);
+    } finally {
+      setSaving(false);
     }
   }
 
-  if (!settings) return <div className="center">Loading…</div>;
+  if (!view) return <div className="center">Loading…</div>;
 
   return (
     <div className="settings-page">
       <header className="library-header">
+        <div className="brand-pill">
+          <span className="brand-pill-dot" />
+          Luma Arcade
+        </div>
+      </header>
+      <header className="library-header">
         <h1>Settings</h1>
         <div className="header-actions">
-          {saved && <span className="muted">Saved</span>}
-          <button onClick={onBack}>Back to Library</button>
+          <button onClick={onBack}>Back to Home</button>
         </div>
       </header>
 
@@ -43,36 +63,28 @@ export function Settings({ onBack }: { onBack: () => void }) {
       <Section title="General">
         <Toggle
           label="Start LumaArcade when Windows starts"
-          checked={settings.autoStart}
-          onChange={(v) => save({ autoStart: v })}
+          checked={view.autoStart}
+          onChange={(v) => update({ autoStart: v })}
         />
       </Section>
 
       <Section title="Sources">
-        <Toggle
-          label="Steam"
-          checked={settings.steamEnabled}
-          onChange={(v) => save({ steamEnabled: v })}
-        />
-        <Toggle
-          label="Epic Games"
-          checked={settings.epicEnabled}
-          onChange={(v) => save({ epicEnabled: v })}
-        />
+        <Toggle label="Steam" checked={view.steamEnabled} onChange={(v) => update({ steamEnabled: v })} />
+        <Toggle label="Epic Games" checked={view.epicEnabled} onChange={(v) => update({ epicEnabled: v })} />
         <Toggle
           label="Emulation"
-          checked={settings.emulationEnabled}
-          onChange={(v) => save({ emulationEnabled: v })}
+          checked={view.emulationEnabled}
+          onChange={(v) => update({ emulationEnabled: v })}
         />
         <Toggle
           label="Custom apps"
-          checked={settings.customAppsEnabled}
-          onChange={(v) => save({ customAppsEnabled: v })}
+          checked={view.customAppsEnabled}
+          onChange={(v) => update({ customAppsEnabled: v })}
         />
         <Toggle
           label="Full Desktop access"
-          checked={settings.fullDesktopEnabled}
-          onChange={(v) => save({ fullDesktopEnabled: v })}
+          checked={view.fullDesktopEnabled}
+          onChange={(v) => update({ fullDesktopEnabled: v })}
         />
       </Section>
 
@@ -80,62 +92,58 @@ export function Settings({ onBack }: { onBack: () => void }) {
         <p className="muted">
           Requires a free Twitch developer app — create one at dev.twitch.tv/console/apps.
         </p>
-        <TextField
-          label="Client ID"
-          value={settings.igdbClientId}
-          onBlur={(v) => save({ igdbClientId: v })}
-        />
+        <TextField label="Client ID" value={view.igdbClientId} onChange={(v) => update({ igdbClientId: v })} />
         <TextField
           label="Client Secret"
-          value={settings.igdbClientSecret}
+          value={view.igdbClientSecret}
           type="password"
-          onBlur={(v) => save({ igdbClientSecret: v })}
+          onChange={(v) => update({ igdbClientSecret: v })}
         />
       </Section>
 
       <Section title="Video">
         <TextField
           label="Framerate"
-          value={String(settings.framerate)}
-          onBlur={(v) => save({ framerate: Number(v) || 60 })}
+          value={String(view.framerate)}
+          onChange={(v) => update({ framerate: Number(v) || 60 })}
         />
         <TextField
           label="Bitrate (kbps)"
-          value={String(settings.bitrateKbps)}
-          onBlur={(v) => save({ bitrateKbps: Number(v) || 8000 })}
+          value={String(view.bitrateKbps)}
+          onChange={(v) => update({ bitrateKbps: Number(v) || 8000 })}
         />
         <TextField
           label="NVENC preset"
-          value={settings.nvencPreset}
-          onBlur={(v) => save({ nvencPreset: v })}
+          value={view.nvencPreset}
+          onChange={(v) => update({ nvencPreset: v })}
         />
       </Section>
 
       <Section title="Network">
         <Toggle
           label="Enable remote access via Cloudflare Tunnel"
-          checked={settings.remoteAccessEnabled}
-          onChange={(v) => save({ remoteAccessEnabled: v })}
+          checked={view.remoteAccessEnabled}
+          onChange={(v) => update({ remoteAccessEnabled: v })}
         />
-        {settings.remoteAccessEnabled && (
+        {view.remoteAccessEnabled && (
           <>
             <TextField
               label="Cloudflare Tunnel token"
-              value={settings.cloudflareTunnelToken}
+              value={view.cloudflareTunnelToken}
               type="password"
-              onBlur={(v) => save({ cloudflareTunnelToken: v })}
+              onChange={(v) => update({ cloudflareTunnelToken: v })}
             />
             <Toggle
               label="Run local TURN relay (coturn)"
-              checked={settings.turnServerEnabled}
-              onChange={(v) => save({ turnServerEnabled: v })}
+              checked={view.turnServerEnabled}
+              onChange={(v) => update({ turnServerEnabled: v })}
             />
             <TextField
               label="coturn turnserver.exe path"
-              value={settings.turnServerBinaryPath}
-              onBlur={(v) => save({ turnServerBinaryPath: v })}
+              value={view.turnServerBinaryPath}
+              onChange={(v) => update({ turnServerBinaryPath: v })}
             />
-            {settings.turnServerEnabled && (
+            {view.turnServerEnabled && (
               <>
                 <p className="muted">
                   TURN carries raw UDP media traffic, which a Cloudflare Tunnel can't proxy —
@@ -144,13 +152,13 @@ export function Settings({ onBack }: { onBack: () => void }) {
                 </p>
                 <TextField
                   label="Public host/IP for TURN"
-                  value={settings.turnPublicHost}
-                  onBlur={(v) => save({ turnPublicHost: v })}
+                  value={view.turnPublicHost}
+                  onChange={(v) => update({ turnPublicHost: v })}
                 />
                 <TextField
                   label="TURN port"
-                  value={String(settings.turnPort)}
-                  onBlur={(v) => save({ turnPort: Number(v) || 3478 })}
+                  value={String(view.turnPort)}
+                  onChange={(v) => update({ turnPort: Number(v) || 3478 })}
                 />
               </>
             )}
@@ -162,18 +170,12 @@ export function Settings({ onBack }: { onBack: () => void }) {
         {romFolders.map((f) => (
           <div key={f.id} className="row">
             <span>
-              {f.console}: {f.folder_path} → {f.emulator_exe_path}
+              {getSystemDisplayName(f.console)}: {f.folder_path} → {f.emulator_exe_path}
             </span>
-            <button
-              onClick={async () => setRomFolders(await api.removeRomFolder(f.id))}
-            >
-              Remove
-            </button>
+            <button onClick={async () => setRomFolders(await api.removeRomFolder(f.id))}>Remove</button>
           </div>
         ))}
-        <RomFolderForm
-          onAdd={async (body) => setRomFolders(await api.addRomFolder(body))}
-        />
+        <RomFolderForm onAdd={async (body) => setRomFolders(await api.addRomFolder(body))} />
       </Section>
 
       <Section title="Custom apps">
@@ -182,13 +184,19 @@ export function Settings({ onBack }: { onBack: () => void }) {
             <span>
               {a.display_name}: {a.exe_path}
             </span>
-            <button onClick={async () => setCustomApps(await api.removeCustomApp(a.id))}>
-              Remove
-            </button>
+            <button onClick={async () => setCustomApps(await api.removeCustomApp(a.id))}>Remove</button>
           </div>
         ))}
         <CustomAppForm onAdd={async (body) => setCustomApps(await api.addCustomApp(body))} />
       </Section>
+
+      <div className="save-bar">
+        {dirty && !saving && <span className="unsaved">You have unsaved changes</span>}
+        {saved && <span className="unsaved">Saved</span>}
+        <button onClick={handleSave} disabled={!dirty || saving}>
+          {saving ? "Saving…" : "Save"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -223,24 +231,17 @@ function TextField({
   label,
   value,
   type = "text",
-  onBlur,
+  onChange,
 }: {
   label: string;
   value: string;
   type?: string;
-  onBlur: (v: string) => void;
+  onChange: (v: string) => void;
 }) {
-  const [local, setLocal] = useState(value);
-  useEffect(() => setLocal(value), [value]);
   return (
     <label className="field-row">
       {label}
-      <input
-        type={type}
-        value={local}
-        onChange={(e) => setLocal(e.target.value)}
-        onBlur={() => onBlur(local)}
-      />
+      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} />
     </label>
   );
 }
@@ -272,11 +273,14 @@ function RomFolderForm({
 
   return (
     <form className="inline-form" onSubmit={submit}>
-      <input
-        placeholder="Console (e.g. N64)"
-        value={consoleName}
-        onChange={(e) => setConsoleName(e.target.value)}
-      />
+      <select value={consoleName} onChange={(e) => setConsoleName(e.target.value)}>
+        <option value="">Console…</option>
+        {SELECTABLE_SYSTEM_IDS.map((id) => (
+          <option key={id} value={id}>
+            {getSystemDisplayName(id)}
+          </option>
+        ))}
+      </select>
       <input
         placeholder="ROM folder path"
         value={folderPath}

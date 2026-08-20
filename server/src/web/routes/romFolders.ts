@@ -7,7 +7,14 @@ export async function registerRomFolderRoutes(app: FastifyInstance) {
 
   app.post<{
     Body: { console: string; folderPath: string; emulatorExePath: string; launchArgsTemplate: string };
-  }>("/api/rom-folders", { preHandler: requireAuth }, async (request) => {
+  }>("/api/rom-folders", { preHandler: requireAuth }, async (request, reply) => {
+    // Console id resolves to theme asset paths (systems/backgrounds/<id>.jpg
+    // etc.) client-side, so it must be a safe path segment — the client
+    // sends one of a known set via a <select>, this is defense in depth.
+    if (!/^[a-z0-9_-]+$/.test(request.body.console ?? "")) {
+      reply.code(400).send({ error: "invalid console id" });
+      return;
+    }
     addRomFolder(request.body);
     return listRomFolders();
   });

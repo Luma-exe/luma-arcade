@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { Login } from "./pages/Login.js";
-import { Library } from "./pages/Library.js";
+import { Home } from "./pages/Home.js";
 import { Settings } from "./pages/Settings.js";
 import { Stream } from "./pages/Stream.js";
 import type { GameRow } from "./lib/api.js";
 
-type View = "loading" | "login" | "library" | "settings" | "stream";
+type View = "loading" | "login" | "home" | "settings" | "stream";
 
 export function App() {
   const [view, setView] = useState<View>("loading");
@@ -14,13 +14,13 @@ export function App() {
 
   useEffect(() => {
     fetch("/api/me")
-      .then((res) => setView(res.ok ? "library" : "login"))
+      .then((res) => setView(res.ok ? "home" : "login"))
       .catch(() => setView("login"));
   }, []);
 
   if (view === "loading") return <div className="center">Loading…</div>;
-  if (view === "login") return <Login onLoggedIn={() => setView("library")} />;
-  if (view === "settings") return <Settings onBack={() => setView("library")} />;
+  if (view === "login") return <Login onLoggedIn={() => setView("home")} />;
+  if (view === "settings") return <Settings onBack={() => setView("home")} />;
   if (view === "stream")
     return (
       <Stream
@@ -29,13 +29,13 @@ export function App() {
         onExit={() => {
           setActiveGame(null);
           setActivePid(undefined);
-          setView("library");
+          setView("home");
         }}
       />
     );
 
   return (
-    <Library
+    <Home
       onLaunchFullDesktop={() => {
         setActiveGame(null);
         setActivePid(undefined);

@@ -30,6 +30,12 @@ export interface GameRow {
   console: string | null;
   box_art_url: string | null;
   last_played_at: string | null;
+  genre: string | null;
+  developer: string | null;
+  release_year: number | null;
+  description: string | null;
+  rating_5: number | null;
+  metadata_checked_at: string | null;
 }
 
 export interface RomFolderRow {

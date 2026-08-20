@@ -50,13 +50,19 @@ export function Login({ onLoggedIn }: { onLoggedIn: () => void }) {
     else setError((await res.json()).error ?? "Login failed.");
   }
 
-  if (passwordSet === null) return <div className="center">Loading…</div>;
+  if (passwordSet === null) return <div className="center login-page">Loading…</div>;
 
   return (
-    <div className="center">
+    <div className="center login-page">
       <form className="auth-card" onSubmit={passwordSet ? handleLogin : handleSetPassword}>
-        <h1>LumaArcade</h1>
-        <p>{passwordSet ? "Enter the portal password." : "Set a password to protect this portal."}</p>
+        <div className="brand-pill">
+          <span className="brand-pill-dot" />
+          Luma Arcade
+        </div>
+        <h1>{passwordSet ? "Welcome back" : "Set up LumaArcade"}</h1>
+        <p className="muted">
+          {passwordSet ? "Enter the portal password." : "Choose a password to protect this portal."}
+        </p>
         <input
           type="password"
           placeholder="Password"

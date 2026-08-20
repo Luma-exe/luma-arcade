@@ -1,4 +1,5 @@
 import { getDb } from "../db/index.js";
+import type { GameMetadata } from "./igdb.js";
 
 export interface GameRow {
   id: number;
@@ -9,6 +10,12 @@ export interface GameRow {
   console: string | null;
   box_art_url: string | null;
   last_played_at: string | null;
+  genre: string | null;
+  developer: string | null;
+  release_year: number | null;
+  description: string | null;
+  rating_5: number | null;
+  metadata_checked_at: string | null;
 }
 
 export function upsertGame(game: {
@@ -43,14 +50,40 @@ export function getGame(id: number): GameRow | undefined {
   return getDb().prepare("SELECT * FROM games WHERE id = ?").get(id) as GameRow | undefined;
 }
 
-export function gamesMissingBoxArt(): GameRow[] {
-  return getDb()
-    .prepare("SELECT * FROM games WHERE box_art_url IS NULL")
-    .all() as GameRow[];
+/** Every scan retries games still missing box art (not just ones never
+ * checked before) — deliberately not gated on metadata_checked_at. Gating on
+ * "checked before" meant a game that failed to match *before* IGDB
+ * credentials were ever entered would never be retried again, since nothing
+ * about a credentials save necessarily looks like a "change" (re-entering
+ * the same value, or the value predating a code fix that starts honoring
+ * it). Retrying art-less games on every scan is simple, predictable, and
+ * self-limiting — once a game gets art it's never queried again. */
+export function gamesMissingMetadata(): GameRow[] {
+  return getDb().prepare("SELECT * FROM games WHERE box_art_url IS NULL").all() as GameRow[];
 }
 
-export function setBoxArt(id: number, boxArtUrl: string): void {
-  getDb().prepare("UPDATE games SET box_art_url = ? WHERE id = ?").run(boxArtUrl, id);
+export function setGameMetadata(id: number, metadata: GameMetadata): void {
+  getDb()
+    .prepare(
+      `UPDATE games SET
+         box_art_url = @boxArtUrl,
+         genre = @genre,
+         developer = @developer,
+         release_year = @releaseYear,
+         description = @description,
+         rating_5 = @rating5,
+         metadata_checked_at = datetime('now')
+       WHERE id = @id`
+    )
+    .run({
+      id,
+      boxArtUrl: metadata.boxArtUrl ?? null,
+      genre: metadata.genre ?? null,
+      developer: metadata.developer ?? null,
+      releaseYear: metadata.releaseYear ?? null,
+      description: metadata.description ?? null,
+      rating5: metadata.rating5 ?? null,
+    });
 }
 
 export function markPlayed(id: number): void {
