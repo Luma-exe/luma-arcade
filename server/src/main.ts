@@ -1,0 +1,75 @@
+import path from "node:path";
+import { randomBytes } from "node:crypto";
+import { exec } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { initDb } from "./db/index.js";
+import { getAllSettings } from "./config/settings.js";
+import { getDb } from "./db/index.js";
+import { createServer } from "./web/server.js";
+import { startTray } from "./tray/index.js";
+import { capturePipeline } from "./capture/gstProcess.js";
+import { cloudflaredProcess, syncCloudflaredWithSettings } from "./remote/cloudflared.js";
+import { coturnProcess, syncCoturnWithSettings } from "./remote/coturn.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+async function main() {
+  const dbPath = path.join(__dirname, "..", "luma-arcade.db");
+  initDb(dbPath);
+
+  const cookieSecret = getOrCreateCookieSecret();
+  const { port } = getAllSettings();
+
+  await createServer({ port, cookieSecret });
+
+  const portalUrl = `http://localhost:${port}`;
+  console.log(`LumaArcade listening at ${portalUrl}`);
+
+  syncCloudflaredWithSettings();
+  syncCoturnWithSettings();
+
+  // Double-clicking the Start Menu shortcut only starts this background
+  // server with no window — open the portal automatically so it doesn't
+  // look like nothing happened. Skipped during `npm run dev:server` (set
+  // via that script) since restarting on every file change would otherwise
+  // spam browser tabs.
+  if (process.env.LUMA_DEV !== "1") {
+    exec(`start ${portalUrl}`);
+  }
+
+  startTray({
+    portalUrl,
+    onQuit: () => {
+      capturePipeline.stop();
+      cloudflaredProcess.stop();
+      coturnProcess.stop();
+      process.exit(0);
+    },
+  });
+}
+
+function getOrCreateCookieSecret(): string {
+  const db = getDb();
+  const row = db.prepare("SELECT value FROM settings WHERE key = 'cookieSecret'").get() as
+    | { value: string }
+    | undefined;
+  if (row) return JSON.parse(row.value);
+
+  const secret = randomBytes(32).toString("hex");
+  db.prepare("INSERT INTO settings (key, value) VALUES ('cookieSecret', ?)").run(
+    JSON.stringify(secret)
+  );
+  return secret;
+}
+
+process.on("SIGINT", () => {
+  capturePipeline.stop();
+  cloudflaredProcess.stop();
+  coturnProcess.stop();
+  process.exit(0);
+});
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
