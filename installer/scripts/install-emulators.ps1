@@ -66,6 +66,83 @@ function Set-DefaultEmulator($EsdeSystem, $Label) {
     Write-Host "Set $EsdeSystem's default emulator to '$Label'."
 }
 
+# melonDS ships with every keyboard AND joystick binding unset (-1) by
+# design (confirmed against its actual source, Config.cpp's DefaultInts —
+# every Instance*.Keyboard/Instance*.Joystick key defaults to -1, there's
+# no baked-in control scheme at all) so a fresh install has literally no
+# way to control the game until someone opens its Input Config dialog by
+# hand. Since games here are played over Sunshine with a gamepad (a
+# virtual XInput controller via ViGEmBus), this writes joystick bindings
+# using SDL2's fixed button order for XInput devices on Windows (A=0,
+# B=1, X=2, Y=3, LB=4, RB=5, Back=6, Start=7; D-pad reported as hat 0,
+# encoded per melonDS's own MapButton.h scheme: 0x100 | direction-bit),
+# plus a conventional keyboard fallback (arrows + X/Z/S/A, matching the
+# common DS-emulator convention) for anyone driving it from a keyboard.
+# melonDS's config loader (toml11-based, same DefaultList-driven merge
+# used for every other key) fills in anything this file doesn't specify,
+# so writing just these two sections is enough — it doesn't need to be a
+# complete config.
+function Set-MelonDSDefaultControls($MelonDSDir) {
+    $tomlPath = Join-Path $MelonDSDir "melonDS.toml"
+
+    $keyboardBlock = @"
+[Instance0.Keyboard]
+A = 88
+B = 90
+X = 83
+Y = 65
+L = 81
+R = 87
+Start = 16777220
+Select = 16777219
+Up = 16777235
+Down = 16777237
+Left = 16777234
+Right = 16777236
+"@
+
+    $joystickBlock = @"
+[Instance0.Joystick]
+A = 0
+B = 1
+X = 2
+Y = 3
+L = 4
+R = 5
+Start = 7
+Select = 6
+Up = 257
+Down = 260
+Left = 264
+Right = 258
+"@
+
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+
+    if (-not (Test-Path $tomlPath)) {
+        # Fresh install, melonDS hasn't run yet to generate its own config --
+        # write a minimal file with just the sections we care about.
+        [System.IO.File]::WriteAllText($tomlPath, "$keyboardBlock`n`n$joystickBlock`n", $utf8NoBom)
+        Write-Host "Wrote default melonDS keyboard/joystick controls to $tomlPath"
+        return
+    }
+
+    $content = Get-Content $tomlPath -Raw
+    foreach ($pair in @(
+        @{ section = "Instance0.Keyboard"; block = $keyboardBlock },
+        @{ section = "Instance0.Joystick"; block = $joystickBlock }
+    )) {
+        $pattern = "(?ms)^\[$([regex]::Escape($pair.section))\].*?(?=^\[|\z)"
+        if ($content -match $pattern) {
+            $content = [regex]::Replace($content, $pattern, ($pair.block + "`n"), 1)
+        } else {
+            $content += "`n$($pair.block)`n"
+        }
+    }
+    [System.IO.File]::WriteAllText($tomlPath, $content, $utf8NoBom)
+    Write-Host "Patched default melonDS keyboard/joystick controls into $tomlPath"
+}
+
 function Ensure-7Zip {
     $sevenZip = "$env:ProgramFiles\7-Zip\7z.exe"
     if (Test-Path $sevenZip) { return $sevenZip }
@@ -323,17 +400,24 @@ foreach ($id in $selectedIds) {
             Set-DefaultEmulator -EsdeSystem $t.esdeSystem -Label $t.label
         }
     }
+
+    if ($id -eq "melonds" -and (Test-Path (Join-Path $EmulatorsDir "$($e.folder)\$($e.exe)"))) {
+        Set-MelonDSDefaultControls -MelonDSDir (Join-Path $EmulatorsDir $e.folder)
+    }
 }
 
-# ES-DE's bundled es_find_rules.xml looks for the 3DS emulator's staticpath
-# as ".../Citra/nightly-mingw/citra-qt.exe" specifically — but Citra is
-# dead and its actively-maintained fork Azahar (staged above at that exact
-# folder) names its executable "azahar.exe" instead, so the bundled rule
-# won't match it. ES-DE supports overriding/extending emulator rules via a
-# user-writable custom_systems/es_find_rules.xml — this adds a CITRA rule
-# there pointing at the real azahar.exe path. Best-effort: the precise
-# override-merge behavior wasn't verified against a real ES-DE run, only
-# against its documented file-location convention.
+# n3ds's default command ("Azahar (Standalone)") resolves via
+# %EMULATOR_AZAHAR%, which ES-DE's bundled es_find_rules.xml only looks
+# for on the system PATH (just "azahar.exe", no staticpath fallback into
+# Emulators\, unlike most other emulators) -- so it's never found where we
+# actually staged it. ES-DE supports overriding/extending emulator rules
+# via a user-writable custom_systems/es_find_rules.xml -- this adds a
+# staticpath rule for the AZAHAR emulator (not CITRA -- the CITRA entry's
+# %EMULATOR_CITRA% variable is only used by the separate, non-default
+# "Citra (Standalone)" command, so overriding it had no effect on what
+# actually launches by default). Best-effort: the precise override-merge
+# behavior wasn't verified against a real ES-DE run, only against its
+# documented file-location convention.
 if ($selectedIds -contains "3ds") {
     $customDir = Join-Path $env:USERPROFILE "ES-DE\custom_systems"
     New-Item -ItemType Directory -Path $customDir -Force | Out-Null
@@ -342,11 +426,11 @@ if ($selectedIds -contains "3ds") {
     if (Test-Path $azaharExe) {
         $xml = @"
 <?xml version="1.0"?>
-<!-- LumaArcade override: Citra is dead, this repoints the 3DS emulator
-     rule at Azahar (its actively-maintained fork) which we staged in
-     Citra's expected folder but with its own executable name. -->
+<!-- LumaArcade override: ES-DE's bundled AZAHAR rule only searches the
+     system PATH, not the Emulators folder we actually install to. This
+     adds a staticpath rule pointing at the real azahar.exe location. -->
 <ruleList>
-    <emulator name="CITRA">
+    <emulator name="AZAHAR">
         <rule type="staticpath">
             <entry>$azaharExe</entry>
         </rule>
