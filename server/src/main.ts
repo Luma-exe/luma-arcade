@@ -35,7 +35,6 @@ async function main() {
   }
 
   startTray({
-    portalUrl,
     onQuit: () => {
       moonlightProcess.stop();
       process.exit(0);
