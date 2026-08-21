@@ -28,6 +28,44 @@ function Write-Step($msg) {
     Write-Host "=== $msg ==="
 }
 
+$EsdeUserDir = Join-Path $env:USERPROFILE "ES-DE"
+
+# ES-DE picks the *first* <command> listed per system in es_systems.xml as
+# the default, and for most systems that's a RetroArch core — not the
+# standalone emulator this script actually installs. Without overriding
+# that, every game fails to launch with "core file not found" even though
+# the real emulator is sitting right there correctly installed (confirmed
+# live: nds/wii/psx games all failed this exact way before this function
+# existed). ES-DE stores the override as an <alternativeEmulator><label>
+# tag as a sibling of <gameList> in each system's own gamelist.xml — same
+# place/format it writes itself when you set this via its in-app menu
+# (GuiAlternativeEmulators.cpp / GamelistFileParser.cpp in ES-DE's source).
+function Set-DefaultEmulator($EsdeSystem, $Label) {
+    $dir = Join-Path $EsdeUserDir "gamelists\$EsdeSystem"
+    $path = Join-Path $dir "gamelist.xml"
+    New-Item -ItemType Directory -Path $dir -Force | Out-Null
+
+    $block = "<alternativeEmulator>`n    <label>$Label</label>`n</alternativeEmulator>`n"
+
+    if (Test-Path $path) {
+        $content = Get-Content $path -Raw
+        if ($content -match "<alternativeEmulator>") {
+            return  # already set (by ES-DE itself, or a previous run of this script) -- don't clobber
+        }
+        if ($content -match "^\s*<\?xml[^>]*\?>\s*") {
+            $newContent = $content -replace "(^\s*<\?xml[^>]*\?>\s*)", "`$1`n$block"
+        } else {
+            $newContent = "$block$content"
+        }
+    } else {
+        $newContent = "<?xml version=`"1.0`"?>`n$block<gameList>`n</gameList>`n"
+    }
+
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    [System.IO.File]::WriteAllText($path, $newContent, $utf8NoBom)
+    Write-Host "Set $EsdeSystem's default emulator to '$Label'."
+}
+
 function Ensure-7Zip {
     $sevenZip = "$env:ProgramFiles\7-Zip\7z.exe"
     if (Test-Path $sevenZip) { return $sevenZip }
@@ -130,6 +168,28 @@ $Emulators = @{
     "switch"      = @{ kind = "gitea"; repo = "eden-emu/eden"; pattern = "Eden-Windows-*-amd64-msvc-standard.zip"; folder = "eden"; exe = "eden.exe" }
 }
 
+# id -> [ { esdeSystem, label } ]. Only systems where es_systems.xml's
+# *first*-listed (default) command is a RetroArch core rather than the
+# standalone emulator this script installs — verified per-system against
+# ES-DE's actual es_systems.xml this session, not guessed. Left out
+# deliberately: cemu (wiiu), xenia (xbox360), switch (eden) already default
+# to their standalone command since no RetroArch alternative exists for
+# those systems; rpcs3 (ps3) and shadps4 (ps4) also have no RetroArch
+# alternative, but their *own* default command expects a specific ROM
+# format (shortcut/script files) that depends on how the user's actual
+# dumps are structured -- not something to override blindly.
+$DefaultEmulatorTargets = @{
+    "3ds"         = @(@{ esdeSystem = "n3ds"; label = "Azahar (Standalone)" })
+    "duckstation" = @(@{ esdeSystem = "psx"; label = "DuckStation (Standalone)" })
+    "melonds"     = @(@{ esdeSystem = "nds"; label = "melonDS (Standalone)" })
+    "pcsx2"       = @(@{ esdeSystem = "ps2"; label = "PCSX2 (Standalone)" })
+    "ppsspp"      = @(@{ esdeSystem = "psp"; label = "PPSSPP (Standalone)" })
+    "dolphin"     = @(
+        @{ esdeSystem = "gc"; label = "Dolphin (Standalone)" },
+        @{ esdeSystem = "wii"; label = "Dolphin (Standalone)" }
+    )
+}
+
 # RetroArch isn't distributed via GitHub release assets at all (only
 # source tarballs) — official Windows builds come from libretro's own
 # buildbot instead.
@@ -221,6 +281,9 @@ function Install-Dolphin {
 
         if (Test-Path (Join-Path $dest "Dolphin.exe")) {
             Write-Host "Dolphin $version staged at $dest."
+            foreach ($t in $DefaultEmulatorTargets["dolphin"]) {
+                Set-DefaultEmulator -EsdeSystem $t.esdeSystem -Label $t.label
+            }
         } else {
             Write-Host "Dolphin extracted but Dolphin.exe not found where expected — check $dest manually."
         }
@@ -249,6 +312,17 @@ foreach ($id in $selectedIds) {
         continue
     }
     Install-Emulator -Name $id -Kind $e.kind -Repo $e.repo -AssetPattern $e.pattern -DestFolder $e.folder -ExpectedExe $e.exe
+
+    # Only point ES-DE at this as the default for its system(s) if the
+    # install actually succeeded — a failed download shouldn't make ES-DE
+    # default away from a working RetroArch core (if the user has one) to
+    # an emulator that isn't actually there.
+    $targets = $DefaultEmulatorTargets[$id]
+    if ($targets -and (Test-Path (Join-Path $EmulatorsDir "$($e.folder)\$($e.exe)"))) {
+        foreach ($t in $targets) {
+            Set-DefaultEmulator -EsdeSystem $t.esdeSystem -Label $t.label
+        }
+    }
 }
 
 # ES-DE's bundled es_find_rules.xml looks for the 3DS emulator's staticpath
