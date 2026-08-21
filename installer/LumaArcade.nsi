@@ -77,16 +77,16 @@ Page custom ExistingInstallChoicePageCreate ExistingInstallChoicePageLeave
 
 ; --- Emulator selection ---
 ; Each entry gets auto-detected and launched by ES-DE with no further setup
-; needed for 12 of these — ES-DE's own bundled es_find_rules.xml already
-; looks for a build at the exact folder installer/scripts/install-emulators.ps1
-; stages it to (verified against ES-DE's actual source, not guessed). All
-; unchecked by default -- several of these are multi-gigabyte downloads.
-; GameCube/Wii (Dolphin) and Switch aren't offered here: Dolphin's download
-; site blocks scripted downloads with an anti-bot challenge, and every
-; Switch emulator (Yuzu, and its successors Suyu/Sudachi) has been shut down
-; by Nintendo takedowns in turn, most recently forcing 2026's Eden off
-; GitHub entirely -- not something to hardcode a download source for. See
-; the README for manual setup steps for both.
+; needed — ES-DE's own bundled es_find_rules.xml already looks for a build
+; at the exact folder installer/scripts/install-emulators.ps1 stages it to
+; (verified against ES-DE's actual source, not guessed). All unchecked by
+; default -- several of these are multi-gigabyte downloads. Dolphin (via
+; winget) and Switch/Eden (its own Gitea releases, since it moved off
+; GitHub after Nintendo takedown notices) need a real interactive install
+; run to work -- winget in particular is confirmed to fail outright over a
+; plain remote/automated session even as the same user, so both are more
+; likely to actually succeed when this installer is run normally on the
+; target PC than in any kind of unattended/remote deployment.
 Var EmuCemu
 Var Emu3ds
 Var EmuDuckstation
@@ -99,6 +99,8 @@ Var EmuVita3k
 Var EmuXemu
 Var EmuXenia
 Var EmuRetroarch
+Var EmuDolphin
+Var EmuSwitch
 Var SelectedEmulators
 
 Function EmulatorChoicePageCreate
@@ -115,31 +117,35 @@ Function EmulatorChoicePageCreate
   Pop $EmuCemu
   ${NSD_CreateCheckbox} 50% 0 48% 12u "Azahar (3DS, Citra successor)"
   Pop $Emu3ds
-  ${NSD_CreateCheckbox} 0 16u 48% 12u "DuckStation (PS1)"
+  ${NSD_CreateCheckbox} 0 16u 48% 12u "Dolphin (GameCube/Wii, via winget)"
+  Pop $EmuDolphin
+  ${NSD_CreateCheckbox} 50% 16u 48% 12u "DuckStation (PS1)"
   Pop $EmuDuckstation
-  ${NSD_CreateCheckbox} 50% 16u 48% 12u "melonDS (Nintendo DS)"
+  ${NSD_CreateCheckbox} 0 32u 48% 12u "melonDS (Nintendo DS)"
   Pop $EmuMelonds
-  ${NSD_CreateCheckbox} 0 32u 48% 12u "PCSX2 (PS2)"
+  ${NSD_CreateCheckbox} 50% 32u 48% 12u "PCSX2 (PS2)"
   Pop $EmuPcsx2
-  ${NSD_CreateCheckbox} 50% 32u 48% 12u "PPSSPP (PSP)"
+  ${NSD_CreateCheckbox} 0 48u 48% 12u "PPSSPP (PSP)"
   Pop $EmuPpsspp
-  ${NSD_CreateCheckbox} 0 48u 48% 12u "RPCS3 (PS3)"
+  ${NSD_CreateCheckbox} 50% 48u 48% 12u "RPCS3 (PS3)"
   Pop $EmuRpcs3
-  ${NSD_CreateCheckbox} 50% 48u 48% 12u "shadPS4 (PS4)"
+  ${NSD_CreateCheckbox} 0 64u 48% 12u "shadPS4 (PS4)"
   Pop $EmuShadps4
-  ${NSD_CreateCheckbox} 0 64u 48% 12u "Vita3K (PS Vita)"
+  ${NSD_CreateCheckbox} 50% 64u 48% 12u "Eden (Switch, Yuzu successor)"
+  Pop $EmuSwitch
+  ${NSD_CreateCheckbox} 0 80u 48% 12u "Vita3K (PS Vita)"
   Pop $EmuVita3k
-  ${NSD_CreateCheckbox} 50% 64u 48% 12u "xemu (original Xbox)"
+  ${NSD_CreateCheckbox} 50% 80u 48% 12u "xemu (original Xbox)"
   Pop $EmuXemu
-  ${NSD_CreateCheckbox} 0 80u 48% 12u "Xenia Canary (Xbox 360)"
+  ${NSD_CreateCheckbox} 0 96u 48% 12u "Xenia Canary (Xbox 360)"
   Pop $EmuXenia
-  ${NSD_CreateCheckbox} 50% 80u 48% 12u "RetroArch (older/misc consoles)"
+  ${NSD_CreateCheckbox} 50% 96u 48% 12u "RetroArch (older/misc consoles)"
   Pop $EmuRetroarch
 
-  ${NSD_CreateLabel} 0 100u 100% 24u \
-    "GameCube/Wii and Switch aren't offered here -- their sources block \
-    scripted downloads or keep getting shut down by takedowns. See the \
-    README for manual setup steps for those two."
+  ${NSD_CreateLabel} 0 116u 100% 20u \
+    "Dolphin and Eden need winget, which only works when you run this \
+    installer normally (not via remote/unattended deployment) -- see the \
+    README if either doesn't end up installed."
   Pop $0
 
   nsDialogs::Show
@@ -154,6 +160,10 @@ Function EmulatorChoicePageLeave
   ${NSD_GetState} $Emu3ds $0
   ${If} $0 == ${BST_CHECKED}
     StrCpy $SelectedEmulators "$SelectedEmulators,3ds"
+  ${EndIf}
+  ${NSD_GetState} $EmuDolphin $0
+  ${If} $0 == ${BST_CHECKED}
+    StrCpy $SelectedEmulators "$SelectedEmulators,dolphin"
   ${EndIf}
   ${NSD_GetState} $EmuDuckstation $0
   ${If} $0 == ${BST_CHECKED}
@@ -178,6 +188,10 @@ Function EmulatorChoicePageLeave
   ${NSD_GetState} $EmuShadps4 $0
   ${If} $0 == ${BST_CHECKED}
     StrCpy $SelectedEmulators "$SelectedEmulators,shadps4"
+  ${EndIf}
+  ${NSD_GetState} $EmuSwitch $0
+  ${If} $0 == ${BST_CHECKED}
+    StrCpy $SelectedEmulators "$SelectedEmulators,switch"
   ${EndIf}
   ${NSD_GetState} $EmuVita3k $0
   ${If} $0 == ${BST_CHECKED}
