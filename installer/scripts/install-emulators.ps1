@@ -165,16 +165,17 @@ function Install-RetroArch {
     }
 }
 
-# Dolphin (GameCube/Wii) isn't on any scriptable release feed — its own
-# site blocks scraped downloads with an anti-bot challenge, and it has no
-# GitHub release assets either. winget's official DolphinEmulator.Dolphin
-# package is the one channel that still works, since winget resolves the
-# real download URL itself rather than us guessing one. Note: winget's
-# App Execution Alias needs a real interactive desktop session to resolve
-# at all — confirmed to fail outright over a plain non-interactive session
-# (e.g. SSH exec) even with the same user, so this only works when this
-# script runs as part of a normal interactive installer run, not via
-# remote automation.
+# Dolphin (GameCube/Wii) has no GitHub release assets, and its own
+# download page (dolphin-emu.org) sits behind an anti-bot JS challenge that
+# blocks plain scripted requests (confirmed — curl/Invoke-WebRequest get a
+# 403 challenge page, a real browser passes it fine). But the actual file
+# CDN it links to (dl.dolphin-emu.org) is NOT behind that challenge —
+# confirmed with a real browser, then verified the direct file URL alone
+# returns a clean 200 with no challenge. Combined with GitHub's mirror of
+# the dolphin-emu/dolphin repo (present purely as tags, e.g. "2606a",
+# matching the download page's version numbering exactly), that's enough
+# to build the real download URL without winget, an interactive session,
+# or a browser at install time.
 function Install-Dolphin {
     Write-Step "Dolphin"
     $dest = Join-Path $EmulatorsDir "Dolphin-x64"
@@ -183,29 +184,48 @@ function Install-Dolphin {
         return
     }
     try {
-        & winget install --id DolphinEmulator.Dolphin -e --silent --accept-package-agreements --accept-source-agreements
-        # ES-DE's bundled DOLPHIN find rule only checks %ESPATH%\Emulators\
-        # Dolphin-x64\Dolphin.exe (staticpath) or a bare "Dolphin.exe" on
-        # PATH (systempath) — it does NOT know about winget's own install
-        # location (a hashed per-package folder under
-        # %LOCALAPPDATA%\Microsoft\WinGet\Packages\), so copy the installed
-        # files into the expected folder ourselves rather than assuming
-        # winget's PATH registration is enough.
-        $wingetPkg = Get-ChildItem "$env:LOCALAPPDATA\Microsoft\WinGet\Packages" -Directory -Filter "DolphinEmulator.Dolphin_*" -ErrorAction SilentlyContinue | Select-Object -First 1
-        if ($wingetPkg) {
-            $dolphinExe = Get-ChildItem $wingetPkg.FullName -Recurse -Filter "Dolphin.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-            if ($dolphinExe) {
-                New-Item -ItemType Directory -Path $dest -Force | Out-Null
-                Copy-Item -Path (Join-Path $dolphinExe.Directory.FullName "*") -Destination $dest -Recurse -Force
-                Write-Host "Dolphin installed via winget and copied to $dest."
-            } else {
-                Write-Host "winget installed Dolphin but Dolphin.exe wasn't found under $($wingetPkg.FullName) — check that folder manually."
+        # GitHub's tags API isn't sorted latest-first (a plain "2606" tag
+        # can appear before its own "2606a" hotfix in the raw list) — sort
+        # explicitly by the numeric part, then the hotfix letter suffix,
+        # both descending, rather than trusting API order.
+        $tags = Invoke-RestMethod -Uri "https://api.github.com/repos/dolphin-emu/dolphin/tags"
+        $version = $tags |
+            Where-Object { $_.name -match "^\d{4}a?$" } |
+            Sort-Object -Property @{Expression = { [int]($_.name.Substring(0, 4)) }; Descending = $true }, @{Expression = { $_.name.Length }; Descending = $true } |
+            Select-Object -First 1 -ExpandProperty name
+        if (-not $version) {
+            Write-Host "Couldn't determine the latest Dolphin version from GitHub tags — install manually, see README."
+            return
+        }
+        $url = "https://dl.dolphin-emu.org/releases/$version/dolphin-$version-x64.7z"
+        $archive = "$env:TEMP\dolphin-$version-x64.7z"
+        Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $archive
+
+        $sevenZip = Ensure-7Zip
+        if (-not $sevenZip) {
+            Write-Host "Couldn't get 7-Zip, skipping extraction. Extract $archive manually into $dest"
+            return
+        }
+        New-Item -ItemType Directory -Path $dest -Force | Out-Null
+        & $sevenZip x $archive "-o$dest" -y | Out-Null
+        Remove-Item $archive -Force -ErrorAction SilentlyContinue
+
+        # The 7z wraps everything in a "Dolphin-x64" subfolder — flatten it.
+        if (-not (Test-Path (Join-Path $dest "Dolphin.exe"))) {
+            $inner = Get-ChildItem $dest -Directory | Select-Object -First 1
+            if ($inner -and (Test-Path (Join-Path $inner.FullName "Dolphin.exe"))) {
+                Get-ChildItem $inner.FullName | Move-Item -Destination $dest -Force
+                Remove-Item $inner.FullName -Recurse -Force -ErrorAction SilentlyContinue
             }
+        }
+
+        if (Test-Path (Join-Path $dest "Dolphin.exe")) {
+            Write-Host "Dolphin $version staged at $dest."
         } else {
-            Write-Host "winget install of Dolphin didn't produce the expected package folder — it may have failed silently. Check manually, see README."
+            Write-Host "Dolphin extracted but Dolphin.exe not found where expected — check $dest manually."
         }
     } catch {
-        Write-Host "Dolphin install via winget failed: $($_.Exception.Message) — install manually, see README."
+        Write-Host "Dolphin install failed: $($_.Exception.Message) — install manually, see README."
     }
 }
 
@@ -265,7 +285,3 @@ if ($selectedIds -contains "3ds") {
     }
 }
 
-if ($selectedIds -contains "dolphin" -and -not (Get-Command winget -ErrorAction SilentlyContinue)) {
-    Write-Host ""
-    Write-Host "Dolphin was selected but winget isn't usable in this session (its App Execution Alias needs a real interactive desktop session — confirmed to fail over plain remote/automated sessions even as the same user). Run this installer normally on the actual PC, or install Dolphin yourself from https://dolphin-emu.org/download/ and place Dolphin.exe at $EmulatorsDir\Dolphin-x64\Dolphin.exe"
-}

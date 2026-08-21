@@ -80,13 +80,13 @@ Page custom ExistingInstallChoicePageCreate ExistingInstallChoicePageLeave
 ; needed — ES-DE's own bundled es_find_rules.xml already looks for a build
 ; at the exact folder installer/scripts/install-emulators.ps1 stages it to
 ; (verified against ES-DE's actual source, not guessed). All unchecked by
-; default -- several of these are multi-gigabyte downloads. Dolphin (via
-; winget) and Switch/Eden (its own Gitea releases, since it moved off
-; GitHub after Nintendo takedown notices) need a real interactive install
-; run to work -- winget in particular is confirmed to fail outright over a
-; plain remote/automated session even as the same user, so both are more
-; likely to actually succeed when this installer is run normally on the
-; target PC than in any kind of unattended/remote deployment.
+; default -- several of these are multi-gigabyte downloads. Every entry
+; here downloads directly (no winget, no interactive-session dependency) --
+; Dolphin's own site is behind an anti-bot challenge that blocks scripted
+; page loads, but its actual file CDN (dl.dolphin-emu.org) isn't, and the
+; current version number comes from GitHub's tag mirror of the project;
+; Eden (Switch) ships its own releases directly since moving off GitHub
+; after Nintendo takedown notices.
 Var EmuCemu
 Var Emu3ds
 Var EmuDuckstation
@@ -117,7 +117,7 @@ Function EmulatorChoicePageCreate
   Pop $EmuCemu
   ${NSD_CreateCheckbox} 50% 0 48% 12u "Azahar (3DS, Citra successor)"
   Pop $Emu3ds
-  ${NSD_CreateCheckbox} 0 16u 48% 12u "Dolphin (GameCube/Wii, via winget)"
+  ${NSD_CreateCheckbox} 0 16u 48% 12u "Dolphin (GameCube/Wii)"
   Pop $EmuDolphin
   ${NSD_CreateCheckbox} 50% 16u 48% 12u "DuckStation (PS1)"
   Pop $EmuDuckstation
@@ -141,12 +141,6 @@ Function EmulatorChoicePageCreate
   Pop $EmuXenia
   ${NSD_CreateCheckbox} 50% 96u 48% 12u "RetroArch (older/misc consoles)"
   Pop $EmuRetroarch
-
-  ${NSD_CreateLabel} 0 116u 100% 20u \
-    "Dolphin and Eden need winget, which only works when you run this \
-    installer normally (not via remote/unattended deployment) -- see the \
-    README if either doesn't end up installed."
-  Pop $0
 
   nsDialogs::Show
 FunctionEnd
