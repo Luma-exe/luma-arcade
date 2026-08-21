@@ -1,63 +1,87 @@
 # LumaArcade
 
-Self-hosted game streaming portal — a single Node.js/TypeScript process on your
-Windows gaming PC that runs in the system tray, serves a web UI, and streams
-your desktop/games to any browser with low-latency WebRTC video and
-mouse/keyboard/gamepad input piped back.
+A thin login shell in front of your own [Sunshine](https://github.com/LizardByte/Sunshine) +
+[ES-DE](https://es-de.org/) + [moonlight-web-stream](https://github.com/MrCreativ3001/moonlight-web-stream)
+setup. LumaArcade itself is a small Node.js/TypeScript process that runs on
+your Windows gaming PC: it password-gates access, manages the
+moonlight-web-stream process's lifecycle, and reverse-proxies the browser to
+it. All of the actual game streaming — capture, encode, input, the in-stream
+UI — is handled by that stack, not by LumaArcade.
 
-All six build phases from the project brief are implemented: tray app +
-embedded server + auth, Steam/Epic/emulation library scanning with IGDB box
-art, per-game window capture with full-desktop fallback, optional Cloudflare
-Tunnel + coturn remote access, and the polish pass (reconnect/resume,
-connection-quality HUD, gamepad passthrough).
+## How it fits together
 
-## Prerequisites (verify before running)
+```
+Browser  ─▶  LumaArcade (auth + reverse proxy, one port)
+                   │
+                   ▼
+        moonlight-web-stream (loopback only, behind the proxy)
+                   │
+        [ Moonlight protocol, LAN or internet ]
+                   │
+                   ▼
+              Sunshine (host PC)
+                   │
+                   ▼
+                 ES-DE
+                   │
+                   ▼
+          Emulators & PC games
+```
 
-The Windows installer (`installer/LumaArcade.nsi`) tries to install GStreamer
-and ViGEmBus automatically via `winget` during setup, so most users won't
-need to do this by hand — this section is for running from source, or for
-when the automatic install can't run (no `winget`, offline, or a driver
-install needs an admin prompt nobody was there to approve, which is possible
-under a silent `/S` install).
+Open the portal, log in, and you're handed off (via LumaArcade's `/stream`
+reverse proxy) straight into moonlight-web-stream's browser client, which is
+streaming Sunshine's video of ES-DE.
 
-1. **Node.js 20+** and npm.
-2. **GStreamer 1.22+** on `PATH`, including:
-   - `gst-plugins-bad` (for `d3d11screencapturesrc`)
-   - `gst-plugins-rs`'s `webrtcsink` element — **not always bundled in the
-     stock Windows MSVC installer.** Verify:
-     ```bash
-     gst-inspect-1.0 webrtcsink
-     gst-inspect-1.0 d3d11screencapturesrc
-     ```
-     If `webrtcsink` is missing, you'll need a GStreamer build that includes
-     `gst-plugins-rs`. Per-game window capture additionally needs the
-     `window-handle` property on `d3d11screencapturesrc` (recent GStreamer) —
-     if it's absent, the app automatically falls back to full-desktop capture.
-3. An NVIDIA GPU + driver with NVENC. `webrtcsink` auto-negotiates its
-   encoder and should prefer a hardware H.264 encoder when available;
-   confirm with `gst-inspect-1.0 nvh264enc`.
-4. **Gamepad passthrough**: [ViGEmBus](https://github.com/ViGEm/ViGEmBus) —
-   installed automatically by the Windows installer. Without it, gamepad
-   input from the browser is silently ignored (logged once) rather than
-   crashing anything.
-5. **Optional — remote access**: `cloudflared.exe` on `PATH`, and a coturn
-   Windows build (`turnserver.exe`) if you want a bundled TURN relay — coturn
-   isn't npm-installable, so download the official Windows release yourself
-   and point Settings → Network at its path.
-6. **Optional — box art**: a free Twitch developer app (for the IGDB API) at
-   dev.twitch.tv/console/apps, entered in Settings → Box art.
+## Installing
 
-## Getting started
+Run `installer/output/LumaArcadeSetup.exe` (see [Building the Windows
+installer](#building-the-windows-installer) below to produce it). During
+install it downloads and sets up all three dependencies for you:
+
+- **Sunshine** — latest Windows MSI from its GitHub releases, installed
+  silently (prompts once for the UAC elevation it needs).
+- **ES-DE** — latest Windows installer from its GitLab releases.
+- **moonlight-web-stream** — no installer needed; the latest release zip is
+  extracted to `<install dir>\moonlight-web-stream\`.
+
+See `installer/scripts/install-deps.ps1` for exactly what it does — every
+step is best-effort: a failed download or an installer that doesn't behave
+as expected logs to the install log and leaves that one piece for you to
+finish manually rather than aborting the whole LumaArcade install.
+
+### After installing
+
+1. Open LumaArcade, set your password, go to **Settings → Streaming**, and
+   click **"Detect & wire up dependencies."** This finds the three installs
+   above, adds ES-DE to Sunshine's app list, and points LumaArcade at
+   moonlight-web-stream — everything that's purely mechanical.
+2. Two things genuinely need a human once each, and can't be scripted:
+   - Open **Sunshine** (`https://localhost:47990`) and create its admin
+     account on the first-run welcome page.
+   - Open **`/stream/`** directly (moonlight-web-stream's own UI), log in
+     with the admin account you just created there on its own first visit,
+     add a host (`localhost`, default port), click it, and enter the PIN it
+     shows into Sunshine's pairing page.
+3. (Optional, recommended) In Sunshine's `config\sunshine.conf`, set
+   `dd_configuration_option = ensure_active`, `dd_resolution_option =
+   manual`, and `dd_manual_resolution = 1920x1080` (or whatever you want) —
+   without this Sunshine just captures whatever resolution the display
+   happens to already be at, which on a headless/virtual-display box is
+   often far smaller than 1080p.
+4. Set up ES-DE's own systems/ROMs/emulators through its own UI — that's
+   entirely outside LumaArcade, same as it would be if you'd installed ES-DE
+   yourself with no LumaArcade involved at all.
+
+## Getting started (LumaArcade itself, from source)
 
 ```bash
 npm install
-npm run dev:server   # terminal 1 — Fastify + GStreamer orchestration on :7777
-npm run dev:client   # terminal 2 — Vite dev server, proxies /api and /signalling to :7777
+npm run dev:server   # terminal 1 — Fastify auth + reverse proxy on :7777
+npm run dev:client   # terminal 2 — Vite dev server, proxies /api and /stream to :7777
 ```
 
 Open `http://localhost:5173`, set a password on first run, then use Settings
-to enable the sources you want (Steam/Epic are auto-detected; Emulation and
-Custom Apps need folders/paths configured first) and hit **Rescan library**.
+→ Streaming as described above.
 
 For a production-style single-process run:
 
@@ -73,72 +97,53 @@ npm run package        # requires NSIS (winget install NSIS.NSIS) and a system N
 ```
 
 Produces `installer/output/LumaArcadeSetup.exe` — a per-user install (no
-admin/UAC prompt) to `%LOCALAPPDATA%\Programs\LumaArcade`, with a Start Menu
-shortcut, an uninstaller, and a finish-page "start with Windows" checkbox.
-It bundles a copied `node.exe` and production-only `node_modules` (including
-`better-sqlite3`'s native binary) so end users don't need Node.js installed
-separately — see `installer/build.mjs` for the staging steps and
-`installer/LumaArcade.nsi` for the installer script itself. GStreamer and
-ViGEmBus aren't bundled directly (too large / separately licensed to ship
-inside our own installer), but the install step does invoke `winget install`
-for both automatically if they're missing — this can still trigger a UAC
-prompt for the ViGEmBus kernel driver, and can't do anything useful under a
-silent `/S` install if nobody's there to approve it, in which case it prints
-a note in the install log and falls back to the manual steps in
-Prerequisites above. cloudflared/coturn remain fully manual (see
-Prerequisites) since they're optional remote-access-only dependencies.
-
-## What each source needs to work
-
-- **Steam / Epic**: auto-detected from the local install (registry lookup /
-  `libraryfolders.vdf` for Steam, `EpicGamesLauncher\Data\Manifests` for
-  Epic). Launching shells out to the `steam://` / `com.epicgames.launcher://`
-  protocol handlers, so the respective client must be installed.
-- **Emulation**: add a ROM folder per console in Settings, pointing at a
-  standalone emulator executable and a launch-args template (`{rom}`
-  placeholder substituted with the ROM path at launch time) — this supports
-  any emulator's CLI convention without hardcoding one per console.
-- **Custom apps**: whitelist any `.exe` in Settings; shows up as its own tile.
+admin/UAC prompt for LumaArcade itself, though installing Sunshine/ES-DE
+does prompt once each) to `%LOCALAPPDATA%\Programs\LumaArcade`, with a Start
+Menu shortcut, an uninstaller, and a finish-page "start with Windows"
+checkbox. It bundles a copied `node.exe` and production-only `node_modules`
+(including `better-sqlite3`'s native binary) so end users don't need Node.js
+installed separately — see `installer/build.mjs` for the staging steps and
+`installer/LumaArcade.nsi` for the installer script itself.
 
 ## Architecture notes
 
-- **WebRTC signalling**: GStreamer's `webrtcsink` element owns its own
-  `RTCPeerConnection` inside the spawned `gst-launch-1.0` child process and
-  speaks the `gst-plugins-rs` signalling protocol (JSON over WebSocket) to
-  negotiate SDP/ICE. The Node server implements that protocol as a relay in
-  `server/src/signalling/server.ts` — both the GStreamer process and the
-  browser connect to it as peers. This was reconstructed from the
-  `net/webrtc/protocol` crate in `gst-plugins-rs`; if the stream fails to
-  negotiate, diff the message shapes against that crate's current source.
-- **Input**: because the media `RTCPeerConnection` lives inside the
-  GStreamer child process rather than in Node, input events (mouse/keyboard/
-  gamepad) are sent over a dedicated authenticated WebSocket (`/input`)
-  rather than a WebRTC data channel — there's no in-process endpoint in Node
-  for a data channel terminating on the GStreamer side to reach.
-- **Per-game capture**: after launching a game we spawned ourselves
-  (emulation/custom), the server polls for the process's main window handle
-  and switches `d3d11screencapturesrc` to `window-handle=<hwnd>`. Steam/Epic
-  are launched via OS protocol handlers, so we never get a process id for
-  them — those always stream full desktop (documented limitation, not a bug).
+- **Auth**: a single app-wide password, signed session cookie
+  (`luma_session`), `requireAuth` preHandler on every protected route. See
+  `server/src/web/auth.ts` / `session.ts`.
+- **Reverse proxy**: `server/src/web/routes/moonlight.ts` registers
+  `@fastify/http-proxy` under `/stream`, behind the same `requireAuth` guard
+  as everything else, proxying both HTTP and WebSocket traffic to
+  `http://127.0.0.1:<moonlightWebStreamPort>`. The proxy target is bound at
+  server startup, so changing the port in Settings needs a LumaArcade
+  restart to take effect.
+- **Why `--bind-address 127.0.0.1` and `--path-prefix /stream`**: moonlight-
+  web-stream's own defaults are to bind `0.0.0.0` and serve at the root of
+  its origin. Left alone, that means (a) it's reachable directly, bypassing
+  LumaArcade's auth gate entirely — confirmed live during development, not
+  hypothetical — and (b) its frontend generates absolute-path links (e.g.
+  `/api/authenticate`) that 404 once actually proxied under `/stream`
+  without the prefix. `server/src/remote/moonlightWebStream.ts` passes both
+  flags whenever LumaArcade spawns it itself; the installer's
+  `install-deps.ps1` doesn't need to (LumaArcade always passes them at spawn
+  time, regardless of how the binary got onto disk).
+- **Process lifecycle**: `server/src/remote/moonlightWebStream.ts` spawns
+  and manages the moonlight-web-stream process using the same generic
+  `ManagedProcess` wrapper (`server/src/process/managedProcess.ts`) this app
+  has always used for long-lived child processes — it tolerates the binary
+  not being installed/configured yet rather than crashing.
+- **Setup helper**: `server/src/setup/{detect,apply}.ts` (behind
+  `POST /api/setup/run`, surfaced as the Settings page button) probes
+  standard install locations for all three dependencies and does the
+  mechanical wiring (ES-DE → Sunshine's `apps.json`, moonlight-web-stream
+  path → LumaArcade's own settings). Deliberately does not touch
+  `sunshine.conf`'s display settings or attempt any account creation/pairing
+  — those need a human in a browser once each.
 - **Auto-start** writes a `HKCU\...\Run` registry value, not a Windows
-  Service — services run in Session 0 and can't do screen capture or
-  `SendInput`.
-- **Remote access**: Cloudflare Tunnel proxies the HTTPS/WSS signalling
-  traffic but not raw UDP WebRTC/TURN media — if you enable the bundled
-  coturn relay, its port must be reachable directly (router port-forward),
-  configured via a separate "public host" setting rather than reused from
-  the tunnel hostname. Cloudflare Access policy (email OTP, domain) is set up
-  in the Cloudflare dashboard, not in this app; the app-level password stays
-  on regardless, as a second layer and because LAN access bypasses the
-  tunnel entirely.
-- **Gamepad**: verified against the actual `vigemclient` package source
-  (`node_modules/vigemclient/lib/X360Controller.js`) rather than assumed —
-  sticks take -1..1, triggers 0..1, matching the browser Gamepad API closely.
-  Degrades to a no-op with a single logged warning if ViGEmBus isn't
-  installed.
-
-## Anti-cheat caveat
-
-Games with kernel-level anti-cheat (Valorant, some CoD/Battlefield titles)
-may flag capture or input-injection tooling. This is expected — don't try to
-work around it by hiding the program.
+  Service — services run in Session 0, which matters less now that
+  LumaArcade itself doesn't touch the display/input, but keeps LumaArcade's
+  own boot behavior consistent with before.
+- **Remote/WAN access**: LumaArcade itself is LAN-only — there's no bundled
+  tunnel or TURN relay. If you want to play from outside your LAN, that's
+  handled by however you expose LumaArcade's own port (port-forwarding, your
+  own VPN/tunnel, a reverse proxy like Caddy/nginx in front of it, etc.), not
+  by LumaArcade itself.

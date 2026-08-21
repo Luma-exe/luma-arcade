@@ -1,22 +1,14 @@
 import { useEffect, useState } from "react";
-import {
-  api,
-  type AppSettings,
-  type CustomAppRow,
-  type DependencyStatus,
-  type RomFolderRow,
-  type UpdateStatus,
-} from "../lib/api.js";
-import { SELECTABLE_SYSTEM_IDS, getSystemDisplayName } from "../lib/systemNames.js";
+import { api, type AppSettings, type SetupResult, type UpdateStatus } from "../lib/api.js";
 
 export function Settings({ onBack }: { onBack: () => void }) {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [draft, setDraft] = useState<Partial<AppSettings>>({});
-  const [romFolders, setRomFolders] = useState<RomFolderRow[]>([]);
-  const [customApps, setCustomApps] = useState<CustomAppRow[]>([]);
-  const [dependencies, setDependencies] = useState<DependencyStatus[]>([]);
-  const [scanning, setScanning] = useState(false);
-  const [installing, setInstalling] = useState<string | null>(null);
+  const [moonlightReachable, setMoonlightReachable] = useState<boolean | null>(null);
+  const [checkingMoonlight, setCheckingMoonlight] = useState(false);
+  const [runningSetup, setRunningSetup] = useState(false);
+  const [setupResult, setSetupResult] = useState<SetupResult | null>(null);
+  const [setupError, setSetupError] = useState<string | null>(null);
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [applyingUpdate, setApplyingUpdate] = useState(false);
@@ -28,11 +20,38 @@ export function Settings({ onBack }: { onBack: () => void }) {
 
   useEffect(() => {
     api.getSettings().then(setSettings);
-    api.getRomFolders().then(setRomFolders);
-    api.getCustomApps().then(setCustomApps);
-    rescanDependencies();
+    checkMoonlight();
     checkUpdate();
   }, []);
+
+  async function checkMoonlight() {
+    setCheckingMoonlight(true);
+    try {
+      const { reachable } = await api.getMoonlightStatus();
+      setMoonlightReachable(reachable);
+    } catch {
+      setMoonlightReachable(false);
+    } finally {
+      setCheckingMoonlight(false);
+    }
+  }
+
+  async function handleRunSetup() {
+    setRunningSetup(true);
+    setSetupError(null);
+    try {
+      const result = await api.runSetup();
+      setSetupResult(result);
+      if (result.moonlightPathUpdated) {
+        setSettings(await api.getSettings());
+        checkMoonlight();
+      }
+    } catch (err) {
+      setSetupError((err as Error).message);
+    } finally {
+      setRunningSetup(false);
+    }
+  }
 
   async function checkUpdate() {
     setCheckingUpdate(true);
@@ -57,22 +76,6 @@ export function Settings({ onBack }: { onBack: () => void }) {
     }
   }
 
-  async function rescanDependencies() {
-    setScanning(true);
-    try {
-      const { dependencies } = await api.getDependencies();
-      setDependencies(dependencies);
-    } finally {
-      setScanning(false);
-    }
-  }
-
-  async function handleInstall(dep: DependencyStatus) {
-    setInstalling(dep.wingetId);
-    await api.installDependency(dep.wingetId).catch(() => {});
-    setInstalling(null);
-  }
-
   function update(partial: Partial<AppSettings>) {
     setSaved(false);
     setDraft((d) => ({ ...d, ...partial }));
@@ -90,6 +93,7 @@ export function Settings({ onBack }: { onBack: () => void }) {
       setDraft({});
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
+      checkMoonlight();
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -110,39 +114,76 @@ export function Settings({ onBack }: { onBack: () => void }) {
       <header className="library-header">
         <h1>Settings</h1>
         <div className="header-actions">
-          <button onClick={onBack}>Back to Home</button>
+          <button onClick={onBack}>Back to Stream</button>
         </div>
       </header>
 
       {error && <p className="error">{error}</p>}
 
-      <Section title="Dependencies">
+      <Section title="Streaming">
         <p className="muted">
-          Checks the video pipeline, controller driver, and remote-access tunnel LumaArcade
-          relies on. These are normally installed automatically when you run the installer —
-          use this if something's missing or you skipped that step.
+          LumaArcade is now just a login gate in front of your own Sunshine + ES-DE + {" "}
+          <a href="https://github.com/MrCreativ3001/moonlight-web-stream" target="_blank" rel="noreferrer">
+            moonlight-web-stream
+          </a>{" "}
+          setup. On the host PC: install Sunshine, add ES-DE as a Sunshine app, then build/install
+          moonlight-web-stream and point the fields below at it. LumaArcade will spawn and manage
+          that process for you and proxy the browser to it under <code>/stream</code>.
         </p>
-        {dependencies.map((dep) => (
-          <div key={dep.id} className="row">
-            <span>
-              {dep.installed ? "✓" : "✗"} {dep.label}
-            </span>
-            {!dep.installed && (
-              <button onClick={() => handleInstall(dep)} disabled={installing === dep.wingetId}>
-                {installing === dep.wingetId ? "Installing…" : "Install"}
-              </button>
-            )}
-          </div>
-        ))}
-        <button onClick={rescanDependencies} disabled={scanning}>
-          {scanning ? "Scanning…" : "Rescan for missing dependencies"}
-        </button>
-        {installing && (
-          <p className="muted">
-            Installing in the background — this can take a few minutes for GStreamer. Click
-            Rescan afterward to confirm.
-          </p>
+        <div className="row">
+          <span>
+            {checkingMoonlight
+              ? "Checking…"
+              : moonlightReachable
+                ? "✓ moonlight-web-stream is reachable"
+                : "✗ moonlight-web-stream is not reachable"}
+          </span>
+          <button onClick={checkMoonlight} disabled={checkingMoonlight}>
+            Recheck
+          </button>
+        </div>
+        <div className="row">
+          <span>Auto-detect Sunshine, ES-DE, and moonlight-web-stream on this PC</span>
+          <button onClick={handleRunSetup} disabled={runningSetup}>
+            {runningSetup ? "Detecting…" : "Detect & wire up dependencies"}
+          </button>
+        </div>
+        {setupError && <p className="error">{setupError}</p>}
+        {setupResult && (
+          <ul className="muted" style={{ margin: 0, paddingLeft: "1.2rem" }}>
+            {setupResult.notes.map((note, i) => (
+              <li key={i}>{note}</li>
+            ))}
+          </ul>
         )}
+        <p className="muted">
+          This wires up what's purely mechanical (adding ES-DE to Sunshine's app list, pointing
+          LumaArcade at moonlight-web-stream). Two one-time manual steps it can't do for you: open{" "}
+          <a href="https://localhost:47990" target="_blank" rel="noreferrer">
+            Sunshine
+          </a>{" "}
+          once to create its admin account, then pair it from moonlight-web-stream's own UI (open{" "}
+          <a href="/stream/" target="_blank" rel="noreferrer">
+            /stream/
+          </a>{" "}
+          directly, add a host, click it, and enter the PIN it shows into Sunshine).
+        </p>
+        <TextField
+          label="moonlight-web-stream executable path"
+          value={view.moonlightWebStreamPath}
+          onChange={(v) => update({ moonlightWebStreamPath: v })}
+        />
+        <TextField
+          label="Port"
+          value={String(view.moonlightWebStreamPort)}
+          onChange={(v) => update({ moonlightWebStreamPort: Number(v) || 8080 })}
+        />
+        <Toggle
+          label="Have LumaArcade start it automatically"
+          checked={view.moonlightAutoStart}
+          onChange={(v) => update({ moonlightAutoStart: v })}
+        />
+        <p className="muted">Path/port changes take effect after restarting LumaArcade.</p>
       </Section>
 
       <Section title="Updates">
@@ -206,204 +247,6 @@ export function Settings({ onBack }: { onBack: () => void }) {
         <p className="muted">Takes effect after restarting LumaArcade.</p>
       </Section>
 
-      <Section title="Controls">
-        <TextField
-          label="Mouse sensitivity"
-          value={String(view.mouseSensitivity)}
-          onChange={(v) => update({ mouseSensitivity: Number(v) || 1 })}
-        />
-        <p className="muted">1 = normal speed. Lower for finer control, higher for faster movement.</p>
-        <Toggle
-          label="Invert scroll direction"
-          checked={view.invertScroll}
-          onChange={(v) => update({ invertScroll: v })}
-        />
-        <TextField
-          label="Gamepad deadzone"
-          value={String(view.gamepadDeadzone)}
-          onChange={(v) => update({ gamepadDeadzone: Math.min(1, Math.max(0, Number(v) || 0)) })}
-        />
-        <p className="muted">
-          0 to 1. Stick movement smaller than this is ignored — raise it if a controller drifts
-          on its own.
-        </p>
-      </Section>
-
-      <Section title="Launch Mode">
-        <p className="muted">
-          Standalone shows LumaArcade's own home screen when you open the portal, with
-          Full Desktop as one tile among Steam/Epic/etc. ES-DE mode skips straight to a live
-          window into a real, natively-installed ES-DE (EmulationStation Desktop Edition) —
-          launched automatically, or attached to if it's already running.
-        </p>
-        <label className="field-row">
-          Mode
-          <select
-            value={view.launchMode}
-            onChange={(e) => update({ launchMode: e.target.value as "standalone" | "esde" })}
-          >
-            <option value="standalone">Standalone</option>
-            <option value="esde">ES-DE</option>
-          </select>
-        </label>
-        {view.launchMode === "esde" && (
-          <TextField
-            label="ES-DE executable path"
-            value={view.esdeExePath}
-            onChange={(v) => update({ esdeExePath: v })}
-          />
-        )}
-        <p className="muted">
-          You can also switch modes anytime from the tray icon — right-click it and choose
-          "Switch to ES-DE Mode" / "Switch to Standalone Mode".
-        </p>
-      </Section>
-
-      {view.launchMode === "standalone" && (
-        <Section title="Sources">
-          <Toggle label="Steam" checked={view.steamEnabled} onChange={(v) => update({ steamEnabled: v })} />
-          <Toggle label="Epic Games" checked={view.epicEnabled} onChange={(v) => update({ epicEnabled: v })} />
-          <Toggle
-            label="Emulation"
-            checked={view.emulationEnabled}
-            onChange={(v) => update({ emulationEnabled: v })}
-          />
-          <Toggle
-            label="Custom apps"
-            checked={view.customAppsEnabled}
-            onChange={(v) => update({ customAppsEnabled: v })}
-          />
-          <Toggle
-            label="Full Desktop access"
-            checked={view.fullDesktopEnabled}
-            onChange={(v) => update({ fullDesktopEnabled: v })}
-          />
-        </Section>
-      )}
-
-      <Section title="Box art (IGDB)">
-        <p className="muted">
-          Requires a free Twitch developer app — create one at dev.twitch.tv/console/apps.
-        </p>
-        <TextField label="Client ID" value={view.igdbClientId} onChange={(v) => update({ igdbClientId: v })} />
-        <TextField
-          label="Client Secret"
-          value={view.igdbClientSecret}
-          type="password"
-          onChange={(v) => update({ igdbClientSecret: v })}
-        />
-      </Section>
-
-      <Section title="Video">
-        <TextField
-          label="Framerate"
-          value={String(view.framerate)}
-          onChange={(v) => update({ framerate: Number(v) || 60 })}
-        />
-        <label className="field-row">
-          Bitrate: {(view.bitrateKbps / 1000).toFixed(1)} Mbps
-          <input
-            type="range"
-            min={1000}
-            max={20000}
-            step={500}
-            value={view.bitrateKbps}
-            onChange={(e) => update({ bitrateKbps: Number(e.target.value) })}
-          />
-        </label>
-        <label className="field-row">
-          NVENC preset
-          <select
-            value={view.nvencPreset}
-            onChange={(e) => update({ nvencPreset: e.target.value })}
-          >
-            <option value="default">Default</option>
-            <option value="hp">High Performance</option>
-            <option value="hq">High Quality</option>
-            <option value="low-latency">Low Latency</option>
-            <option value="low-latency-hq">Low Latency, High Quality</option>
-            <option value="low-latency-hp">Low Latency, High Performance</option>
-            <option value="lossless">Lossless</option>
-            <option value="lossless-hp">Lossless, High Performance</option>
-          </select>
-        </label>
-      </Section>
-
-      <Section title="Network">
-        <Toggle
-          label="Enable remote access via Cloudflare Tunnel"
-          checked={view.remoteAccessEnabled}
-          onChange={(v) => update({ remoteAccessEnabled: v })}
-        />
-        {view.remoteAccessEnabled && (
-          <>
-            <TextField
-              label="Cloudflare Tunnel token"
-              value={view.cloudflareTunnelToken}
-              type="password"
-              onChange={(v) => update({ cloudflareTunnelToken: v })}
-            />
-            <Toggle
-              label="Run local TURN relay (coturn)"
-              checked={view.turnServerEnabled}
-              onChange={(v) => update({ turnServerEnabled: v })}
-            />
-            <TextField
-              label="coturn turnserver.exe path"
-              value={view.turnServerBinaryPath}
-              onChange={(v) => update({ turnServerBinaryPath: v })}
-            />
-            {view.turnServerEnabled && (
-              <>
-                <p className="muted">
-                  TURN carries raw UDP media traffic, which a Cloudflare Tunnel can't proxy —
-                  port-forward the TURN port on your router and enter the public IP or DDNS
-                  hostname below.
-                </p>
-                <TextField
-                  label="Public host/IP for TURN"
-                  value={view.turnPublicHost}
-                  onChange={(v) => update({ turnPublicHost: v })}
-                />
-                <TextField
-                  label="TURN port"
-                  value={String(view.turnPort)}
-                  onChange={(v) => update({ turnPort: Number(v) || 3478 })}
-                />
-              </>
-            )}
-          </>
-        )}
-      </Section>
-
-      {view.launchMode === "standalone" && (
-        <Section title="ROM folders">
-          {romFolders.map((f) => (
-            <div key={f.id} className="row">
-              <span>
-                {getSystemDisplayName(f.console)}: {f.folder_path} → {f.emulator_exe_path}
-              </span>
-              <button onClick={async () => setRomFolders(await api.removeRomFolder(f.id))}>Remove</button>
-            </div>
-          ))}
-          <RomFolderForm onAdd={async (body) => setRomFolders(await api.addRomFolder(body))} />
-        </Section>
-      )}
-
-      {view.launchMode === "standalone" && (
-        <Section title="Custom apps">
-          {customApps.map((a) => (
-            <div key={a.id} className="row">
-              <span>
-                {a.display_name}: {a.exe_path}
-              </span>
-              <button onClick={async () => setCustomApps(await api.removeCustomApp(a.id))}>Remove</button>
-            </div>
-          ))}
-          <CustomAppForm onAdd={async (body) => setCustomApps(await api.addCustomApp(body))} />
-        </Section>
-      )}
-
       <div className="save-bar">
         {dirty && !saving && <span className="unsaved">You have unsaved changes</span>}
         {saved && <span className="unsaved">Saved</span>}
@@ -457,93 +300,5 @@ function TextField({
       {label}
       <input type={type} value={value} onChange={(e) => onChange(e.target.value)} />
     </label>
-  );
-}
-
-function RomFolderForm({
-  onAdd,
-}: {
-  onAdd: (body: {
-    console: string;
-    folderPath: string;
-    emulatorExePath: string;
-    launchArgsTemplate: string;
-  }) => void;
-}) {
-  const [consoleName, setConsoleName] = useState("");
-  const [folderPath, setFolderPath] = useState("");
-  const [emulatorExePath, setEmulatorExePath] = useState("");
-  const [launchArgsTemplate, setLaunchArgsTemplate] = useState("{rom}");
-
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!consoleName || !folderPath || !emulatorExePath) return;
-    onAdd({ console: consoleName, folderPath, emulatorExePath, launchArgsTemplate });
-    setConsoleName("");
-    setFolderPath("");
-    setEmulatorExePath("");
-    setLaunchArgsTemplate("{rom}");
-  }
-
-  return (
-    <form className="inline-form" onSubmit={submit}>
-      <select value={consoleName} onChange={(e) => setConsoleName(e.target.value)}>
-        <option value="">Console…</option>
-        {SELECTABLE_SYSTEM_IDS.map((id) => (
-          <option key={id} value={id}>
-            {getSystemDisplayName(id)}
-          </option>
-        ))}
-      </select>
-      <input
-        placeholder="ROM folder path"
-        value={folderPath}
-        onChange={(e) => setFolderPath(e.target.value)}
-      />
-      <input
-        placeholder="Emulator .exe path"
-        value={emulatorExePath}
-        onChange={(e) => setEmulatorExePath(e.target.value)}
-      />
-      <input
-        placeholder="Launch args ({rom} placeholder)"
-        value={launchArgsTemplate}
-        onChange={(e) => setLaunchArgsTemplate(e.target.value)}
-      />
-      <button type="submit">Add</button>
-    </form>
-  );
-}
-
-function CustomAppForm({
-  onAdd,
-}: {
-  onAdd: (body: { displayName: string; exePath: string }) => void;
-}) {
-  const [displayName, setDisplayName] = useState("");
-  const [exePath, setExePath] = useState("");
-
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!displayName || !exePath) return;
-    onAdd({ displayName, exePath });
-    setDisplayName("");
-    setExePath("");
-  }
-
-  return (
-    <form className="inline-form" onSubmit={submit}>
-      <input
-        placeholder="Display name"
-        value={displayName}
-        onChange={(e) => setDisplayName(e.target.value)}
-      />
-      <input
-        placeholder=".exe or .lnk path"
-        value={exePath}
-        onChange={(e) => setExePath(e.target.value)}
-      />
-      <button type="submit">Add</button>
-    </form>
   );
 }

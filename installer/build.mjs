@@ -37,6 +37,9 @@ cpSync(
 cpSync(path.join(repoRoot, "client", "dist"), path.join(stagingDir, "client", "dist"), {
   recursive: true,
 });
+cpSync(path.join(__dirname, "scripts"), path.join(stagingDir, "scripts"), {
+  recursive: true,
+});
 
 console.log("=== 3. Installing production dependencies into staged copy ===");
 run("npm install --omit=dev --no-audit --no-fund", path.join(stagingDir, "server"));

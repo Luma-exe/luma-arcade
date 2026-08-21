@@ -6,8 +6,7 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": "http://localhost:7777",
-      "/signalling": { target: "ws://localhost:7777", ws: true },
-      "/input": { target: "ws://localhost:7777", ws: true },
+      "/stream": { target: "ws://localhost:7777", ws: true },
     },
   },
 });

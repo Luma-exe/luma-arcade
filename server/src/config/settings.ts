@@ -4,41 +4,12 @@ export interface AppSettings {
   port: number;
   autoStart: boolean;
 
-  steamEnabled: boolean;
-  epicEnabled: boolean;
-  emulationEnabled: boolean;
-  customAppsEnabled: boolean;
-  fullDesktopEnabled: boolean;
-
-  igdbClientId: string;
-  igdbClientSecret: string;
-
-  framerate: number;
-  bitrateKbps: number;
-  nvencPreset: string;
-
-  remoteAccessEnabled: boolean;
-  cloudflareTunnelToken: string;
-  turnServerBinaryPath: string;
-  turnServerEnabled: boolean;
-  turnSharedSecret: string;
-  turnRealm: string;
-  turnPort: number;
-  turnPublicHost: string;
-
-  /** 'standalone' = opening the portal shows LumaArcade's own carousel home
-   * screen (Full Desktop is one tile among Steam/Epic/etc). 'esde' = opening
-   * the portal skips straight to a live view of a real, natively-installed
-   * ES-DE (EmulationStation Desktop Edition) instance — launched (or
-   * attached to, if already running) and window-captured automatically,
-   * for users who already run real ES-DE on this PC and want LumaArcade to
-   * be a pure remote window into it rather than its own front-end. */
-  launchMode: "standalone" | "esde";
-  esdeExePath: string;
-
-  mouseSensitivity: number;
-  invertScroll: boolean;
-  gamepadDeadzone: number;
+  /** Path to the moonlight-web-stream executable/launcher on this machine.
+   * LumaArcade spawns and manages it as a child process (same pattern the
+   * old cloudflared/coturn integration used) when moonlightAutoStart is on. */
+  moonlightWebStreamPath: string;
+  moonlightWebStreamPort: number;
+  moonlightAutoStart: boolean;
 
   /** Path to a git checkout of luma-arcade (e.g. the same source tree this
    * build was compiled from) — enables the Settings "Apply update" button to
@@ -54,34 +25,9 @@ const DEFAULTS: AppSettings = {
   port: 7777,
   autoStart: false,
 
-  steamEnabled: true,
-  epicEnabled: true,
-  emulationEnabled: true,
-  customAppsEnabled: true,
-  fullDesktopEnabled: true,
-
-  igdbClientId: "",
-  igdbClientSecret: "",
-
-  framerate: 60,
-  bitrateKbps: 8000,
-  nvencPreset: "low-latency-hq",
-
-  remoteAccessEnabled: false,
-  cloudflareTunnelToken: "",
-  turnServerBinaryPath: "",
-  turnServerEnabled: false,
-  turnSharedSecret: "",
-  turnRealm: "lumaarcade.local",
-  turnPort: 3478,
-  turnPublicHost: "",
-
-  launchMode: "standalone",
-  esdeExePath: "",
-
-  mouseSensitivity: 1,
-  invertScroll: false,
-  gamepadDeadzone: 0.08,
+  moonlightWebStreamPath: "",
+  moonlightWebStreamPort: 8080,
+  moonlightAutoStart: false,
 
   devTreePath: "",
 };

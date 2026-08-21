@@ -1,7 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 
 /** Generic spawn/log/stop wrapper reused for every long-lived child process
- * this app manages (GStreamer, cloudflared, coturn). */
+ * this app manages (currently just moonlight-web-stream). */
 export class ManagedProcess {
   private child: ChildProcessWithoutNullStreams | undefined;
   private stopping = false;
@@ -20,12 +20,12 @@ export class ManagedProcess {
     return !!this.child && this.child.exitCode === null;
   }
 
-  start(args: string[]): void {
+  start(args: string[], opts?: { cwd?: string }): void {
     if (this.isRunning()) return;
     this.stopping = false;
 
     const resolvedBinary = typeof this.binary === "function" ? this.binary() : this.binary;
-    this.child = spawn(resolvedBinary, args, { windowsHide: true });
+    this.child = spawn(resolvedBinary, args, { windowsHide: true, cwd: opts?.cwd });
 
     this.child.stdout.on("data", (chunk) => {
       process.stdout.write(`[${this.logTag}] ${chunk}`);
@@ -36,8 +36,8 @@ export class ManagedProcess {
 
     // An unhandled 'error' event on a ChildProcess (e.g. ENOENT — the binary
     // isn't installed/on PATH) crashes the entire Node process, taking the
-    // whole app down with it. This is the expected case until GStreamer/
-    // cloudflared/coturn are actually installed, so it must degrade to a
+    // whole app down with it. This is the expected case until
+    // moonlight-web-stream is actually configured, so it must degrade to a
     // logged failure, not a server crash.
     this.child.on("error", (err) => {
       console.error(`[${this.logTag}] failed to start:`, err.message);
