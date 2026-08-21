@@ -359,3 +359,15 @@ if ($selectedIds -contains "3ds") {
     }
 }
 
+# Most of these emulators write their own config/save files right next to
+# their own .exe (portable mode) — fine normally, but $EmulatorsDir usually
+# ends up under "C:\Program Files\ES-DE\Emulators\..." since that's where
+# ES-DE itself is installed, and Windows blocks non-elevated processes from
+# writing there at all. Confirmed live: melonDS failed outright with
+# "Unable to write to config" the first time a game was launched. Games
+# launched by Sunshine run as the interactive user, not elevated, so
+# without this every standalone emulator here would hit the same wall the
+# moment it tried to save settings or a save file.
+Write-Step "Granting write access to $EmulatorsDir"
+& icacls $EmulatorsDir /grant "Users:(OI)(CI)M" /T /Q | Out-Null
+
