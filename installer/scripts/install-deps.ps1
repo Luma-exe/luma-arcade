@@ -1,4 +1,4 @@
-# Downloads and installs the three dependencies LumaArcade's new
+﻿# Downloads and installs the three dependencies LumaArcade's new
 # Sunshine/ES-DE/moonlight-web-stream architecture needs. Invoked once by
 # LumaArcade.nsi's Install section via nsExec::ExecToLog. Every step is
 # best-effort and non-fatal — same philosophy the old installer used for
