@@ -19,6 +19,23 @@ export interface AppSettings {
   turnRealm: string;
   turnPort: number;
   turnPublicHost: string;
+  launchMode: "standalone" | "esde";
+  esdeExePath: string;
+
+  mouseSensitivity: number;
+  invertScroll: boolean;
+  gamepadDeadzone: number;
+
+  devTreePath: string;
+}
+
+export interface UpdateStatus {
+  localCommit: string;
+  builtAt: string;
+  latestCommit: string | null;
+  updateAvailable: boolean;
+  compareUrl: string | null;
+  error?: string;
 }
 
 export interface GameRow {
@@ -46,11 +63,25 @@ export interface RomFolderRow {
   launch_args_template: string;
 }
 
+export interface DependencyStatus {
+  id: "gstreamer" | "vigembus" | "cloudflared";
+  label: string;
+  installed: boolean;
+  wingetId: string;
+}
+
 export interface CustomAppRow {
   id: number;
   display_name: string;
   exe_path: string;
   icon_path: string | null;
+}
+
+export interface DisplayInfo {
+  index: number;
+  width: number;
+  height: number;
+  primary: boolean;
 }
 
 async function json<T>(res: Response): Promise<T> {
@@ -76,12 +107,23 @@ export const api = {
       json<{ ok: boolean; pid?: number }>(r)
     ),
 
-  switchToDesktop: () =>
-    fetch("/api/stream/switch-to-desktop", { method: "POST" }).then((r) => json(r)),
+  switchToDesktop: (monitorIndex?: number) =>
+    fetch("/api/stream/switch-to-desktop", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ monitorIndex }),
+    }).then((r) => json(r)),
   getStreamStatus: () =>
     fetch("/api/stream/status").then((r) =>
-      json<{ running: boolean; mode: "desktop" | "game"; gameId?: number; pid?: number }>(r)
+      json<{
+        running: boolean;
+        mode: "desktop" | "game";
+        gameId?: number;
+        pid?: number;
+        monitorIndex?: number;
+      }>(r)
     ),
+  getDisplays: () => fetch("/api/displays").then((r) => json<{ displays: DisplayInfo[] }>(r)),
 
   getRomFolders: () => fetch("/api/rom-folders").then((r) => json<RomFolderRow[]>(r)),
   addRomFolder: (body: {
@@ -97,6 +139,28 @@ export const api = {
     }).then((r) => json<RomFolderRow[]>(r)),
   removeRomFolder: (id: number) =>
     fetch(`/api/rom-folders/${id}`, { method: "DELETE" }).then((r) => json<RomFolderRow[]>(r)),
+
+  getRdpStatus: () => fetch("/api/rdp-status").then((r) => json<{ connected: boolean }>(r)),
+
+  checkForUpdate: () => fetch("/api/update/check").then((r) => json<UpdateStatus>(r)),
+  applyUpdate: () =>
+    fetch("/api/update/apply", { method: "POST" }).then((r) =>
+      json<{ ok: boolean; log: string[]; error?: string }>(r)
+    ),
+
+  getDependencies: () =>
+    fetch("/api/dependencies").then((r) => json<{ dependencies: DependencyStatus[] }>(r)),
+  installDependency: (wingetId: string) =>
+    fetch("/api/dependencies/install", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ wingetId }),
+    }).then((r) => json<{ ok: boolean; started: boolean }>(r)),
+
+  esdeLaunch: () =>
+    fetch("/api/esde/launch", { method: "POST" }).then((r) =>
+      json<{ ok: boolean; pid?: number; alreadyRunning?: boolean; error?: string }>(r)
+    ),
 
   getCustomApps: () => fetch("/api/custom-apps").then((r) => json<CustomAppRow[]>(r)),
   addCustomApp: (body: { displayName: string; exePath: string }) =>

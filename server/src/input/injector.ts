@@ -1,4 +1,6 @@
 import { keyboard, mouse, Point, Button, Key } from "@nut-tree-fork/nut-js";
+import { execFileSync } from "node:child_process";
+import { getSetting } from "../config/settings.js";
 import { applyGamepadState, type GamepadState } from "./gamepad.js";
 
 keyboard.config.autoDelayMs = 0;
@@ -38,20 +40,74 @@ const KEY_MAP: Record<string, Key> = {
   ArrowUp: Key.Up, ArrowDown: Key.Down, ArrowLeft: Key.Left, ArrowRight: Key.Right,
 };
 
-let screenWidth = 1920;
-let screenHeight = 1080;
+interface VirtualScreenBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
-export function setScreenSize(width: number, height: number): void {
-  screenWidth = width;
-  screenHeight = height;
+// Multi-monitor Windows setups place secondary displays at negative or
+// large-positive coordinates relative to the primary monitor (e.g. a
+// display to the left of primary starts at x=-1920) — the origin isn't
+// (0,0) and the extent isn't the primary monitor's own resolution. Clamping
+// mousemove deltas to a hardcoded 0..1920 box (or to whatever monitor the
+// browser tab reporting window.screen.width happens to sit on, which is a
+// different — and often wrong — display than whatever's actually being
+// captured/streamed) silently makes the cursor unreachable on any other
+// monitor, which looks exactly like "the mouse doesn't move at all" when
+// the streamed window happens to live there. Query the OS for the true
+// virtual desktop bounds instead of trusting client-supplied dimensions.
+function queryVirtualScreenBounds(): VirtualScreenBounds {
+  try {
+    const out = execFileSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-Command",
+        "Add-Type -AssemblyName System.Windows.Forms; " +
+          "$vs=[System.Windows.Forms.SystemInformation]::VirtualScreen; " +
+          '"$($vs.X),$($vs.Y),$($vs.Width),$($vs.Height)"',
+      ],
+      { encoding: "utf-8" }
+    ).trim();
+    const [x, y, width, height] = out.split(",").map(Number);
+    if ([x, y, width, height].some((n) => !Number.isFinite(n))) {
+      throw new Error(`unparseable output: "${out}"`);
+    }
+    return { x, y, width, height };
+  } catch (err) {
+    console.warn(
+      "[input] failed to query virtual screen bounds, defaulting to a single 1920x1080 monitor at the origin:",
+      (err as Error).message
+    );
+    return { x: 0, y: 0, width: 1920, height: 1080 };
+  }
+}
+
+let virtualScreen = queryVirtualScreenBounds();
+
+/** Called once per stream start — re-queries display topology in case
+ * monitors were plugged/unplugged/rearranged since the server booted. The
+ * width/height arguments are accepted for API stability but unused: they
+ * describe the browser tab's own monitor, not the captured target's. */
+export function setScreenSize(_width: number, _height: number): void {
+  virtualScreen = queryVirtualScreenBounds();
 }
 
 export async function applyInputEvent(event: InputEvent): Promise<void> {
   switch (event.kind) {
     case "mousemove": {
+      const sensitivity = getSetting("mouseSensitivity");
       const current = await mouse.getPosition();
-      const x = Math.min(screenWidth - 1, Math.max(0, current.x + event.dx));
-      const y = Math.min(screenHeight - 1, Math.max(0, current.y + event.dy));
+      const x = Math.min(
+        virtualScreen.x + virtualScreen.width - 1,
+        Math.max(virtualScreen.x, current.x + event.dx * sensitivity)
+      );
+      const y = Math.min(
+        virtualScreen.y + virtualScreen.height - 1,
+        Math.max(virtualScreen.y, current.y + event.dy * sensitivity)
+      );
       await mouse.setPosition(new Point(x, y));
       break;
     }
@@ -63,7 +119,8 @@ export async function applyInputEvent(event: InputEvent): Promise<void> {
       break;
     case "wheel":
       if (event.deltaY !== 0) {
-        await mouse.scrollDown(Math.round(event.deltaY));
+        const deltaY = getSetting("invertScroll") ? -event.deltaY : event.deltaY;
+        await mouse.scrollDown(Math.round(deltaY));
       }
       break;
     case "keydown": {

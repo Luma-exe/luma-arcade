@@ -79,6 +79,7 @@ function handleMessage(peer: Peer, raw: string): void {
         consumerPeerId: peer.id,
       });
 
+      console.log(`[signalling] session ${sessionId} starting: consumer=${peer.id} -> producer=${targetProducerId}`);
       // Tell the producer a new session started so it creates an SDP offer.
       send(producer.ws, { type: "startSession", peerId: peer.id, sessionId });
       // Confirm to the consumer.
@@ -110,13 +111,30 @@ function handleMessage(peer: Peer, raw: string): void {
       const otherPeerId =
         peer.id === session.producerPeerId ? session.consumerPeerId : session.producerPeerId;
       const other = peers.get(otherPeerId);
-      if (other) send(other.ws, msg);
+      if (msg.sdp) {
+        console.log(`[signalling] session ${sessionId}: relaying ${msg.sdp.type} from ${peer.role ?? "?"}`);
+      }
+      if (other) {
+        send(other.ws, msg);
+      } else {
+        console.warn(`[signalling] session ${sessionId}: peer ${otherPeerId} not found, message dropped`);
+      }
       break;
     }
 
     default:
       break;
   }
+}
+
+/** Whether the GStreamer producer has connected to the signalling server
+ * and registered itself — used to make /api/stream/start wait for the
+ * pipeline to actually be ready before telling the browser to connect,
+ * instead of racing it (spawning gst-launch-1.0 doesn't mean webrtcsink has
+ * finished initializing D3D11/CUDA contexts and registered yet, which
+ * observably takes 1-3+ seconds). */
+export function isProducerRegistered(): boolean {
+  return producerPeerId !== undefined;
 }
 
 export interface SignallingAuthCheck {
@@ -128,6 +146,7 @@ export function createSignallingServer(authCheck: SignallingAuthCheck): WebSocke
 
   wss.on("connection", (ws, request) => {
     if (!authCheck(request)) {
+      console.warn(`[signalling] rejected connection from ${request.socket.remoteAddress}`);
       ws.close(4401, "unauthorized");
       return;
     }
@@ -139,7 +158,16 @@ export function createSignallingServer(authCheck: SignallingAuthCheck): WebSocke
 
     ws.on("message", (data) => handleMessage(peer, data.toString()));
 
-    ws.on("close", () => {
+    ws.on("error", (err) => {
+      console.warn(`[signalling] peer ${id} (${peer.role ?? "unknown"}) socket error:`, err.message);
+    });
+
+    ws.on("close", (code, reason) => {
+      if (id === producerPeerId) {
+        console.warn(
+          `[signalling] producer disconnected: code=${code} reason=${reason.toString() || "(none)"}`
+        );
+      }
       peers.delete(id);
       if (producerPeerId === id) producerPeerId = undefined;
       for (const [sessionId, session] of sessions) {

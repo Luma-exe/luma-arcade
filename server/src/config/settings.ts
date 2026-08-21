@@ -25,6 +25,29 @@ export interface AppSettings {
   turnRealm: string;
   turnPort: number;
   turnPublicHost: string;
+
+  /** 'standalone' = opening the portal shows LumaArcade's own carousel home
+   * screen (Full Desktop is one tile among Steam/Epic/etc). 'esde' = opening
+   * the portal skips straight to a live view of a real, natively-installed
+   * ES-DE (EmulationStation Desktop Edition) instance — launched (or
+   * attached to, if already running) and window-captured automatically,
+   * for users who already run real ES-DE on this PC and want LumaArcade to
+   * be a pure remote window into it rather than its own front-end. */
+  launchMode: "standalone" | "esde";
+  esdeExePath: string;
+
+  mouseSensitivity: number;
+  invertScroll: boolean;
+  gamepadDeadzone: number;
+
+  /** Path to a git checkout of luma-arcade (e.g. the same source tree this
+   * build was compiled from) — enables the Settings "Apply update" button to
+   * self-update via `git pull` + rebuild. Left empty, updates are still
+   * detected and surfaced but the app won't touch any files: there's no
+   * generic safe way to auto-replace a running installed .exe, so a plain
+   * install without a configured dev tree only gets a "there's an update,
+   * here's the repo" prompt. */
+  devTreePath: string;
 }
 
 const DEFAULTS: AppSettings = {
@@ -52,6 +75,15 @@ const DEFAULTS: AppSettings = {
   turnRealm: "lumaarcade.local",
   turnPort: 3478,
   turnPublicHost: "",
+
+  launchMode: "standalone",
+  esdeExePath: "",
+
+  mouseSensitivity: 1,
+  invertScroll: false,
+  gamepadDeadzone: 0.08,
+
+  devTreePath: "",
 };
 
 export function getSetting<K extends keyof AppSettings>(key: K): AppSettings[K] {

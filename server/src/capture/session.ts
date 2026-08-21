@@ -2,7 +2,8 @@ export interface StreamSessionState {
   mode: "desktop" | "game";
   gameId?: number;
   pid?: number;
-  windowHandle?: string;
+  windowTitle?: string;
+  monitorIndex?: number;
 }
 
 let state: StreamSessionState = { mode: "desktop" };

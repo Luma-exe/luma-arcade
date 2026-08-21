@@ -9,6 +9,7 @@
  */
 
 import { createRequire } from "node:module";
+import { getSetting } from "../config/settings.js";
 
 const require = createRequire(import.meta.url);
 
@@ -75,6 +76,10 @@ export interface GamepadState {
   axes: number[]; // [leftX, leftY, rightX, rightY]
 }
 
+function applyDeadzone(value: number, deadzone: number): number {
+  return Math.abs(value) < deadzone ? 0 : value;
+}
+
 export function applyGamepadState(state: GamepadState): void {
   const controller = getController(state.index);
   if (!controller) return;
@@ -85,10 +90,11 @@ export function applyGamepadState(state: GamepadState): void {
     controller.button[name].setValue((state.buttons[i] ?? 0) > 0.5);
   }
 
-  controller.axis.leftX.setValue(state.axes[0] ?? 0);
-  controller.axis.leftY.setValue(-(state.axes[1] ?? 0)); // browser Y is inverted vs XInput
-  controller.axis.rightX.setValue(state.axes[2] ?? 0);
-  controller.axis.rightY.setValue(-(state.axes[3] ?? 0));
+  const deadzone = getSetting("gamepadDeadzone");
+  controller.axis.leftX.setValue(applyDeadzone(state.axes[0] ?? 0, deadzone));
+  controller.axis.leftY.setValue(applyDeadzone(-(state.axes[1] ?? 0), deadzone)); // browser Y is inverted vs XInput
+  controller.axis.rightX.setValue(applyDeadzone(state.axes[2] ?? 0, deadzone));
+  controller.axis.rightY.setValue(applyDeadzone(-(state.axes[3] ?? 0), deadzone));
   controller.axis.leftTrigger.setValue(state.buttons[6] ?? 0);
   controller.axis.rightTrigger.setValue(state.buttons[7] ?? 0);
   controller.axis.dpadHorz.setValue((state.buttons[15] ?? 0) - (state.buttons[14] ?? 0));

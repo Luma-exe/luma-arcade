@@ -1,0 +1,9 @@
+{
+  "name": "luma-arcade-producer",
+  "version": "1.0.0",
+  "private": true,
+  "main": "main.js",
+  "dependencies": {
+    "electron": "^33.2.0"
+  }
+}

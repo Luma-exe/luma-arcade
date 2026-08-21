@@ -6,7 +6,15 @@ export class ManagedProcess {
   private child: ChildProcessWithoutNullStreams | undefined;
   private stopping = false;
 
-  constructor(private readonly binary: string, private readonly logTag: string) {}
+  /** `binary` may be a fixed command name (resolved via PATH at spawn time,
+   * same as before) or a function returning one — useful when the real
+   * install location needs to be probed at spawn time rather than baked in
+   * at construction, e.g. because PATH changes made by an installer don't
+   * reliably propagate to already-running processes on Windows. */
+  constructor(
+    private readonly binary: string | (() => string),
+    private readonly logTag: string
+  ) {}
 
   isRunning(): boolean {
     return !!this.child && this.child.exitCode === null;
@@ -16,7 +24,8 @@ export class ManagedProcess {
     if (this.isRunning()) return;
     this.stopping = false;
 
-    this.child = spawn(this.binary, args, { windowsHide: true });
+    const resolvedBinary = typeof this.binary === "function" ? this.binary() : this.binary;
+    this.child = spawn(resolvedBinary, args, { windowsHide: true });
 
     this.child.stdout.on("data", (chunk) => {
       process.stdout.write(`[${this.logTag}] ${chunk}`);

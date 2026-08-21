@@ -2,6 +2,9 @@ export interface ConnectionStats {
   bitrateKbps: number;
   rttMs: number | null;
   packetLossPct: number;
+  candidateType: string | null;
+  packetsReceived: number;
+  packetsLost: number;
 }
 
 let lastBytesReceived = 0;
@@ -16,7 +19,14 @@ export async function sampleConnectionStats(
   let packetsLost = 0;
   let rttMs: number | null = null;
   let timestamp = 0;
+  let candidateType: string | null = null;
 
+  const candidateTypes = new Map<string, string>();
+  report.forEach((stat) => {
+    if (stat.type === "local-candidate" || stat.type === "remote-candidate") {
+      candidateTypes.set(stat.id, stat.candidateType);
+    }
+  });
   report.forEach((stat) => {
     if (stat.type === "inbound-rtp" && stat.kind === "video") {
       bytesReceived = stat.bytesReceived ?? 0;
@@ -24,10 +34,13 @@ export async function sampleConnectionStats(
       packetsLost = stat.packetsLost ?? 0;
       timestamp = stat.timestamp;
     }
-    if (stat.type === "candidate-pair" && stat.state === "succeeded") {
+    if (stat.type === "candidate-pair" && stat.state === "succeeded" && stat.nominated) {
       if (typeof stat.currentRoundTripTime === "number") {
         rttMs = stat.currentRoundTripTime * 1000;
       }
+      const local = candidateTypes.get(stat.localCandidateId) ?? "?";
+      const remote = candidateTypes.get(stat.remoteCandidateId) ?? "?";
+      candidateType = `${local}/${remote}`;
     }
   });
 
@@ -43,5 +56,5 @@ export async function sampleConnectionStats(
   const totalPackets = packetsReceived + packetsLost;
   const packetLossPct = totalPackets > 0 ? (packetsLost / totalPackets) * 100 : 0;
 
-  return { bitrateKbps, rttMs, packetLossPct };
+  return { bitrateKbps, rttMs, packetLossPct, candidateType, packetsReceived, packetsLost };
 }

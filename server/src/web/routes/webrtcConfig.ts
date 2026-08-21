@@ -8,7 +8,7 @@ export interface IceServerConfig {
   credential?: string;
 }
 
-function toRtcIceServers(config: ReturnType<typeof getStunTurnConfig>): IceServerConfig[] {
+export function toRtcIceServers(config: ReturnType<typeof getStunTurnConfig>): IceServerConfig[] {
   const servers: IceServerConfig[] = [];
   if (config.stunServer) {
     servers.push({ urls: [config.stunServer.replace("stun://", "stun:")] });

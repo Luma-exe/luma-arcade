@@ -2,6 +2,7 @@ import SysTrayPkg from "systray2";
 import { exec } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { getSetting, setSetting } from "../config/settings.js";
 
 // systray2's CJS build doesn't set the __esModule interop flag, so a plain
 // default import ends up wrapping the whole `{ default: SysTray }` object
@@ -24,6 +25,34 @@ export function startTray(opts: {
     enabled: true,
     click: () => exec(`start ${opts.portalUrl}`),
   };
+
+  const settingsItem = {
+    title: "Settings",
+    tooltip: "Open LumaArcade settings — streaming, controls, network, and more",
+    checked: false,
+    enabled: true,
+    click: () => exec(`start ${opts.portalUrl}/?view=settings`),
+  };
+
+  function modeItemTitle(): string {
+    return getSetting("launchMode") === "esde"
+      ? "Switch to Standalone Mode"
+      : "Switch to ES-DE Mode";
+  }
+
+  const modeItem = {
+    title: modeItemTitle(),
+    tooltip: "Toggle between LumaArcade's own home screen and launching straight into ES-DE",
+    checked: false,
+    enabled: true,
+    click: () => {
+      const next = getSetting("launchMode") === "esde" ? "standalone" : "esde";
+      setSetting("launchMode", next);
+      modeItem.title = modeItemTitle();
+      tray.sendAction({ type: "update-item", item: modeItem });
+    },
+  };
+
   const quitItem = {
     title: "Quit",
     tooltip: "Stop LumaArcade",
@@ -40,14 +69,16 @@ export function startTray(opts: {
       icon: ICON_PATH,
       title: "LumaArcade",
       tooltip: "LumaArcade",
-      items: [openItem, quitItem],
+      items: [openItem, settingsItem, modeItem, quitItem],
     },
     debug: false,
     copyDir: true,
   });
 
   tray.onClick((action) => {
-    (action.item as typeof openItem | typeof quitItem).click?.();
+    (
+      action.item as typeof openItem | typeof settingsItem | typeof modeItem | typeof quitItem
+    ).click?.();
   });
 
   return tray;

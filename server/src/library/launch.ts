@@ -1,22 +1,12 @@
-import { exec, spawn } from "node:child_process";
+import { exec } from "node:child_process";
 import { getGame, markPlayed } from "./repo.js";
+import { spawnDetached } from "./processUtils.js";
 import { listRomFolders } from "./romScanner.js";
 
 export interface LaunchResult {
   ok: boolean;
   error?: string;
   pid?: number;
-}
-
-/** An unhandled 'error' event on a ChildProcess (bad exe path, missing
- * emulator, etc.) crashes the whole server — this must never throw. */
-function spawnDetached(command: string, args: string[]) {
-  const child = spawn(command, args, { detached: true });
-  child.on("error", (err) => {
-    console.error(`[launch] failed to start "${command}":`, err.message);
-  });
-  child.unref();
-  return child;
 }
 
 export function launchGame(id: number): LaunchResult {

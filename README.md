@@ -13,6 +13,13 @@ connection-quality HUD, gamepad passthrough).
 
 ## Prerequisites (verify before running)
 
+The Windows installer (`installer/LumaArcade.nsi`) tries to install GStreamer
+and ViGEmBus automatically via `winget` during setup, so most users won't
+need to do this by hand — this section is for running from source, or for
+when the automatic install can't run (no `winget`, offline, or a driver
+install needs an admin prompt nobody was there to approve, which is possible
+under a silent `/S` install).
+
 1. **Node.js 20+** and npm.
 2. **GStreamer 1.22+** on `PATH`, including:
    - `gst-plugins-bad` (for `d3d11screencapturesrc`)
@@ -29,9 +36,10 @@ connection-quality HUD, gamepad passthrough).
 3. An NVIDIA GPU + driver with NVENC. `webrtcsink` auto-negotiates its
    encoder and should prefer a hardware H.264 encoder when available;
    confirm with `gst-inspect-1.0 nvh264enc`.
-4. **Optional — gamepad passthrough**: [ViGEmBus](https://github.com/ViGEm/ViGEmBus)
-   installed system-wide. Without it, gamepad input from the browser is
-   silently ignored (logged once) rather than crashing anything.
+4. **Gamepad passthrough**: [ViGEmBus](https://github.com/ViGEm/ViGEmBus) —
+   installed automatically by the Windows installer. Without it, gamepad
+   input from the browser is silently ignored (logged once) rather than
+   crashing anything.
 5. **Optional — remote access**: `cloudflared.exe` on `PATH`, and a coturn
    Windows build (`turnserver.exe`) if you want a bundled TURN relay — coturn
    isn't npm-installable, so download the official Windows release yourself
@@ -70,9 +78,15 @@ shortcut, an uninstaller, and a finish-page "start with Windows" checkbox.
 It bundles a copied `node.exe` and production-only `node_modules` (including
 `better-sqlite3`'s native binary) so end users don't need Node.js installed
 separately — see `installer/build.mjs` for the staging steps and
-`installer/LumaArcade.nsi` for the installer script itself. GStreamer/
-ViGEmBus/cloudflared/coturn are **not** bundled (see Prerequisites above);
-the installer just warns if `gst-launch-1.0` isn't found on `PATH`.
+`installer/LumaArcade.nsi` for the installer script itself. GStreamer and
+ViGEmBus aren't bundled directly (too large / separately licensed to ship
+inside our own installer), but the install step does invoke `winget install`
+for both automatically if they're missing — this can still trigger a UAC
+prompt for the ViGEmBus kernel driver, and can't do anything useful under a
+silent `/S` install if nobody's there to approve it, in which case it prints
+a note in the install log and falls back to the manual steps in
+Prerequisites above. cloudflared/coturn remain fully manual (see
+Prerequisites) since they're optional remote-access-only dependencies.
 
 ## What each source needs to work
 
