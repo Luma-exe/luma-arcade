@@ -321,7 +321,7 @@ $Emulators = @{
     "dosbox-staging" = @{ kind = "github"; repo = "dosbox-staging/dosbox-staging"; pattern = "dosbox-staging-windows-x64-v*.zip"; folder = "dosbox-staging"; exe = "dosbox.exe" }
     "dosbox-x"    = @{ kind = "github"; repo = "joncampbell123/dosbox-x"; pattern = "dosbox-x-mingw64-*-portable.zip"; folder = "DOSBox-X"; exe = "dosbox-x.exe" }
     "vpinball"    = @{ kind = "github"; repo = "vpinball/vpinball"; pattern = "Developer.VPinballX_GL-*-Release-win-x64.zip"; folder = "VPinballX"; exe = "VPinballX_GL64.exe" }
-    "kemulator"   = @{ kind = "github"; repo = "shinovon/KEmulator"; pattern = "kemnnx64.v*.zip"; folder = "KEmulator"; exe = "KEmulator.exe" }
+    "kemulator"   = @{ kind = "github"; repo = "shinovon/KEmulator"; pattern = "kemnnx64.v*.zip"; folder = "KEmulator"; exe = "KEmulator.bat" }
     "teknoparrot" = @{ kind = "github"; repo = "teknogods/TeknoParrotUI"; pattern = "TeknoParrotUi.zip"; folder = "TeknoParrot"; exe = "TeknoParrotUi.exe" }
 }
 
@@ -643,41 +643,75 @@ foreach ($id in $selectedIds) {
     }
 }
 
-# n3ds's default command ("Azahar (Standalone)") resolves via
-# %EMULATOR_AZAHAR%, which ES-DE's bundled es_find_rules.xml only looks
-# for on the system PATH (just "azahar.exe", no staticpath fallback into
-# Emulators\, unlike most other emulators) -- so it's never found where we
-# actually staged it. ES-DE supports overriding/extending emulator rules
-# via a user-writable custom_systems/es_find_rules.xml -- this adds a
-# staticpath rule for the AZAHAR emulator (not CITRA -- the CITRA entry's
-# %EMULATOR_CITRA% variable is only used by the separate, non-default
-# "Citra (Standalone)" command, so overriding it had no effect on what
-# actually launches by default). Best-effort: the precise override-merge
-# behavior wasn't verified against a real ES-DE run, only against its
-# documented file-location convention.
+# Some emulators need a find-rule override written to ES-DE's
+# user-writable custom_systems/es_find_rules.xml, because either the
+# bundled rule only searches the system PATH (n3ds's default command,
+# "Azahar (Standalone)", resolves via %EMULATOR_AZAHAR%, whose bundled
+# rule has no staticpath fallback into Emulators\ the way most other
+# emulators do -- note this overrides AZAHAR specifically, not CITRA;
+# CITRA's %EMULATOR_CITRA% variable is only used by the separate,
+# non-default "Citra (Standalone)" command, overriding it had no effect
+# on what actually launches by default), or ES-DE has no rule for it at
+# all (KEmulator: the only automatable Windows J2ME build found,
+# shinovon/KEmulator, is a Java rewrite shipping KEmulator.bat, not the
+# original closed-source KEmulator.exe ES-DE's bundled rule looks for --
+# confirmed live, the .exe genuinely isn't in that build's zip).
+#
+# This installer can run multiple times against the same install (the
+# "install more emulators" repair path), and each run only knows about
+# the ids passed in *that* run -- so this reads any overrides already in
+# the file first and keeps them by emulator name, rather than
+# regenerating the whole file from only this run's selection and
+# silently deleting an earlier run's override (confirmed this would
+# actually happen: installing just kemulator after an earlier 3ds run
+# wiped the AZAHAR entry until this was fixed).
+# Best-effort: the precise override-merge behavior wasn't verified
+# against a real ES-DE run, only against its documented file-location
+# convention.
+$customDir = Join-Path $env:USERPROFILE "ES-DE\custom_systems"
+$findRulesPath = Join-Path $customDir "es_find_rules.xml"
+
+$overridesByName = @{}
+if (Test-Path $findRulesPath) {
+    $existing = Get-Content $findRulesPath -Raw
+    $matches = [regex]::Matches($existing, '(?ms)^\s*<emulator name="([^"]+)">.*?</emulator>\s*$')
+    foreach ($m in $matches) {
+        $overridesByName[$m.Groups[1].Value] = $m.Value.Trim()
+    }
+}
+
 if ($selectedIds -contains "3ds") {
-    $customDir = Join-Path $env:USERPROFILE "ES-DE\custom_systems"
-    New-Item -ItemType Directory -Path $customDir -Force | Out-Null
-    $findRulesPath = Join-Path $customDir "es_find_rules.xml"
     $azaharExe = Join-Path $EmulatorsDir "Citra\nightly-mingw\azahar.exe"
     if (Test-Path $azaharExe) {
-        $xml = @"
-<?xml version="1.0"?>
-<!-- LumaArcade override: ES-DE's bundled AZAHAR rule only searches the
-     system PATH, not the Emulators folder we actually install to. This
-     adds a staticpath rule pointing at the real azahar.exe location. -->
-<ruleList>
+        $overridesByName["AZAHAR"] = @"
     <emulator name="AZAHAR">
         <rule type="staticpath">
             <entry>$azaharExe</entry>
         </rule>
     </emulator>
-</ruleList>
 "@
-        $utf8NoBom = New-Object System.Text.UTF8Encoding $false
-        [System.IO.File]::WriteAllText($findRulesPath, $xml, $utf8NoBom)
-        Write-Host "Wrote Azahar find-rule override to $findRulesPath"
     }
+}
+
+if ($selectedIds -contains "kemulator") {
+    $kemulatorBat = Join-Path $EmulatorsDir "KEmulator\KEmulator.bat"
+    if (Test-Path $kemulatorBat) {
+        $overridesByName["KEMULATOR"] = @"
+    <emulator name="KEMULATOR">
+        <rule type="staticpath">
+            <entry>$kemulatorBat</entry>
+        </rule>
+    </emulator>
+"@
+    }
+}
+
+if ($overridesByName.Count -gt 0) {
+    New-Item -ItemType Directory -Path $customDir -Force | Out-Null
+    $xml = "<?xml version=`"1.0`"?>`n<!-- LumaArcade overrides -- see install-emulators.ps1 for why each one is here. -->`n<ruleList>`n" + (($overridesByName.Values) -join "`n") + "`n</ruleList>`n"
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    [System.IO.File]::WriteAllText($findRulesPath, $xml, $utf8NoBom)
+    Write-Host "Wrote find-rule overrides to $findRulesPath"
 }
 
 # Most of these emulators write their own config/save files right next to
