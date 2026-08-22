@@ -1,12 +1,27 @@
+<div align="center">
+
 # LumaArcade
 
-A thin login shell in front of your own [Sunshine](https://github.com/LizardByte/Sunshine) +
-[ES-DE](https://es-de.org/) + [moonlight-web-stream](https://github.com/MrCreativ3001/moonlight-web-stream)
-setup. LumaArcade itself is a small Node.js/TypeScript process that runs on
-your Windows gaming PC: it password-gates access, manages the
-moonlight-web-stream process's lifecycle, and reverse-proxies the browser to
-it. All of the actual game streaming — capture, encode, input, the in-stream
-UI — is handled by that stack, not by LumaArcade.
+**A thin login + streaming shell for your own Sunshine + ES-DE game-streaming rig**
+
+Password-gated access · Reverse-proxied moonlight-web-stream · One-click emulator setup · Windows installer
+
+![Platform](https://img.shields.io/badge/platform-Windows-0078D6)
+![Stack](https://img.shields.io/badge/stack-Node.js%20%2B%20TypeScript-3178C6)
+![Frontend](https://img.shields.io/badge/frontend-React%20%2B%20Vite-61DAFB)
+![Status](https://img.shields.io/badge/status-private%20project-lightgrey)
+
+</div>
+
+---
+
+LumaArcade itself is a small Node.js/TypeScript process that runs on your
+Windows gaming PC: it password-gates access, manages the
+[moonlight-web-stream](https://github.com/MrCreativ3001/moonlight-web-stream)
+process's lifecycle, and reverse-proxies the browser to it. All of the actual
+game streaming — capture, encode, input, the in-stream UI — is handled by
+[Sunshine](https://github.com/LizardByte/Sunshine) and [ES-DE](https://es-de.org/),
+not by LumaArcade.
 
 ## How it fits together
 
@@ -31,6 +46,18 @@ Browser  ─▶  LumaArcade (auth + reverse proxy, one port)
 Open the portal, log in, and you're handed off (via LumaArcade's `/stream`
 reverse proxy) straight into moonlight-web-stream's browser client, which is
 streaming Sunshine's video of ES-DE.
+
+## Features
+
+| | |
+|---|---|
+| ✅ | Password-gated portal — one app-wide password, signed session cookie |
+| ✅ | Reverse-proxied streaming client, no ports besides LumaArcade's own exposed |
+| ✅ | "Detect & wire up dependencies" — finds Sunshine/ES-DE/moonlight-web-stream and wires them together |
+| ✅ | Windows installer that downloads and installs Sunshine, ES-DE, and moonlight-web-stream for you |
+| ✅ | Opt-in installer support for 15 emulated systems, auto-wired into ES-DE with correct default emulators |
+| ✅ | Auto-fixes emulator write permissions and default control bindings on install |
+| ✅ | System tray app with auto-start on login |
 
 ## Installing
 
