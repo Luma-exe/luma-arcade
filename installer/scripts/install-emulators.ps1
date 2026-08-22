@@ -1051,21 +1051,22 @@ if ($overridesByName.Count -gt 0) {
     Write-Host "Wrote find-rule overrides to $findRulesPath"
 }
 
-# A dedicated ES-DE system whose "games" are the emulators themselves,
-# launched with no ROM -- opens each emulator's own front-end/settings
-# window directly (BIOS paths, controller mapping, graphics backend,
-# etc.), which otherwise has no way to be reached at all through ES-DE
-# once a game's default launch command is set. ES-DE has no built-in
-# system for this (unlike "windows"/"steam", which are genuine bundled
-# systems), so this defines a brand new one via the same
-# custom_systems/es_systems.xml mechanism already used for find-rule
-# overrides, using the exact "Shortcut or script" launch shape ES-DE's
-# own "windows" system already uses for the same purpose: a .bat file
-# per entry, "%EMULATOR_OS-SHELL% /C %ROM%" as the command. Reads any
-# existing custom_systems/es_systems.xml first and only adds this system
-# if it isn't already there, matching the same don't-clobber-other-
-# customizations discipline as the find-rules merge above.
-Write-Step "Emulator Setup system"
+# ES-DE already ships a built-in "emulators" system for exactly this --
+# launching an emulator directly with no ROM, to reach its own settings
+# (BIOS paths, controller mapping, graphics backend, etc.), which
+# otherwise has no way to be reached through ES-DE once a system's
+# default launch command is set to skip straight into a game. Confirmed
+# directly against es_systems.xml: <name>emulators</name>,
+# <path>%ROMPATH%\emulators</path>, its own "emulators" theme (so it
+# gets a real icon/branding in ES-DE's bundled themes instead of falling
+# back to the generic Windows platform description) -- no need to invent
+# a custom system the way the find-rule overrides do, this one's real.
+# Its second command, "Keep ES-DE running" (%RUNINBACKGROUND%), is used
+# as the default instead of the first-listed "Suspend ES-DE" so opening
+# an emulator's settings doesn't fully close ES-DE out from under it --
+# consistent with RunInBackground already being turned on for the
+# Home-key toggle feature.
+Write-Step "Emulators system"
 $emulatorExePaths = @{
     "Cemu"              = "cemu\Cemu.exe"
     "Azahar (3DS)"      = "Citra\nightly-mingw\azahar.exe"
@@ -1095,7 +1096,7 @@ $emulatorExePaths = @{
     "EasyRPG Player"    = "EasyRPG\Player.exe"
 }
 
-$launcherRomDir = Join-Path (Get-RomPath) "emulatorsetup"
+$launcherRomDir = Join-Path (Get-RomPath) "emulators"
 New-Item -ItemType Directory -Path $launcherRomDir -Force | Out-Null
 $utf8NoBom = New-Object System.Text.UTF8Encoding $false
 $launcherCount = 0
@@ -1109,30 +1110,7 @@ foreach ($displayName in $emulatorExePaths.Keys) {
     $launcherCount++
 }
 Write-Host "Wrote $launcherCount emulator launcher shortcut(s) to $launcherRomDir"
-
-$esdeSystemsPath = Join-Path $customDir "es_systems.xml"
-$emulatorSetupSystemXml = @"
-    <system>
-        <name>emulatorsetup</name>
-        <fullname>Emulator Setup</fullname>
-        <path>%ROMPATH%\emulatorsetup</path>
-        <extension>.bat .BAT</extension>
-        <command label="Open emulator">%HIDEWINDOW% %ESCAPESPECIALS% %EMULATOR_OS-SHELL% /C %ROM%</command>
-        <platform>pcwindows</platform>
-        <theme>windows</theme>
-    </system>
-"@
-$existingSystemsXml = if (Test-Path $esdeSystemsPath) { Get-Content $esdeSystemsPath -Raw } else { "" }
-if ($existingSystemsXml -notmatch "<name>emulatorsetup</name>") {
-    New-Item -ItemType Directory -Path $customDir -Force | Out-Null
-    if ($existingSystemsXml -match "(?s)<systemList>(.*)</systemList>") {
-        $newXml = $existingSystemsXml -replace "</systemList>", "$emulatorSetupSystemXml</systemList>"
-    } else {
-        $newXml = "<?xml version=`"1.0`"?>`n<systemList>`n$emulatorSetupSystemXml</systemList>`n"
-    }
-    [System.IO.File]::WriteAllText($esdeSystemsPath, $newXml, $utf8NoBom)
-    Write-Host "Added the Emulator Setup system to $esdeSystemsPath"
-}
+Set-DefaultEmulator -EsdeSystem "emulators" -Label "Keep ES-DE running"
 
 # Most of these emulators write their own config/save files right next to
 # their own .exe (portable mode) — fine normally, but $EmulatorsDir usually
