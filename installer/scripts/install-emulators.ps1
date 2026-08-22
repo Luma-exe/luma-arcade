@@ -143,6 +143,60 @@ Right = 258
     Write-Host "Patched default melonDS keyboard/joystick controls into $tomlPath"
 }
 
+# ES-DE (like every other frontend) hides a system entirely from its menu
+# when its ROM folder has zero recognized game files in it -- confirmed
+# live: xbox/xbox360 never showed up on lumaplayground.com at all, and it
+# turned out ROMS\xbox and ROMS\xbox360 simply didn't exist yet, nothing
+# to do with the emulator install. That part genuinely can't be fixed by
+# this script -- it needs the user's own game files -- but creating the
+# folder ahead of time means dropping files in later is all that's left,
+# rather than also having to know ES-DE's folder-naming convention.
+function Get-RomPath {
+    $settingsPath = Join-Path $EsdeUserDir "settings\es_settings.xml"
+    if (Test-Path $settingsPath) {
+        $content = Get-Content $settingsPath -Raw
+        if ($content -match '<string name="ROMDirectory" value="([^"]*)"') {
+            $val = $matches[1]
+            if ($val) { return $val }
+        }
+    }
+    return (Join-Path $EsdeUserDir "ROMS")
+}
+
+function Ensure-RomFolder($EsdeSystem) {
+    $romPath = Get-RomPath
+    $dir = Join-Path $romPath $EsdeSystem
+    New-Item -ItemType Directory -Path $dir -Force | Out-Null
+}
+
+# id -> ES-DE system folder name(s) under ROMS\, for Ensure-RomFolder.
+$RomSystemsForId = @{
+    "cemu"        = @("wiiu")
+    "3ds"         = @("n3ds")
+    "duckstation" = @("psx")
+    "melonds"     = @("nds")
+    "pcsx2"       = @("ps2")
+    "ppsspp"      = @("psp")
+    "rpcs3"       = @("ps3")
+    "shadps4"     = @("ps4")
+    "vita3k"      = @("psvita")
+    "xemu"        = @("xbox")
+    "xenia"       = @("xbox360")
+    "switch"      = @("switch")
+    "dolphin"     = @("gc", "wii")
+    "flycast"     = @("dreamcast", "naomi", "naomi2", "naomigd", "atomiswave")
+    "ruffle"      = @("flash")
+    "hypseus"     = @("daphne")
+    "tsugaru"     = @("fmtowns")
+    "supermodel"  = @("model3")
+    "scummvm"     = @("scummvm")
+    "easyrpg"     = @("easyrpg")
+    "dosbox-staging" = @("dos")
+    "dosbox-x"    = @("windows9x", "windows3x")
+    "vpinball"    = @("vpinball")
+    "kemulator"   = @("j2me")
+}
+
 function Ensure-7Zip {
     $sevenZip = "$env:ProgramFiles\7-Zip\7z.exe"
     if (Test-Path $sevenZip) { return $sevenZip }
@@ -179,6 +233,13 @@ function Install-Emulator($Name, $Kind, $Repo, $AssetPattern, $DestFolder, $Expe
     try {
         if ($Kind -eq "gitea") {
             $rel = (Invoke-RestMethod -Uri "https://git.eden-emu.dev/api/v1/repos/$Repo/releases?limit=1")[0]
+        } elseif ($Kind -eq "github-list") {
+            # Some GitHub repos (e.g. TOWNSEMU/Tsugaru) never mark any
+            # release "latest", so /releases/latest 404s even though real
+            # releases exist -- same underlying issue as Gitea above, just
+            # on GitHub itself. Query the list and take the first (newest)
+            # entry instead.
+            $rel = (Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases?per_page=1")[0]
         } else {
             $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest"
         }
@@ -243,28 +304,78 @@ $Emulators = @{
     "xemu"        = @{ kind = "github"; repo = "xemu-project/xemu"; pattern = "xemu-*-windows-x86_64.zip"; folder = "xemu"; exe = "xemu.exe" }
     "xenia"       = @{ kind = "github"; repo = "xenia-canary/xenia-canary-releases"; pattern = "xenia_canary_windows_.zip"; folder = "xenia_canary"; exe = "xenia_canary.exe" }
     "switch"      = @{ kind = "gitea"; repo = "eden-emu/eden"; pattern = "Eden-Windows-*-amd64-msvc-standard.zip"; folder = "eden"; exe = "eden.exe" }
+    "flycast"     = @{ kind = "github"; repo = "flyinghead/flycast"; pattern = "flycast-win64-*.zip"; folder = "flycast"; exe = "flycast.exe" }
+    "ruffle"      = @{ kind = "github"; repo = "ruffle-rs/ruffle"; pattern = "ruffle-*-windows-x86_64.zip"; folder = "ruffle"; exe = "ruffle.exe" }
+    "hypseus"     = @{ kind = "github"; repo = "DirtBagXon/hypseus-singe"; pattern = "Hypseus.Singe-*-win64.zip"; folder = "Hypseus Singe"; exe = "hypseus.exe" }
+    "tsugaru"     = @{ kind = "github-list"; repo = "captainys/TOWNSEMU"; pattern = "windows_binary_latest.zip"; folder = "tsugaru"; exe = "Tsugaru_CUI.exe" }
+    "supermodel"  = @{ kind = "github"; repo = "trzy/Supermodel"; pattern = "supermodel-*-windows.zip"; folder = "Supermodel"; exe = "Supermodel.exe" }
+    "dosbox-staging" = @{ kind = "github"; repo = "dosbox-staging/dosbox-staging"; pattern = "dosbox-staging-windows-x64-v*.zip"; folder = "dosbox-staging"; exe = "dosbox.exe" }
+    "dosbox-x"    = @{ kind = "github"; repo = "joncampbell123/dosbox-x"; pattern = "dosbox-x-mingw64-*-portable.zip"; folder = "DOSBox-X"; exe = "dosbox-x.exe" }
+    "vpinball"    = @{ kind = "github"; repo = "vpinball/vpinball"; pattern = "Developer.VPinballX_GL-*-Release-win-x64.zip"; folder = "VPinballX"; exe = "VPinballX_GL64.exe" }
+    "kemulator"   = @{ kind = "github"; repo = "shinovon/KEmulator"; pattern = "kemnnx64.v*.zip"; folder = "KEmulator"; exe = "KEmulator.exe" }
 }
+
+# A few of the systems from the ES-DE ROMS coverage pass (Sega Model 2,
+# Saturn's Kronos/Yaba Sanshiro 2, Apple IIGS's KEGS, classic Mac's
+# Basilisk II/SheepShaver) don't get an entry above even though ES-DE has
+# a built-in find-rule for their standalone emulator -- checked each one
+# specifically and none of them publish Windows builds through a GitHub
+# releases API this script can query: Model 2 Emulator and KEGS are
+# closed-source freeware with no official repo at all, and Kronos/
+# macemu (Basilisk II + SheepShaver) only publish Linux/macOS builds via
+# GitHub, Windows builds are distributed elsewhere. Installing those
+# would mean guessing at a download source, which is exactly what this
+# script has avoided everywhere else -- left for manual install if
+# wanted, same as the README already does for anything unverified.
 
 # id -> [ { esdeSystem, label } ]. Only systems where es_systems.xml's
 # *first*-listed (default) command is a RetroArch core rather than the
 # standalone emulator this script installs — verified per-system against
 # ES-DE's actual es_systems.xml this session, not guessed. Left out
-# deliberately: cemu (wiiu), xenia (xbox360), switch (eden) already default
-# to their standalone command since no RetroArch alternative exists for
-# those systems; rpcs3 (ps3) and shadps4 (ps4) also have no RetroArch
-# alternative, but their *own* default command expects a specific ROM
-# format (shortcut/script files) that depends on how the user's actual
-# dumps are structured -- not something to override blindly.
+# deliberately: cemu (wiiu), xenia (xbox360), xemu (xbox), switch (eden)
+# already default to their standalone command since no RetroArch
+# alternative exists for those systems; shadps4 (ps4) also has no
+# RetroArch alternative, but its own default command expects a specific
+# ROM format (shortcut/script files) that depends on how the user's
+# actual dumps are structured -- not something to override blindly.
+#
+# ps3's default command ("RPCS3 Shortcut (Standalone)") runs the ROM file
+# itself via cmd.exe, which only works if the ROM is a .lnk/script that
+# launches RPCS3 with the right args -- for a plain .iso (the common case)
+# that silently does nothing, no error, nothing opens. Confirmed live:
+# real .iso dumps on lumaplayground.com just sat there. "RPCS3 ISO
+# (Standalone)" and "RPCS3 Directory (Standalone)" are actually the exact
+# same command string in ES-DE's es_systems.xml (both
+# "%EMULATOR_RPCS3% --no-gui %ROM%"), so this one label covers both plain
+# .iso files and folder-based (.ps3dir) dumps.
 $DefaultEmulatorTargets = @{
     "3ds"         = @(@{ esdeSystem = "n3ds"; label = "Azahar (Standalone)" })
     "duckstation" = @(@{ esdeSystem = "psx"; label = "DuckStation (Standalone)" })
     "melonds"     = @(@{ esdeSystem = "nds"; label = "melonDS (Standalone)" })
     "pcsx2"       = @(@{ esdeSystem = "ps2"; label = "PCSX2 (Standalone)" })
     "ppsspp"      = @(@{ esdeSystem = "psp"; label = "PPSSPP (Standalone)" })
+    "rpcs3"       = @(@{ esdeSystem = "ps3"; label = "RPCS3 ISO (Standalone)" })
     "dolphin"     = @(
         @{ esdeSystem = "gc"; label = "Dolphin (Standalone)" },
         @{ esdeSystem = "wii"; label = "Dolphin (Standalone)" }
     )
+    "flycast"     = @(
+        @{ esdeSystem = "dreamcast"; label = "Flycast (Standalone)" },
+        @{ esdeSystem = "naomi"; label = "Flycast (Standalone)" },
+        @{ esdeSystem = "naomi2"; label = "Flycast (Standalone)" },
+        @{ esdeSystem = "naomigd"; label = "Flycast (Standalone)" },
+        @{ esdeSystem = "atomiswave"; label = "Flycast (Standalone)" }
+    )
+    "scummvm"     = @(@{ esdeSystem = "scummvm"; label = "ScummVM (Standalone)" })
+    "easyrpg"     = @(@{ esdeSystem = "easyrpg"; label = "EasyRPG Player (Standalone)" })
+    "dosbox-staging" = @(@{ esdeSystem = "dos"; label = "DOSBox Staging (Standalone)" })
+    "tsugaru"     = @(@{ esdeSystem = "fmtowns"; label = "Tsugaru (Standalone)" })
+    "kemulator"   = @(@{ esdeSystem = "j2me"; label = "KEmulator (Standalone)" })
+    # Not listed here because they're already ES-DE's first-listed
+    # (default) command for their system, verified against es_systems.xml
+    # directly, so no <alternativeEmulator> override is needed: ruffle
+    # (flash), hypseus (daphne), supermodel (model3), vpinball (vpinball,
+    # its only command), dosbox-x (windows9x, windows3x).
 }
 
 # RetroArch isn't distributed via GitHub release assets at all (only
@@ -369,18 +480,115 @@ function Install-Dolphin {
     }
 }
 
+# ScummVM and EasyRPG Player both publish real Windows builds, but not as
+# GitHub release assets — GitHub's releases for both repos have zero
+# attached binaries (confirmed via the API, not assumed). Their actual
+# downloads live on their own sites at a versioned URL, e.g.
+# downloads.scummvm.org/frs/scummvm/<version>/scummvm-<version>-win32-x86_64.zip
+# — and that version number matches each repo's GitHub tag exactly, so
+# the tag can still be queried from GitHub (consistent, well-formed API)
+# and used to build the real download URL, the same trick already used
+# for Dolphin's dl.dolphin-emu.org CDN.
+function Install-ScummVM {
+    Write-Step "ScummVM"
+    $dest = Join-Path $EmulatorsDir "scummvm"
+    if (Test-Path (Join-Path $dest "scummvm.exe")) {
+        Write-Host "ScummVM already staged, skipping."
+        return
+    }
+    try {
+        $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/scummvm/scummvm/releases/latest"
+        $version = $rel.tag_name -replace "^v", ""
+        $url = "https://downloads.scummvm.org/frs/scummvm/$version/scummvm-$version-win32-x86_64.zip"
+        $archive = "$env:TEMP\scummvm-$version-win32-x86_64.zip"
+        Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $archive
+        New-Item -ItemType Directory -Path $dest -Force | Out-Null
+        Expand-Archive -Path $archive -DestinationPath $dest -Force
+        Remove-Item $archive -Force -ErrorAction SilentlyContinue
+
+        if (-not (Test-Path (Join-Path $dest "scummvm.exe"))) {
+            $inner = Get-ChildItem $dest -Directory | Select-Object -First 1
+            if ($inner -and (Test-Path (Join-Path $inner.FullName "scummvm.exe"))) {
+                Get-ChildItem $inner.FullName | Move-Item -Destination $dest -Force
+                Remove-Item $inner.FullName -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        if (Test-Path (Join-Path $dest "scummvm.exe")) {
+            Write-Host "ScummVM $version staged at $dest."
+            foreach ($t in $DefaultEmulatorTargets["scummvm"]) {
+                Set-DefaultEmulator -EsdeSystem $t.esdeSystem -Label $t.label
+            }
+        } else {
+            Write-Host "ScummVM extracted but scummvm.exe not found where expected — check $dest manually."
+        }
+    } catch {
+        Write-Host "ScummVM install failed: $($_.Exception.Message) — install manually, see README."
+    }
+}
+
+function Install-EasyRPG {
+    Write-Step "EasyRPG Player"
+    $dest = Join-Path $EmulatorsDir "EasyRPG"
+    if (Test-Path (Join-Path $dest "Player.exe")) {
+        Write-Host "EasyRPG Player already staged, skipping."
+        return
+    }
+    try {
+        $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/EasyRPG/Player/releases/latest"
+        $version = $rel.tag_name
+        $url = "https://easyrpg.org/downloads/player/$version/easyrpg-player-$version-windows.zip"
+        $archive = "$env:TEMP\easyrpg-player-$version-windows.zip"
+        Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $archive
+        New-Item -ItemType Directory -Path $dest -Force | Out-Null
+        Expand-Archive -Path $archive -DestinationPath $dest -Force
+        Remove-Item $archive -Force -ErrorAction SilentlyContinue
+
+        if (-not (Test-Path (Join-Path $dest "Player.exe"))) {
+            $inner = Get-ChildItem $dest -Directory | Select-Object -First 1
+            if ($inner -and (Test-Path (Join-Path $inner.FullName "Player.exe"))) {
+                Get-ChildItem $inner.FullName | Move-Item -Destination $dest -Force
+                Remove-Item $inner.FullName -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        if (Test-Path (Join-Path $dest "Player.exe")) {
+            Write-Host "EasyRPG Player $version staged at $dest."
+            foreach ($t in $DefaultEmulatorTargets["easyrpg"]) {
+                Set-DefaultEmulator -EsdeSystem $t.esdeSystem -Label $t.label
+            }
+        } else {
+            Write-Host "EasyRPG Player extracted but Player.exe not found where expected — check $dest manually."
+        }
+    } catch {
+        Write-Host "EasyRPG Player install failed: $($_.Exception.Message) — install manually, see README."
+    }
+}
+
 $selectedIds = $Selected.Split(",") | ForEach-Object { $_.Trim() } | Where-Object { $_ }
 if ($selectedIds -contains "all") {
-    $selectedIds = $Emulators.Keys + @("retroarch", "dolphin")
+    $selectedIds = $Emulators.Keys + @("retroarch", "dolphin", "scummvm", "easyrpg")
 }
 
 foreach ($id in $selectedIds) {
+    if ($RomSystemsForId[$id]) {
+        foreach ($sys in $RomSystemsForId[$id]) { Ensure-RomFolder -EsdeSystem $sys }
+    }
+
     if ($id -eq "retroarch") {
         Install-RetroArch
         continue
     }
     if ($id -eq "dolphin") {
         Install-Dolphin
+        continue
+    }
+    if ($id -eq "scummvm") {
+        Install-ScummVM
+        continue
+    }
+    if ($id -eq "easyrpg") {
+        Install-EasyRPG
         continue
     }
     $e = $Emulators[$id]

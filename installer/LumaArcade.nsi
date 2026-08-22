@@ -101,6 +101,17 @@ Var EmuXenia
 Var EmuRetroarch
 Var EmuDolphin
 Var EmuSwitch
+Var EmuFlycast
+Var EmuScummvm
+Var EmuEasyrpg
+Var EmuHypseus
+Var EmuTsugaru
+Var EmuSupermodel
+Var EmuDosboxStaging
+Var EmuDosboxX
+Var EmuVpinball
+Var EmuKemulator
+Var EmuRuffle
 Var SelectedEmulators
 
 Function EmulatorChoicePageCreate
@@ -205,7 +216,91 @@ Function EmulatorChoicePageLeave
   ${EndIf}
 FunctionEnd
 
+Function EmulatorChoicePage2Create
+  !insertmacro MUI_HEADER_TEXT "Choose more emulators" \
+    "Arcade, engines, and older PC systems. Same deal — selected ones are downloaded and set up automatically."
+
+  nsDialogs::Create 1018
+  Pop $0
+  ${If} $0 == error
+    Abort
+  ${EndIf}
+
+  ${NSD_CreateCheckbox} 0 0 48% 12u "Flycast (Dreamcast/Naomi/Atomiswave)"
+  Pop $EmuFlycast
+  ${NSD_CreateCheckbox} 50% 0 48% 12u "ScummVM (point-and-click adventures)"
+  Pop $EmuScummvm
+  ${NSD_CreateCheckbox} 0 16u 48% 12u "EasyRPG Player (RPG Maker 2000/2003)"
+  Pop $EmuEasyrpg
+  ${NSD_CreateCheckbox} 50% 16u 48% 12u "Hypseus Singe (arcade LaserDisc)"
+  Pop $EmuHypseus
+  ${NSD_CreateCheckbox} 0 32u 48% 12u "Tsugaru (Fujitsu FM Towns)"
+  Pop $EmuTsugaru
+  ${NSD_CreateCheckbox} 50% 32u 48% 12u "Supermodel (Sega Model 3)"
+  Pop $EmuSupermodel
+  ${NSD_CreateCheckbox} 0 48u 48% 12u "DOSBox Staging (DOS)"
+  Pop $EmuDosboxStaging
+  ${NSD_CreateCheckbox} 50% 48u 48% 12u "DOSBox-X (Windows 3.x/9x)"
+  Pop $EmuDosboxX
+  ${NSD_CreateCheckbox} 0 64u 48% 12u "Visual Pinball"
+  Pop $EmuVpinball
+  ${NSD_CreateCheckbox} 50% 64u 48% 12u "KEmulator (Java ME / J2ME)"
+  Pop $EmuKemulator
+  ${NSD_CreateCheckbox} 0 80u 48% 12u "Ruffle (Adobe Flash)"
+  Pop $EmuRuffle
+
+  nsDialogs::Show
+FunctionEnd
+
+Function EmulatorChoicePage2Leave
+  ${NSD_GetState} $EmuFlycast $0
+  ${If} $0 == ${BST_CHECKED}
+    StrCpy $SelectedEmulators "$SelectedEmulators,flycast"
+  ${EndIf}
+  ${NSD_GetState} $EmuScummvm $0
+  ${If} $0 == ${BST_CHECKED}
+    StrCpy $SelectedEmulators "$SelectedEmulators,scummvm"
+  ${EndIf}
+  ${NSD_GetState} $EmuEasyrpg $0
+  ${If} $0 == ${BST_CHECKED}
+    StrCpy $SelectedEmulators "$SelectedEmulators,easyrpg"
+  ${EndIf}
+  ${NSD_GetState} $EmuHypseus $0
+  ${If} $0 == ${BST_CHECKED}
+    StrCpy $SelectedEmulators "$SelectedEmulators,hypseus"
+  ${EndIf}
+  ${NSD_GetState} $EmuTsugaru $0
+  ${If} $0 == ${BST_CHECKED}
+    StrCpy $SelectedEmulators "$SelectedEmulators,tsugaru"
+  ${EndIf}
+  ${NSD_GetState} $EmuSupermodel $0
+  ${If} $0 == ${BST_CHECKED}
+    StrCpy $SelectedEmulators "$SelectedEmulators,supermodel"
+  ${EndIf}
+  ${NSD_GetState} $EmuDosboxStaging $0
+  ${If} $0 == ${BST_CHECKED}
+    StrCpy $SelectedEmulators "$SelectedEmulators,dosbox-staging"
+  ${EndIf}
+  ${NSD_GetState} $EmuDosboxX $0
+  ${If} $0 == ${BST_CHECKED}
+    StrCpy $SelectedEmulators "$SelectedEmulators,dosbox-x"
+  ${EndIf}
+  ${NSD_GetState} $EmuVpinball $0
+  ${If} $0 == ${BST_CHECKED}
+    StrCpy $SelectedEmulators "$SelectedEmulators,vpinball"
+  ${EndIf}
+  ${NSD_GetState} $EmuKemulator $0
+  ${If} $0 == ${BST_CHECKED}
+    StrCpy $SelectedEmulators "$SelectedEmulators,kemulator"
+  ${EndIf}
+  ${NSD_GetState} $EmuRuffle $0
+  ${If} $0 == ${BST_CHECKED}
+    StrCpy $SelectedEmulators "$SelectedEmulators,ruffle"
+  ${EndIf}
+FunctionEnd
+
 Page custom EmulatorChoicePageCreate EmulatorChoicePageLeave
+Page custom EmulatorChoicePage2Create EmulatorChoicePage2Leave
 
 !insertmacro MUI_PAGE_INSTFILES
 
