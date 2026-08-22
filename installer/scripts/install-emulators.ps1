@@ -1051,6 +1051,89 @@ if ($overridesByName.Count -gt 0) {
     Write-Host "Wrote find-rule overrides to $findRulesPath"
 }
 
+# A dedicated ES-DE system whose "games" are the emulators themselves,
+# launched with no ROM -- opens each emulator's own front-end/settings
+# window directly (BIOS paths, controller mapping, graphics backend,
+# etc.), which otherwise has no way to be reached at all through ES-DE
+# once a game's default launch command is set. ES-DE has no built-in
+# system for this (unlike "windows"/"steam", which are genuine bundled
+# systems), so this defines a brand new one via the same
+# custom_systems/es_systems.xml mechanism already used for find-rule
+# overrides, using the exact "Shortcut or script" launch shape ES-DE's
+# own "windows" system already uses for the same purpose: a .bat file
+# per entry, "%EMULATOR_OS-SHELL% /C %ROM%" as the command. Reads any
+# existing custom_systems/es_systems.xml first and only adds this system
+# if it isn't already there, matching the same don't-clobber-other-
+# customizations discipline as the find-rules merge above.
+Write-Step "Emulator Setup system"
+$emulatorExePaths = @{
+    "Cemu"              = "cemu\Cemu.exe"
+    "Azahar (3DS)"      = "Citra\nightly-mingw\azahar.exe"
+    "DuckStation (PS1)" = "duckstation\duckstation-qt-x64-ReleaseLTCG.exe"
+    "melonDS (DS)"      = "melonDS\melonDS.exe"
+    "PCSX2 (PS2)"       = "PCSX2-Qt\pcsx2-qt.exe"
+    "PPSSPP (PSP)"      = "PPSSPP\PPSSPPWindows64.exe"
+    "RPCS3 (PS3)"       = "RPCS3\rpcs3.exe"
+    "shadPS4 (PS4)"     = "shadPS4\shadPS4.exe"
+    "Vita3K (PS Vita)"  = "Vita3K\Vita3K.exe"
+    "xemu (Xbox)"       = "xemu\xemu.exe"
+    "Xenia Canary (Xbox 360)" = "xenia_canary\xenia_canary.exe"
+    "Eden (Switch)"     = "eden\eden.exe"
+    "Flycast (Dreamcast)" = "flycast\flycast.exe"
+    "Ruffle (Flash)"    = "ruffle\ruffle.exe"
+    "Hypseus Singe"     = "Hypseus Singe\hypseus.exe"
+    "Tsugaru (FM Towns)" = "tsugaru\Tsugaru_CUI.exe"
+    "Supermodel (Model 3)" = "Supermodel\Supermodel.exe"
+    "DOSBox Staging"    = "dosbox-staging\dosbox.exe"
+    "DOSBox-X"          = "DOSBox-X\dosbox-x.exe"
+    "Visual Pinball"    = "VPinballX\VPinballX_GL64.exe"
+    "KEmulator (J2ME)"  = "KEmulator\KEmulator.bat"
+    "TeknoParrot"       = "TeknoParrot\TeknoParrotUi.exe"
+    "RetroArch"         = "RetroArch-Win64\retroarch.exe"
+    "Dolphin (GC-Wii)"  = "Dolphin-x64\Dolphin.exe"
+    "ScummVM"           = "scummvm\scummvm.exe"
+    "EasyRPG Player"    = "EasyRPG\Player.exe"
+}
+
+$launcherRomDir = Join-Path (Get-RomPath) "emulatorsetup"
+New-Item -ItemType Directory -Path $launcherRomDir -Force | Out-Null
+$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+$launcherCount = 0
+foreach ($displayName in $emulatorExePaths.Keys) {
+    $exePath = Join-Path $EmulatorsDir $emulatorExePaths[$displayName]
+    if (-not (Test-Path $exePath)) { continue }
+    $safeName = $displayName -replace '[\\/:*?"<>|]', '_'
+    $batPath = Join-Path $launcherRomDir "$safeName.bat"
+    $batContent = "@echo off`r`nstart `"`" `"$exePath`"`r`n"
+    [System.IO.File]::WriteAllText($batPath, $batContent, $utf8NoBom)
+    $launcherCount++
+}
+Write-Host "Wrote $launcherCount emulator launcher shortcut(s) to $launcherRomDir"
+
+$esdeSystemsPath = Join-Path $customDir "es_systems.xml"
+$emulatorSetupSystemXml = @"
+    <system>
+        <name>emulatorsetup</name>
+        <fullname>Emulator Setup</fullname>
+        <path>%ROMPATH%\emulatorsetup</path>
+        <extension>.bat .BAT</extension>
+        <command label="Open emulator">%HIDEWINDOW% %ESCAPESPECIALS% %EMULATOR_OS-SHELL% /C %ROM%</command>
+        <platform>pcwindows</platform>
+        <theme>windows</theme>
+    </system>
+"@
+$existingSystemsXml = if (Test-Path $esdeSystemsPath) { Get-Content $esdeSystemsPath -Raw } else { "" }
+if ($existingSystemsXml -notmatch "<name>emulatorsetup</name>") {
+    New-Item -ItemType Directory -Path $customDir -Force | Out-Null
+    if ($existingSystemsXml -match "(?s)<systemList>(.*)</systemList>") {
+        $newXml = $existingSystemsXml -replace "</systemList>", "$emulatorSetupSystemXml</systemList>"
+    } else {
+        $newXml = "<?xml version=`"1.0`"?>`n<systemList>`n$emulatorSetupSystemXml</systemList>`n"
+    }
+    [System.IO.File]::WriteAllText($esdeSystemsPath, $newXml, $utf8NoBom)
+    Write-Host "Added the Emulator Setup system to $esdeSystemsPath"
+}
+
 # Most of these emulators write their own config/save files right next to
 # their own .exe (portable mode) — fine normally, but $EmulatorsDir usually
 # ends up under "C:\Program Files\ES-DE\Emulators\..." since that's where
