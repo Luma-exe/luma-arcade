@@ -337,9 +337,36 @@ Function EmulatorChoicePage3Leave
   ${EndIf}
 FunctionEnd
 
+; --- BIOS/firmware disclosure ---
+; A few of the emulators above are legally unable to work at all without
+; a BIOS/firmware dump the *user* has to provide (LumaArcade can't
+; legally bundle Nintendo/Sony/Microsoft firmware, same reason no
+; emulator project does) -- shown once, always, regardless of which
+; emulators were actually selected, so it's seen even on a repair/
+; install-more-emulators run where the emulator pages above are skipped.
+Function BiosNoticePageCreate
+  !insertmacro MUI_HEADER_TEXT "BIOS and firmware files" \
+    "A few systems legally need files LumaArcade can't include for you. This is normal for every emulator, not specific to this installer."
+
+  nsDialogs::Create 1018
+  Pop $0
+  ${If} $0 == error
+    Abort
+  ${EndIf}
+
+  ${NSD_CreateLabel} 0 0 100% 190u "Won't work at all without these (dumped from hardware you own, or sourced yourself — this installer never provides them):$\r$\n$\r$\n  - Xbox (xemu) - MCPX boot ROM + an Xbox hard drive image$\r$\n  - Switch (Eden) - Switch firmware + prod.keys$\r$\n  - PS3 (RPCS3) - PS3 firmware, installed once from inside RPCS3$\r$\n  - PS Vita (Vita3K) - PS Vita firmware, installed once from inside Vita3K$\r$\n  - Wii U (Cemu) - a keys.txt file, needed by most retail games$\r$\n  - 3DS (Azahar) - 3DS firmware + seeddb.bin, needed by many games$\r$\n  - Arcade / Neo Geo / MAME - some romsets need a separate BIOS zip (e.g. neogeo.zip) alongside the game files$\r$\n$\r$\nWork without one, but compatibility is noticeably better with a real BIOS: PS1, PS2, PSP, Dreamcast, Saturn, and DS.$\r$\n$\r$\nEach emulator's own settings/documentation covers exactly where its BIOS files go — see the README for links."
+  Pop $1
+
+  nsDialogs::Show
+FunctionEnd
+
+Function BiosNoticePageLeave
+FunctionEnd
+
 Page custom EmulatorChoicePageCreate EmulatorChoicePageLeave
 Page custom EmulatorChoicePage2Create EmulatorChoicePage2Leave
 Page custom EmulatorChoicePage3Create EmulatorChoicePage3Leave
+Page custom BiosNoticePageCreate BiosNoticePageLeave
 
 !insertmacro MUI_PAGE_INSTFILES
 

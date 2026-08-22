@@ -99,6 +99,34 @@ finish manually rather than aborting the whole LumaArcade install.
    entirely outside LumaArcade, same as it would be if you'd installed ES-DE
    yourself with no LumaArcade involved at all.
 
+### BIOS and firmware files
+
+The emulator-selection step of the installer shows this too, but worth
+repeating here: a handful of systems are legally unable to work at all
+without a BIOS/firmware dump — copyrighted files from Nintendo/Sony/
+Microsoft that no emulator project (this one included) can legally bundle.
+You provide these yourself, dumped from hardware you own.
+
+**Won't launch at all without one:**
+
+| System | Emulator | What it needs |
+|---|---|---|
+| Xbox | xemu | MCPX boot ROM + an Xbox hard drive image |
+| Switch | Eden | Switch firmware + `prod.keys` |
+| PS3 | RPCS3 | PS3 firmware — installed once from inside RPCS3 itself |
+| PS Vita | Vita3K | PS Vita firmware — installed once from inside Vita3K itself |
+| Wii U | Cemu | a `keys.txt` file, needed by most retail games |
+| 3DS | Azahar | 3DS firmware + `seeddb.bin`, needed by many games |
+| Arcade / Neo Geo / MAME | RetroArch (MAME/FBNeo cores) | some romsets need a separate BIOS zip (e.g. `neogeo.zip`) alongside the game files |
+
+**Work without one, but compatibility is noticeably better with a real
+BIOS:** PS1 (DuckStation), PS2 (PCSX2), PSP (PPSSPP), Dreamcast (Flycast),
+Saturn, and DS (melonDS, for DSi-specific features).
+
+Where each BIOS file actually goes is emulator-specific — check that
+emulator's own settings/documentation (usually a "BIOS" or "Firmware" entry
+in its own settings menu) rather than guessing at a folder.
+
 ## Getting started (LumaArcade itself, from source)
 
 ```bash
