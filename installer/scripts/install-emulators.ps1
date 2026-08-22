@@ -143,6 +143,126 @@ Right = 258
     Write-Host "Patched default melonDS keyboard/joystick controls into $tomlPath"
 }
 
+# Forces an emulator to launch fullscreen by default, since Sunshine is
+# streaming a whole virtual display -- a windowed emulator just means a
+# small floating window on a black background on the client's screen.
+# Where ES-DE's own (Standalone) command already passes a fullscreen
+# flag (Cemu/Eden's "-f", Ruffle/Tsugaru's "--fullscreen"/"-FULLSCREEN",
+# checked directly against es_systems.xml), nothing to do here -- this
+# only covers the emulators whose default command doesn't, patching
+# each one's own persistent config the same way Set-MelonDSDefaultControls
+# already does for controls. Key names below were pulled from each
+# emulator's own actual generated config file where one already existed
+# on lumaplayground.com (Flycast/Vita3K/PPSSPP/Xenia/DOSBox-X), or from
+# each project's own settings source directly (RPCS3's
+# emu_settings_type.h has a literal StartGameFullscreen enum entry) --
+# not guessed. A few are intentionally left out: xemu has no persistent
+# fullscreen setting in its own settings code at all (confirmed by
+# reading it, not assumed) and no CLI flag either; KEmulator is a Java
+# desktop app with no known equivalent; Hypseus/Daphne-style laserdisc
+# emulators conventionally default to fullscreen already by genre
+# convention. Best-effort like the rest of this script -- not verified
+# against every emulator's actual runtime behavior, only against its
+# config format.
+function Set-ConfigFullscreen($Path, $Pattern, $Replacement, $FreshContent) {
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    if (Test-Path $Path) {
+        $content = Get-Content $Path -Raw
+        if ($content -match $Pattern) {
+            $newContent = [regex]::Replace($content, $Pattern, $Replacement, 1)
+            [System.IO.File]::WriteAllText($Path, $newContent, $utf8NoBom)
+            Write-Host "Set fullscreen default in $Path"
+        } else {
+            Write-Host "Fullscreen setting not found in $Path as expected -- left as-is, check manually."
+        }
+    } else {
+        $dir = Split-Path $Path -Parent
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+        [System.IO.File]::WriteAllText($Path, $FreshContent, $utf8NoBom)
+        Write-Host "Wrote default fullscreen config to $Path"
+    }
+}
+
+function Set-EmulatorFullscreenDefault($Id, $EmulatorDir) {
+    switch ($Id) {
+        "duckstation" {
+            Set-ConfigFullscreen -Path (Join-Path $EmulatorDir "settings.ini") `
+                -Pattern '(?m)^StartFullscreen\s*=.*$' -Replacement "StartFullscreen = true" `
+                -FreshContent "[Main]`r`nStartFullscreen = true`r`n"
+        }
+        "pcsx2" {
+            Set-ConfigFullscreen -Path (Join-Path $EmulatorDir "inis\PCSX2.ini") `
+                -Pattern '(?m)^StartFullscreen\s*=.*$' -Replacement "StartFullscreen = true" `
+                -FreshContent "[UI]`r`nStartFullscreen = true`r`n"
+        }
+        "ppsspp" {
+            $iniPath = Join-Path $EmulatorDir "memstick\PSP\SYSTEM\ppsspp.ini"
+            Set-ConfigFullscreen -Path $iniPath `
+                -Pattern '(?m)^FullScreen\s*=.*$' -Replacement "FullScreen = True" `
+                -FreshContent "[General]`r`nFullScreen = True`r`n"
+        }
+        "dolphin" {
+            Set-ConfigFullscreen -Path (Join-Path $EmulatorDir "User\Config\Dolphin.ini") `
+                -Pattern '(?m)^Fullscreen\s*=.*$' -Replacement "Fullscreen = True" `
+                -FreshContent "[Display]`r`nFullscreen = True`r`n"
+        }
+        "flycast" {
+            Set-ConfigFullscreen -Path (Join-Path $EmulatorDir "emu.cfg") `
+                -Pattern '(?m)^fullscreen\s*=.*$' -Replacement "fullscreen = yes" `
+                -FreshContent "[window]`r`nfullscreen = yes`r`n"
+        }
+        "scummvm" {
+            Set-ConfigFullscreen -Path (Join-Path $EmulatorDir "scummvm.ini") `
+                -Pattern '(?m)^fullscreen\s*=.*$' -Replacement "fullscreen=true" `
+                -FreshContent "[scummvm]`r`nfullscreen=true`r`n"
+        }
+        "dosbox-staging" {
+            Set-ConfigFullscreen -Path (Join-Path $EmulatorDir "dosbox-staging.conf") `
+                -Pattern '(?m)^fullscreen\s*=.*$' -Replacement "fullscreen = true" `
+                -FreshContent "[sdl]`r`nfullscreen = true`r`n"
+        }
+        "dosbox-x" {
+            Set-ConfigFullscreen -Path (Join-Path $EmulatorDir "dosbox-x.conf") `
+                -Pattern '(?m)^fullscreen\s*=.*$' -Replacement "fullscreen = true" `
+                -FreshContent "[sdl]`r`nfullscreen = true`r`n"
+        }
+        "xenia" {
+            Set-ConfigFullscreen -Path (Join-Path $EmulatorDir "xenia-canary.config.toml") `
+                -Pattern '(?m)^fullscreen\s*=.*$' -Replacement "fullscreen = true" `
+                -FreshContent "[Display]`r`nfullscreen = true`r`n"
+        }
+        "supermodel" {
+            Set-ConfigFullscreen -Path (Join-Path $EmulatorDir "Config\Supermodel.ini") `
+                -Pattern '(?m)^FullScreen\s*=.*$' -Replacement "FullScreen = 1" `
+                -FreshContent "FullScreen = 1`r`n"
+        }
+        "3ds" {
+            # $EmulatorDir is already "...\Citra\nightly-mingw" (matches
+            # the "3ds" $Emulators table entry's folder value).
+            $iniPath = Join-Path $EmulatorDir "user\config\qt-config.ini"
+            Set-ConfigFullscreen -Path $iniPath `
+                -Pattern '(?m)^fullscreen\s*=.*$' -Replacement "fullscreen=true" `
+                -FreshContent "[UI]`r`nfullscreen=true`r`nfullscreen\default=false`r`n"
+        }
+        "vita3k" {
+            Set-ConfigFullscreen -Path (Join-Path $EmulatorDir "config.yml") `
+                -Pattern '(?m)^boot-apps-full-screen:.*$' -Replacement "boot-apps-full-screen: true" `
+                -FreshContent "---`r`nboot-apps-full-screen: true`r`n...`r`n"
+        }
+        "rpcs3" {
+            # RPCS3's own emu_settings_type.h has a literal
+            # StartGameFullscreen enum entry confirming this setting
+            # exists, but its exact YAML key under Miscellaneous: wasn't
+            # confirmed against a real generated config.yml the way the
+            # others above were -- lower confidence than the rest of
+            # this function.
+            Set-ConfigFullscreen -Path (Join-Path $EmulatorDir "config.yml") `
+                -Pattern '(?m)^(\s*)Start Game Fullscreen:.*$' -Replacement '${1}Start Game Fullscreen: true' `
+                -FreshContent "Miscellaneous:`r`n  Start Game Fullscreen: true`r`n"
+        }
+    }
+}
+
 # ES-DE (like every other frontend) hides a system entirely from its menu
 # when its ROM folder has zero recognized game files in it -- confirmed
 # live: xbox/xbox360 never showed up on lumaplayground.com at all, and it
@@ -524,6 +644,9 @@ function Install-RetroArch {
         # lumaplayground.com, RetroArch installed, zero cores, every
         # RetroArch-dependent system unusable).
         Install-RetroArchCores -RetroArchDir $dest
+        Set-ConfigFullscreen -Path (Join-Path $dest "retroarch.cfg") `
+            -Pattern '(?m)^video_fullscreen\s*=.*$' -Replacement 'video_fullscreen = "true"' `
+            -FreshContent "video_fullscreen = `"true`"`r`n"
         return
     }
     Write-Step $Name
@@ -656,6 +779,7 @@ function Install-Dolphin {
     $dest = Join-Path $EmulatorsDir "Dolphin-x64"
     if (Test-Path (Join-Path $dest "Dolphin.exe")) {
         Write-Host "Dolphin already staged, skipping."
+        Set-EmulatorFullscreenDefault -Id "dolphin" -EmulatorDir $dest
         return
     }
     try {
@@ -699,6 +823,7 @@ function Install-Dolphin {
             foreach ($t in $DefaultEmulatorTargets["dolphin"]) {
                 Set-DefaultEmulator -EsdeSystem $t.esdeSystem -Label $t.label
             }
+            Set-EmulatorFullscreenDefault -Id "dolphin" -EmulatorDir $dest
         } else {
             Write-Host "Dolphin extracted but Dolphin.exe not found where expected — check $dest manually."
         }
@@ -721,6 +846,7 @@ function Install-ScummVM {
     $dest = Join-Path $EmulatorsDir "scummvm"
     if (Test-Path (Join-Path $dest "scummvm.exe")) {
         Write-Host "ScummVM already staged, skipping."
+        Set-EmulatorFullscreenDefault -Id "scummvm" -EmulatorDir $dest
         return
     }
     try {
@@ -746,6 +872,7 @@ function Install-ScummVM {
             foreach ($t in $DefaultEmulatorTargets["scummvm"]) {
                 Set-DefaultEmulator -EsdeSystem $t.esdeSystem -Label $t.label
             }
+            Set-EmulatorFullscreenDefault -Id "scummvm" -EmulatorDir $dest
         } else {
             Write-Host "ScummVM extracted but scummvm.exe not found where expected — check $dest manually."
         }
@@ -846,6 +973,10 @@ foreach ($id in $selectedIds) {
 
     if ($id -eq "melonds" -and (Test-Path (Join-Path $EmulatorsDir "$($e.folder)\$($e.exe)"))) {
         Set-MelonDSDefaultControls -MelonDSDir (Join-Path $EmulatorsDir $e.folder)
+    }
+
+    if (Test-Path (Join-Path $EmulatorsDir "$($e.folder)\$($e.exe)")) {
+        Set-EmulatorFullscreenDefault -Id $id -EmulatorDir (Join-Path $EmulatorsDir $e.folder)
     }
 }
 
