@@ -195,6 +195,7 @@ $RomSystemsForId = @{
     "dosbox-x"    = @("windows9x", "windows3x")
     "vpinball"    = @("vpinball")
     "kemulator"   = @("j2me")
+    "teknoparrot" = @("type-x")
 }
 
 function Ensure-7Zip {
@@ -264,13 +265,21 @@ function Install-Emulator($Name, $Kind, $Repo, $AssetPattern, $DestFolder, $Expe
         }
         Remove-Item $archive -Force -ErrorAction SilentlyContinue
 
-        # Flatten one level of nesting if the exe isn't where expected but
-        # is one folder down (e.g. archive contains a single top folder).
+        # Flatten nesting if the exe isn't where expected but is somewhere
+        # further down (e.g. archive contains a single top folder, or --
+        # confirmed live with DOSBox-X's release zip -- two of them
+        # stacked). Search for wherever the exe actually landed and pull
+        # that whole containing folder's contents up to $dest, rather than
+        # assuming exactly one level.
         if (-not (Test-Path (Join-Path $dest $ExpectedExe))) {
-            $inner = Get-ChildItem $dest -Directory | Select-Object -First 1
-            if ($inner -and (Test-Path (Join-Path $inner.FullName $ExpectedExe))) {
-                Get-ChildItem $inner.FullName | Move-Item -Destination $dest -Force
-                Remove-Item $inner.FullName -Recurse -Force -ErrorAction SilentlyContinue
+            $found = Get-ChildItem $dest -Recurse -Filter (Split-Path $ExpectedExe -Leaf) -File -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($found -and $found.DirectoryName -ne $dest) {
+                Get-ChildItem $found.DirectoryName | Move-Item -Destination $dest -Force
+                # Clean up whatever now-empty nested folders are left behind.
+                Get-ChildItem $dest -Directory -Recurse -ErrorAction SilentlyContinue |
+                    Sort-Object { $_.FullName.Length } -Descending |
+                    Where-Object { (Get-ChildItem $_.FullName -Force -ErrorAction SilentlyContinue).Count -eq 0 } |
+                    Remove-Item -Force -ErrorAction SilentlyContinue
             }
         }
 
@@ -313,8 +322,28 @@ $Emulators = @{
     "dosbox-x"    = @{ kind = "github"; repo = "joncampbell123/dosbox-x"; pattern = "dosbox-x-mingw64-*-portable.zip"; folder = "DOSBox-X"; exe = "dosbox-x.exe" }
     "vpinball"    = @{ kind = "github"; repo = "vpinball/vpinball"; pattern = "Developer.VPinballX_GL-*-Release-win-x64.zip"; folder = "VPinballX"; exe = "VPinballX_GL64.exe" }
     "kemulator"   = @{ kind = "github"; repo = "shinovon/KEmulator"; pattern = "kemnnx64.v*.zip"; folder = "KEmulator"; exe = "KEmulator.exe" }
+    "teknoparrot" = @{ kind = "github"; repo = "teknogods/TeknoParrotUI"; pattern = "TeknoParrotUi.zip"; folder = "TeknoParrot"; exe = "TeknoParrotUi.exe" }
 }
 
+# TeknoParrot (type-x / modern PC-based arcade boards) gets downloaded
+# and staged like everything else above, but deliberately has no entry
+# in $DefaultEmulatorTargets and no custom_systems find-rule -- checked
+# ES-DE's own es_systems.xml and es_find_rules.xml directly, and neither
+# one has ever heard of TeknoParrot at all, unlike every other emulator
+# here. That's not an oversight to work around: TeknoParrot doesn't take
+# a ROM/ISO path as an argument the way an emulator normally does --
+# each game is its own hand-configured "profile" (XML file naming the
+# game's actual executable, DLL patches, per-title I/O config) that has
+# to be set up once inside TeknoParrot itself before it's launchable at
+# all, the same fundamental one-time-setup-per-game shape as Vita3K's
+# library on this box. ES-DE's own "type-x" system already matches that
+# shape exactly -- its one and only command is "Shortcut or script",
+# meaning each game is just a .bat/.lnk in ROMS\type-x that calls
+# "TeknoParrotUi.exe -run <profile>.xml" itself. That's already the
+# correct, ES-DE-native way to wire TeknoParrot in -- nothing to
+# override, it just needs to actually be on disk, which is what this
+# does.
+#
 # A few of the systems from the ES-DE ROMS coverage pass (Sega Model 2,
 # Saturn's Kronos/Yaba Sanshiro 2, Apple IIGS's KEGS, classic Mac's
 # Basilisk II/SheepShaver) don't get an entry above even though ES-DE has

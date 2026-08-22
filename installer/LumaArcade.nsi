@@ -112,6 +112,7 @@ Var EmuDosboxX
 Var EmuVpinball
 Var EmuKemulator
 Var EmuRuffle
+Var EmuTeknoparrot
 Var SelectedEmulators
 
 Function EmulatorChoicePageCreate
@@ -248,6 +249,8 @@ Function EmulatorChoicePage2Create
   Pop $EmuKemulator
   ${NSD_CreateCheckbox} 0 80u 48% 12u "Ruffle (Adobe Flash)"
   Pop $EmuRuffle
+  ${NSD_CreateCheckbox} 50% 80u 48% 12u "TeknoParrot (modern PC-based arcade)"
+  Pop $EmuTeknoparrot
 
   nsDialogs::Show
 FunctionEnd
@@ -296,6 +299,10 @@ Function EmulatorChoicePage2Leave
   ${NSD_GetState} $EmuRuffle $0
   ${If} $0 == ${BST_CHECKED}
     StrCpy $SelectedEmulators "$SelectedEmulators,ruffle"
+  ${EndIf}
+  ${NSD_GetState} $EmuTeknoparrot $0
+  ${If} $0 == ${BST_CHECKED}
+    StrCpy $SelectedEmulators "$SelectedEmulators,teknoparrot"
   ${EndIf}
 FunctionEnd
 
