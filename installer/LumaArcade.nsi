@@ -113,6 +113,8 @@ Var EmuVpinball
 Var EmuKemulator
 Var EmuRuffle
 Var EmuTeknoparrot
+Var EmuSteam
+Var EmuEpic
 Var SelectedEmulators
 
 Function EmulatorChoicePageCreate
@@ -306,8 +308,38 @@ Function EmulatorChoicePage2Leave
   ${EndIf}
 FunctionEnd
 
+Function EmulatorChoicePage3Create
+  !insertmacro MUI_HEADER_TEXT "PC game launchers" \
+    "Adds your installed Steam / Epic Games Store library to ES-DE automatically — no manual shortcuts needed. Safe to select even if one isn't installed; it's just skipped."
+
+  nsDialogs::Create 1018
+  Pop $0
+  ${If} $0 == error
+    Abort
+  ${EndIf}
+
+  ${NSD_CreateCheckbox} 0 0 48% 12u "Steam library"
+  Pop $EmuSteam
+  ${NSD_CreateCheckbox} 50% 0 48% 12u "Epic Games Store library"
+  Pop $EmuEpic
+
+  nsDialogs::Show
+FunctionEnd
+
+Function EmulatorChoicePage3Leave
+  ${NSD_GetState} $EmuSteam $0
+  ${If} $0 == ${BST_CHECKED}
+    StrCpy $SelectedEmulators "$SelectedEmulators,steam"
+  ${EndIf}
+  ${NSD_GetState} $EmuEpic $0
+  ${If} $0 == ${BST_CHECKED}
+    StrCpy $SelectedEmulators "$SelectedEmulators,epic"
+  ${EndIf}
+FunctionEnd
+
 Page custom EmulatorChoicePageCreate EmulatorChoicePageLeave
 Page custom EmulatorChoicePage2Create EmulatorChoicePage2Leave
+Page custom EmulatorChoicePage3Create EmulatorChoicePage3Leave
 
 !insertmacro MUI_PAGE_INSTFILES
 

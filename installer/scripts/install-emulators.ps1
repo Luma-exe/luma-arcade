@@ -169,6 +169,110 @@ function Ensure-RomFolder($EsdeSystem) {
     New-Item -ItemType Directory -Path $dir -Force | Out-Null
 }
 
+# ES-DE already ships a "steam" system built exactly for this: a
+# ROMS\steam\*.url shortcut per game, each one just a
+# "steam://rungameid/<appid>" link, launched via its "Shortcut or
+# script" command (verified against es_systems.xml directly). What's
+# missing is generating those shortcuts -- normally a manual, one-by-one
+# job (or requires a separate GUI tool, Steam ROM Manager). Steam's own
+# on-disk state already has everything needed to do this without any
+# GUI: <SteamPath>\steamapps\libraryfolders.vdf lists every library
+# folder (including ones on other drives), and each library's
+# steamapps\appmanifest_<id>.acf lists that library's installed games'
+# appid + name in the same simple "key" "value" VDF text format. Neither
+# format is JSON, but both are stable/documented enough to parse with
+# plain regex rather than a real VDF parser.
+function Sync-SteamLibrary {
+    Write-Step "Steam library"
+    $steamPath = $null
+    try {
+        $steamPath = (Get-ItemProperty "HKLM:\SOFTWARE\WOW6432Node\Valve\Steam" -ErrorAction Stop).InstallPath
+    } catch {
+        if (Test-Path "C:\Program Files (x86)\Steam\steam.exe") { $steamPath = "C:\Program Files (x86)\Steam" }
+    }
+    if (-not $steamPath -or -not (Test-Path $steamPath)) {
+        Write-Host "Steam install not found -- skipping. Install Steam first, then re-run this script with -Selected steam."
+        return
+    }
+
+    $libraryPaths = [System.Collections.Generic.List[string]]::new()
+    $libraryPaths.Add($steamPath)
+    $vdfPath = Join-Path $steamPath "steamapps\libraryfolders.vdf"
+    if (Test-Path $vdfPath) {
+        $vdf = Get-Content $vdfPath -Raw
+        [regex]::Matches($vdf, '"path"\s+"([^"]+)"') | ForEach-Object {
+            $p = $_.Groups[1].Value -replace '\\\\', '\'
+            if ($p -ne $steamPath) { $libraryPaths.Add($p) }
+        }
+    }
+
+    $romDir = Join-Path (Get-RomPath) "steam"
+    New-Item -ItemType Directory -Path $romDir -Force | Out-Null
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    $count = 0
+
+    foreach ($lib in $libraryPaths) {
+        $appsDir = Join-Path $lib "steamapps"
+        if (-not (Test-Path $appsDir)) { continue }
+        Get-ChildItem $appsDir -Filter "appmanifest_*.acf" -ErrorAction SilentlyContinue | ForEach-Object {
+            $acf = Get-Content $_.FullName -Raw
+            $appid = [regex]::Match($acf, '"appid"\s+"(\d+)"').Groups[1].Value
+            $name = [regex]::Match($acf, '"name"\s+"([^"]+)"').Groups[1].Value
+            if (-not $appid -or -not $name) { return }
+            # Steamworks Common Redistributables and similar tool/runtime
+            # "apps" aren't real games -- they have no useful shortcut
+            # target and would just clutter the list.
+            if ($name -match "^Steamworks Common Redistributables$") { return }
+            $safeName = $name -replace '[\\/:*?"<>|]', '_'
+            $shortcutPath = Join-Path $romDir "$safeName.url"
+            $content = "[InternetShortcut]`r`nURL=steam://rungameid/$appid`r`n"
+            [System.IO.File]::WriteAllText($shortcutPath, $content, $utf8NoBom)
+            $count++
+        }
+    }
+    Write-Host "Synced $count Steam game(s) to $romDir. Run ES-DE's own scraper on the 'steam' system afterward for box art."
+}
+
+# Same idea as Sync-SteamLibrary, for the Epic Games Store -- its
+# launcher writes one JSON manifest per installed game to
+# ProgramData\Epic\EpicGamesLauncher\Data\Manifests\*.item, and the
+# documented way to launch a specific game without opening the store
+# page first is the com.epicgames.launcher://apps/<ns>%3A<id>%3A<app>
+# URI (used by third-party Epic integrations generally, not something
+# unique to this project).
+function Sync-EpicLibrary {
+    Write-Step "Epic Games Store library"
+    $manifestDir = "$env:ProgramData\Epic\EpicGamesLauncher\Data\Manifests"
+    if (-not (Test-Path $manifestDir)) {
+        Write-Host "Epic Games Launcher not found -- skipping. Install it first, then re-run this script with -Selected epic."
+        return
+    }
+
+    $romDir = Join-Path (Get-RomPath) "epic"
+    New-Item -ItemType Directory -Path $romDir -Force | Out-Null
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    $count = 0
+
+    Get-ChildItem $manifestDir -Filter "*.item" -ErrorAction SilentlyContinue | ForEach-Object {
+        try {
+            $manifest = Get-Content $_.FullName -Raw | ConvertFrom-Json
+            $name = $manifest.DisplayName
+            $ns = $manifest.CatalogNamespace
+            $itemId = $manifest.CatalogItemId
+            $appName = $manifest.AppName
+            if (-not $name -or -not $ns -or -not $itemId -or -not $appName) { return }
+            $safeName = $name -replace '[\\/:*?"<>|]', '_'
+            $shortcutPath = Join-Path $romDir "$safeName.url"
+            $content = "[InternetShortcut]`r`nURL=com.epicgames.launcher://apps/$ns%3A$itemId%3A$appName?action=launch&silent=true`r`n"
+            [System.IO.File]::WriteAllText($shortcutPath, $content, $utf8NoBom)
+            $count++
+        } catch {
+            Write-Host "Skipped a manifest ($($_.Name)): $($_.Exception.Message)"
+        }
+    }
+    Write-Host "Synced $count Epic Games Store title(s) to $romDir. Run ES-DE's own scraper on the 'epic' system afterward for box art."
+}
+
 # id -> ES-DE system folder name(s) under ROMS\, for Ensure-RomFolder.
 $RomSystemsForId = @{
     "cemu"        = @("wiiu")
@@ -658,7 +762,7 @@ function Install-EasyRPG {
 
 $selectedIds = $Selected.Split(",") | ForEach-Object { $_.Trim() } | Where-Object { $_ }
 if ($selectedIds -contains "all") {
-    $selectedIds = $Emulators.Keys + @("retroarch", "dolphin", "scummvm", "easyrpg")
+    $selectedIds = $Emulators.Keys + @("retroarch", "dolphin", "scummvm", "easyrpg", "steam", "epic")
 }
 
 foreach ($id in $selectedIds) {
@@ -680,6 +784,14 @@ foreach ($id in $selectedIds) {
     }
     if ($id -eq "easyrpg") {
         Install-EasyRPG
+        continue
+    }
+    if ($id -eq "steam") {
+        Sync-SteamLibrary
+        continue
+    }
+    if ($id -eq "epic") {
+        Sync-EpicLibrary
         continue
     }
     $e = $Emulators[$id]
