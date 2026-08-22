@@ -415,6 +415,11 @@ function Install-RetroArch {
     $dest = Join-Path $EmulatorsDir "RetroArch-Win64"
     if (Test-Path (Join-Path $dest "retroarch.exe")) {
         Write-Host "$Name already staged, skipping."
+        # Still check for cores -- RetroArch being present doesn't mean
+        # its cores are (confirmed live: exactly this state existed on
+        # lumaplayground.com, RetroArch installed, zero cores, every
+        # RetroArch-dependent system unusable).
+        Install-RetroArchCores -RetroArchDir $dest
         return
     }
     Write-Step $Name
@@ -436,9 +441,66 @@ function Install-RetroArch {
                 Remove-Item $inner.FullName -Recurse -Force -ErrorAction SilentlyContinue
             }
         }
-        Write-Host "$Name staged at $dest. Use RetroArch's own Online Updater (Main Menu -> Online Updater -> Core Downloader) to install cores for individual retro systems — not something this installer maintains a list for."
+        Write-Host "$Name staged at $dest."
     } catch {
         Write-Host "$Name install failed: $($_.Exception.Message) — install manually, see README."
+    }
+    Install-RetroArchCores -RetroArchDir $dest
+}
+
+# Installing RetroArch alone gets you an empty shell -- confirmed live:
+# every RetroArch-dependent system (NES, SNES, N64, Genesis, Saturn,
+# MAME, etc.) showed "no emulator found" until this ran, because
+# RetroArch ships with zero cores by default and normally expects a
+# human to open its Online Updater once. Since ES-DE's *default*
+# (first-listed) command per system is almost always a specific named
+# RetroArch core -- verified against es_systems.xml per system below,
+# not guessed -- downloading exactly those cores from libretro's own
+# buildbot (the same CDN RetroArch itself was just downloaded from, and
+# what the Online Updater fetches from under the hood) is enough to make
+# every one of these systems work with zero manual steps. Deliberately a
+# short, curated list matching only the systems this project has
+# actually touched/verified rather than every core libretro ships --
+# same reasoning as everywhere else in this script: don't guess beyond
+# what's been checked.
+function Install-RetroArchCores($RetroArchDir) {
+    Write-Step "RetroArch cores"
+    $coresDir = Join-Path $RetroArchDir "cores"
+    New-Item -ItemType Directory -Path $coresDir -Force | Out-Null
+
+    $cores = @(
+        @{ file = "mame_libretro"; systems = "mame" }
+        @{ file = "mednafen_pce_libretro"; systems = "tg16 / tg-cd (TurboGrafx-16 / CD)" }
+        @{ file = "mupen64plus_next_libretro"; systems = "n64" }
+        @{ file = "mesen_libretro"; systems = "nes / famicom" }
+        @{ file = "gambatte_libretro"; systems = "gb / gbc" }
+        @{ file = "mgba_libretro"; systems = "gba" }
+        @{ file = "snes9x_libretro"; systems = "snes / sfc" }
+        @{ file = "genesis_plus_gx_libretro"; systems = "genesis / mastersystem / gamegear / megacd" }
+        @{ file = "fbneo_libretro"; systems = "neogeo" }
+        @{ file = "stella_libretro"; systems = "atari2600" }
+        @{ file = "mednafen_saturn_libretro"; systems = "saturn" }
+        @{ file = "flycast_libretro"; systems = "mame's Flycast entries / naomi fallback" }
+    )
+
+    foreach ($core in $cores) {
+        $dllName = "$($core.file).dll"
+        $destDll = Join-Path $coresDir $dllName
+        if (Test-Path $destDll) { continue }
+        try {
+            $url = "https://buildbot.libretro.com/nightly/windows/x86_64/latest/$dllName.zip"
+            $archive = "$env:TEMP\$dllName.zip"
+            Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $archive
+            Expand-Archive -Path $archive -DestinationPath $coresDir -Force
+            Remove-Item $archive -Force -ErrorAction SilentlyContinue
+            if (Test-Path $destDll) {
+                Write-Host "Core $($core.file) staged (covers $($core.systems))."
+            } else {
+                Write-Host "Core $($core.file): extracted but $dllName not found where expected — check $coresDir manually."
+            }
+        } catch {
+            Write-Host "Core $($core.file) download failed: $($_.Exception.Message) — covers $($core.systems), install manually via RetroArch's Online Updater."
+        }
     }
 }
 
