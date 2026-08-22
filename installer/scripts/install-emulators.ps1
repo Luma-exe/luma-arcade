@@ -606,6 +606,38 @@ function Install-RetroArchCores($RetroArchDir) {
             Write-Host "Core $($core.file) download failed: $($_.Exception.Message) — covers $($core.systems), install manually via RetroArch's Online Updater."
         }
     }
+
+    # Unlike cartridge-based systems, these four cores don't just launch
+    # in a degraded mode without their BIOS -- they don't boot at all,
+    # confirmed live: Sega CD, Saturn, and TurboGrafx-CD games all did
+    # nothing when clicked despite the correct core being staged, and
+    # Neo Geo did nothing until its neogeo.zip BIOS was moved from
+    # ROMS\neogeo (where game romsets live) into system\neogeo\ (where
+    # FBNeo actually looks for it). None of these BIOS files can be
+    # legally provided by this installer -- see the BIOS/firmware
+    # installer page and README. This only creates the neogeo\ folder
+    # (so the drop-in location exists) and, if a neogeo.zip the user
+    # already has sitting in their neogeo ROM folder looks like the BIOS
+    # (that exact filename is the standard convention for it), copies it
+    # to where FBNeo will actually find it -- not distributing anything,
+    # just relocating a file already on this machine to the right place.
+    $neogeoSystemDir = Join-Path $RetroArchDir "system\neogeo"
+    New-Item -ItemType Directory -Path $neogeoSystemDir -Force | Out-Null
+    $neogeoBiosDest = Join-Path $neogeoSystemDir "neogeo.zip"
+    if (-not (Test-Path $neogeoBiosDest)) {
+        $neogeoBiosSrc = Join-Path (Get-RomPath) "neogeo\neogeo.zip"
+        if (Test-Path $neogeoBiosSrc) {
+            Copy-Item $neogeoBiosSrc $neogeoBiosDest
+            Write-Host "Copied neogeo.zip from the neogeo ROM folder into RetroArch's system\neogeo\ (FBNeo looks for it there, not next to game ROMs)."
+        }
+    }
+
+    Write-Host ""
+    Write-Host "NOTE: Sega CD, Saturn, TurboGrafx-CD, and Neo Geo require BIOS files this installer cannot legally provide:"
+    Write-Host "  - Sega CD (Genesis Plus GX): bios_CD_U.bin / bios_CD_E.bin / bios_CD_J.bin -> $RetroArchDir\system\"
+    Write-Host "  - Saturn (Beetle Saturn):    sega_101.bin / mpr-18811-mx.ic1 / mpr-17933.bin -> $RetroArchDir\system\"
+    Write-Host "  - TurboGrafx-CD (Beetle PCE): syscard3.pce -> $RetroArchDir\system\"
+    Write-Host "  - Neo Geo (FBNeo):           neogeo.zip -> $neogeoSystemDir"
 }
 
 # Dolphin (GameCube/Wii) has no GitHub release assets, and its own

@@ -117,15 +117,27 @@ You provide these yourself, dumped from hardware you own.
 | PS Vita | Vita3K | PS Vita firmware — installed once from inside Vita3K itself |
 | Wii U | Cemu | a `keys.txt` file, needed by most retail games |
 | 3DS | Azahar | 3DS firmware + `seeddb.bin`, needed by many games |
-| Arcade / Neo Geo / MAME | RetroArch (MAME/FBNeo cores) | some romsets need a separate BIOS zip (e.g. `neogeo.zip`) alongside the game files |
+| Sega CD | RetroArch — Genesis Plus GX | `bios_CD_U.bin` (US) / `bios_CD_E.bin` (EU) / `bios_CD_J.bin` (JP) in RetroArch's `system\` folder |
+| Saturn | RetroArch — Beetle Saturn | `sega_101.bin` (US) / `mpr-18811-mx.ic1` (EU) / `mpr-17933.bin` (JP) in RetroArch's `system\` folder |
+| TurboGrafx-CD | RetroArch — Beetle PCE | `syscard3.pce` in RetroArch's `system\` folder |
+| Neo Geo | RetroArch — FBNeo | `neogeo.zip`, specifically in `system\neogeo\neogeo.zip` — **not** next to the game ROMs, that's the mistake that makes it look like nothing's wrong when it's really just in the wrong folder |
+| Other arcade/MAME romsets | RetroArch — MAME | some romsets need their own separate BIOS zip alongside the game files too |
+
+Confirmed live: Sega CD, Saturn, and TurboGrafx-CD games did nothing at all
+when clicked — no error — until the right BIOS file was in place; these
+three don't have a fallback mode the way some other systems below do.
 
 **Work without one, but compatibility is noticeably better with a real
 BIOS:** PS1 (DuckStation), PS2 (PCSX2), PSP (PPSSPP), Dreamcast (Flycast),
-Saturn, and DS (melonDS, for DSi-specific features).
+and DS (melonDS, for DSi-specific features).
 
 Where each BIOS file actually goes is emulator-specific — check that
 emulator's own settings/documentation (usually a "BIOS" or "Firmware" entry
-in its own settings menu) rather than guessing at a folder.
+in its own settings menu) rather than guessing at a folder. For the
+RetroArch-core systems above, `install-emulators.ps1` already creates
+`RetroArch-Win64\system\neogeo\` for you and will auto-copy a `neogeo.zip`
+it finds sitting in your `neogeo` ROM folder into the right place — the
+BIOS file itself still has to come from you, this just fixes the folder.
 
 ## Getting started (LumaArcade itself, from source)
 
