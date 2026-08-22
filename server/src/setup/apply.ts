@@ -1,7 +1,14 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { setSettings } from "../config/settings.js";
 import { detectDependencies, type DetectedDependencies } from "./detect.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// dist/setup -> dist -> server -> server/assets (installer stages "assets"
+// as a sibling of "dist", see installer/build.mjs) — same layout tray/index.ts
+// relies on for its own icon.
+const ESDE_ICON_SRC = path.join(__dirname, "..", "..", "assets", "es-de.png");
 
 export interface SetupResult {
   detected: DetectedDependencies;
@@ -41,15 +48,34 @@ export function runSetup(): SetupResult {
         | (Record<string, unknown> & { name: string })
         | undefined;
 
+      // Sunshine resolves a bare image-path filename against its own
+      // assets\ folder (a sibling of config\) — copy LumaArcade's own
+      // bundled ES-DE icon there so it shows up instead of a blank tile.
+      let imagePath: string | undefined;
+      if (existsSync(ESDE_ICON_SRC)) {
+        try {
+          const sunshineAssetsDir = path.join(path.dirname(detected.sunshineConfigDir), "assets");
+          copyFileSync(ESDE_ICON_SRC, path.join(sunshineAssetsDir, "es-de.png"));
+          imagePath = "es-de.png";
+        } catch (err) {
+          notes.push(`Couldn't copy ES-DE's icon into Sunshine's assets folder: ${(err as Error).message}`);
+        }
+      }
+
       if (!existing) {
         parsed.apps.push({
           name: "ES-DE",
           cmd: detected.esdeExePath,
           "auto-detach": true,
+          ...(imagePath ? { "image-path": imagePath } : {}),
         } as any);
         writeJsonNoBom(appsPath, parsed);
         esdeAddedToSunshine = true;
         notes.push(`Added ES-DE to Sunshine's app list (${appsPath}).`);
+      } else if (imagePath && existing["image-path"] !== imagePath) {
+        existing["image-path"] = imagePath;
+        writeJsonNoBom(appsPath, parsed);
+        notes.push("ES-DE was already in Sunshine's app list — set its icon.");
       } else {
         notes.push("ES-DE is already in Sunshine's app list.");
       }
