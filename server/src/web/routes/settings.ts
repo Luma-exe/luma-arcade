@@ -15,6 +15,38 @@ export async function registerSettingsRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const body = request.body ?? {};
 
+      // `port` ends up interpolated into a shell command at startup
+      // (main.ts's `exec("start http://localhost:" + port)`) and
+      // `moonlightWebStreamPort` ends up in a proxied URL — reject anything
+      // that isn't actually a valid TCP port before it can reach either.
+      for (const key of ["port", "moonlightWebStreamPort"] as const) {
+        if (key in body) {
+          const value = body[key];
+          if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 65535) {
+            reply.code(400).send({ error: `${key} must be an integer between 1 and 65535.` });
+            return;
+          }
+        }
+      }
+
+      // moonlightWebStreamPath is spawned as a child process the moment
+      // this save completes (syncMoonlightWithSettings runs right below,
+      // and moonlightAutoStart can already be true) — a session cookie
+      // alone shouldn't be enough to make this server launch an arbitrary
+      // local executable. Requiring it to already exist on disk is a weak
+      // check (it doesn't stop someone pointing this at, say, an existing
+      // powershell.exe), but it does stop the field from being a blind
+      // "run whatever string I send" primitive, and it's the same class of
+      // check already applied to devTreePath below.
+      if (typeof body.moonlightWebStreamPath === "string" && body.moonlightWebStreamPath !== "") {
+        const resolved = path.resolve(body.moonlightWebStreamPath);
+        if (!existsSync(resolved)) {
+          reply.code(400).send({ error: `${resolved} doesn't exist.` });
+          return;
+        }
+        body.moonlightWebStreamPath = resolved;
+      }
+
       if (typeof body.autoStart === "boolean") {
         try {
           if (body.autoStart) await enableAutoStart();

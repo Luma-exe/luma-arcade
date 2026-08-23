@@ -1,6 +1,6 @@
 import path from "node:path";
 import { randomBytes } from "node:crypto";
-import { exec } from "node:child_process";
+import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { initDb } from "./db/index.js";
 import { getAllSettings } from "./config/settings.js";
@@ -31,7 +31,12 @@ async function main() {
   // via that script) since restarting on every file change would otherwise
   // spam browser tabs.
   if (process.env.LUMA_DEV !== "1") {
-    exec(`start ${portalUrl}`);
+    // execFile + an args array, not exec()'s shell-interpreted string — the
+    // port (and therefore portalUrl) comes from settings.ts, which now
+    // validates it's an integer before it's ever saved, but there's no
+    // reason to leave this shell-interpretable regardless of that. "start"
+    // is itself a cmd.exe builtin, not a real executable, hence /c start.
+    execFile("cmd.exe", ["/c", "start", "", portalUrl]);
   }
 
   startTray({
