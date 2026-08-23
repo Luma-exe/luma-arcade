@@ -20,6 +20,29 @@ function Write-Step($msg) {
     Write-Host "=== $msg ==="
 }
 
+# Every download here is over HTTPS from the project's own GitHub/GitLab
+# releases API, which already rules out a network-path tamper. What it
+# doesn't rule out is the file being corrupted in transit or — the case
+# that actually matters for anything about to run elevated — altered after
+# it was signed. Get-AuthenticodeSignature reads the file's embedded
+# certificate chain, so this is a real integrity check, not just a hash of
+# whatever we just downloaded (which would only prove the download wasn't
+# truncated, not that it's the real binary). "NotSigned" is treated as a
+# warning rather than a hard stop: plenty of legitimate open-source builds
+# (this whole app included) ship unsigned. An actual "HashMismatch" —
+# meaning a signature is present but no longer matches the file — is the
+# one status that means "this file was tampered with after signing," and
+# is the only one worth refusing to run.
+function Confirm-SignatureOrWarn($path, $label) {
+    $sig = Get-AuthenticodeSignature -FilePath $path
+    switch ($sig.Status) {
+        "Valid" { Write-Host "$label signature: valid (signed by $($sig.SignerCertificate.Subject))." ; return $true }
+        "NotSigned" { Write-Host "$label is not signed — proceeding, but you're trusting the download source." ; return $true }
+        "HashMismatch" { Write-Host "$label signature is INVALID (file was modified after signing) — refusing to run it. Delete $path and install manually from the project's real site, see README." ; return $false }
+        default { Write-Host "$label signature check returned $($sig.Status) — proceeding, but you're trusting the download source." ; return $true }
+    }
+}
+
 # ---- 1. Sunshine (MSI, confirmed silent flags) ----
 Write-Step "Sunshine"
 try {
@@ -33,6 +56,9 @@ try {
         } else {
             $msi = "$env:TEMP\Sunshine-installer.msi"
             Invoke-WebRequest -UseBasicParsing -Uri $asset.browser_download_url -OutFile $msi
+            if (-not (Confirm-SignatureOrWarn $msi "Sunshine installer")) {
+                Remove-Item $msi -Force -ErrorAction SilentlyContinue
+            } else {
             # Needs admin — msiexec itself will prompt via UAC since this
             # installer otherwise runs unelevated (RequestExecutionLevel
             # user), same as the old virtual-display-driver step handled it.
@@ -42,6 +68,7 @@ try {
                 Write-Host "Sunshine installed."
             } else {
                 Write-Host "Sunshine MSI exited with code $($p.ExitCode) — see $log. Install manually if needed, see README."
+            }
             }
         }
     }
@@ -68,6 +95,9 @@ try {
         } else {
             $exe = "$env:TEMP\ES-DE-installer.exe"
             Invoke-WebRequest -UseBasicParsing -Uri $asset.url -OutFile $exe
+            if (-not (Confirm-SignatureOrWarn $exe "ES-DE installer")) {
+                Remove-Item $exe -Force -ErrorAction SilentlyContinue
+            } else {
             # ES-DE's installer's exact silent-mode support wasn't confirmed
             # against its own docs — /S is the standard NSIS/CPack-NSIS
             # convention and is tried first, but this is genuinely a
@@ -76,6 +106,7 @@ try {
             # instead, the exe is still on disk for the user to run by hand.
             $p = Start-Process -FilePath $exe -ArgumentList "/S" -Wait -PassThru -Verb RunAs
             Write-Host "ES-DE installer exited with code $($p.ExitCode). If ES-DE isn't at C:\Program Files\ES-DE afterward, run $exe manually."
+            }
         }
     }
 } catch {

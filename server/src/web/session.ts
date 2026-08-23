@@ -29,5 +29,6 @@ export async function requireAuth(request: FastifyRequest, reply: FastifyReply):
   const sessionId = getSessionId(request);
   if (!sessionId || !isSessionValid(sessionId)) {
     reply.code(401).send({ error: "unauthorized" });
+    return;
   }
 }

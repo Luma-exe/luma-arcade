@@ -28,6 +28,21 @@ function Write-Step($msg) {
     Write-Host "=== $msg ==="
 }
 
+# See install-deps.ps1's copy of this function for the reasoning — same
+# check, only used here for the one binary this script actually executes
+# elevated (7-Zip's installer). The emulator archives extracted elsewhere
+# in this script are never Start-Process'd as installers, so there's no
+# equivalent "about to run this with admin rights" moment for them.
+function Confirm-SignatureOrWarn($path, $label) {
+    $sig = Get-AuthenticodeSignature -FilePath $path
+    switch ($sig.Status) {
+        "Valid" { Write-Host "$label signature: valid (signed by $($sig.SignerCertificate.Subject))." ; return $true }
+        "NotSigned" { Write-Host "$label is not signed — proceeding, but you're trusting the download source." ; return $true }
+        "HashMismatch" { Write-Host "$label signature is INVALID (file was modified after signing) — refusing to run it." ; return $false }
+        default { Write-Host "$label signature check returned $($sig.Status) — proceeding, but you're trusting the download source." ; return $true }
+    }
+}
+
 $EsdeUserDir = Join-Path $env:USERPROFILE "ES-DE"
 
 # ES-DE picks the *first* <command> listed per system in es_systems.xml as
@@ -431,8 +446,12 @@ function Ensure-7Zip {
         $asset = $rel.assets | Where-Object { $_.name -like "*-x64.exe" } | Select-Object -First 1
         $exe = "$env:TEMP\7zip-installer.exe"
         Invoke-WebRequest -UseBasicParsing -Uri $asset.browser_download_url -OutFile $exe
-        Start-Process -FilePath $exe -ArgumentList "/S" -Wait -Verb RunAs
-        if (Test-Path $sevenZip) { return $sevenZip }
+        if (Confirm-SignatureOrWarn $exe "7-Zip installer") {
+            Start-Process -FilePath $exe -ArgumentList "/S" -Wait -Verb RunAs
+            if (Test-Path $sevenZip) { return $sevenZip }
+        } else {
+            Remove-Item $exe -Force -ErrorAction SilentlyContinue
+        }
     } catch {
         Write-Host "7-Zip install failed: $($_.Exception.Message)"
     }

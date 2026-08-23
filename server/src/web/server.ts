@@ -9,6 +9,8 @@ import {
   destroySession,
   isPasswordSet,
   isRateLimited,
+  pruneExpiredSessions,
+  pruneStaleAttempts,
   recordFailedAttempt,
   setPassword,
   verifyPassword,
@@ -34,16 +36,22 @@ export async function createServer(opts: { port: number; cookieSecret: string })
   app.get("/api/auth/status", async () => ({ passwordSet: isPasswordSet() }));
 
   app.post<{ Body: { password: string } }>("/api/auth/set-password", async (request, reply) => {
-    if (isPasswordSet()) {
-      reply.code(409).send({ error: "password already set" });
-      return;
-    }
     const { password } = request.body ?? {};
     if (!password || password.length < 8) {
       reply.code(400).send({ error: "password must be at least 8 characters" });
       return;
     }
-    await setPassword(password);
+    // setPassword itself is the source of truth on whether this is the
+    // first-ever password (a plain INSERT that fails on conflict) rather
+    // than this route pre-checking isPasswordSet() and trusting that
+    // nothing else set it in between — two concurrent first-run requests
+    // could otherwise both pass the pre-check and race to overwrite each
+    // other's password.
+    const wasSet = await setPassword(password);
+    if (!wasSet) {
+      reply.code(409).send({ error: "password already set" });
+      return;
+    }
     const session = createSession();
     setSessionCookie(reply, session.id, session.expiresAt);
     return { ok: true };
@@ -83,6 +91,18 @@ export async function createServer(opts: { port: number; cookieSecret: string })
   await registerMoonlightRoutes(app);
 
   await app.listen({ port: opts.port, host: "0.0.0.0" });
+
+  // Neither the rate-limiter Map nor expired session rows are ever cleaned
+  // up on their own (see auth.ts) — sweep both periodically instead of
+  // letting them grow for the life of the process.
+  const cleanupInterval = setInterval(
+    () => {
+      pruneStaleAttempts();
+      pruneExpiredSessions();
+    },
+    10 * 60 * 1000
+  );
+  cleanupInterval.unref();
 
   return app;
 }

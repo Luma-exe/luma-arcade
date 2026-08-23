@@ -14,6 +14,8 @@ export function Settings({ onBack }: { onBack: () => void }) {
   const [applyingUpdate, setApplyingUpdate] = useState(false);
   const [updateLog, setUpdateLog] = useState<string[] | null>(null);
   const [updateError, setUpdateError] = useState<string | null>(null);
+  const [confirmingUpdate, setConfirmingUpdate] = useState(false);
+  const [updatePassword, setUpdatePassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,12 +65,22 @@ export function Settings({ onBack }: { onBack: () => void }) {
   }
 
   async function handleApplyUpdate() {
+    // Pulling/rebuilding from devTreePath runs arbitrary package.json
+    // scripts — asking for the password again here (same idea as a
+    // browser re-prompting for it before a sensitive action) means a
+    // stolen session cookie alone isn't enough to trigger it.
+    if (!updatePassword) {
+      setUpdateError("Password required.");
+      return;
+    }
     setApplyingUpdate(true);
     setUpdateError(null);
     setUpdateLog(null);
     try {
-      const result = await api.applyUpdate();
+      const result = await api.applyUpdate(updatePassword);
       setUpdateLog(result.log);
+      setConfirmingUpdate(false);
+      setUpdatePassword("");
     } catch (err) {
       setUpdateError((err as Error).message);
     } finally {
@@ -220,10 +232,33 @@ export function Settings({ onBack }: { onBack: () => void }) {
           setup .exe — there's no safe generic way to auto-replace that, so you'd grab a newer
           installer instead.
         </p>
-        {updateStatus?.updateAvailable && (
-          <button onClick={handleApplyUpdate} disabled={applyingUpdate || !view.devTreePath}>
-            {applyingUpdate ? "Updating…" : "Apply update"}
+        {updateStatus?.updateAvailable && !confirmingUpdate && (
+          <button onClick={() => setConfirmingUpdate(true)} disabled={!view.devTreePath}>
+            Apply update
           </button>
+        )}
+        {confirmingUpdate && (
+          <div className="input-row">
+            <TextField
+              label="Confirm your password to apply this update"
+              type="password"
+              value={updatePassword}
+              onChange={setUpdatePassword}
+            />
+            <button onClick={handleApplyUpdate} disabled={applyingUpdate || !updatePassword}>
+              {applyingUpdate ? "Updating…" : "Confirm"}
+            </button>
+            <button
+              onClick={() => {
+                setConfirmingUpdate(false);
+                setUpdatePassword("");
+                setUpdateError(null);
+              }}
+              disabled={applyingUpdate}
+            >
+              Cancel
+            </button>
+          </div>
         )}
         {updateError && <p className="error">{updateError}</p>}
         {updateLog && (

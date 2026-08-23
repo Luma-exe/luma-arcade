@@ -48,8 +48,10 @@ export const api = {
   runSetup: () => fetch("/api/setup/run", { method: "POST" }).then((r) => json<SetupResult>(r)),
 
   checkForUpdate: () => fetch("/api/update/check").then((r) => json<UpdateStatus>(r)),
-  applyUpdate: () =>
-    fetch("/api/update/apply", { method: "POST" }).then((r) =>
-      json<{ ok: boolean; log: string[]; error?: string }>(r)
-    ),
+  applyUpdate: (password: string) =>
+    fetch("/api/update/apply", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+    }).then((r) => json<{ ok: boolean; log: string[]; error?: string }>(r)),
 };

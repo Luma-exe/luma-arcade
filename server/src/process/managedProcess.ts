@@ -5,6 +5,17 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 export class ManagedProcess {
   private child: ChildProcessWithoutNullStreams | undefined;
   private stopping = false;
+  // If start() is called while a previous process is still in the middle of
+  // exiting (stop() was called but the 'exit' event hasn't landed yet),
+  // isRunning() still reports true — the OS process is genuinely still
+  // alive. Without this queue, that start() would silently no-op (thinking
+  // nothing needs to happen) and then the eventual 'exit' handler would
+  // just clear this.child with nothing to bring it back, leaving the
+  // process down until some *other* caller happens to invoke start() again.
+  // This showed up in practice as syncMoonlightWithSettings() firing twice
+  // in quick succession (e.g. two settings saves) leaving
+  // moonlight-web-stream stopped.
+  private pendingStart: { args: string[]; opts?: { cwd?: string } } | undefined;
 
   /** `binary` may be a fixed command name (resolved via PATH at spawn time,
    * same as before) or a function returning one — useful when the real
@@ -21,8 +32,14 @@ export class ManagedProcess {
   }
 
   start(args: string[], opts?: { cwd?: string }): void {
+    if (this.stopping) {
+      // A previous stop() is still in flight — remember what to start once
+      // its 'exit' handler runs, rather than starting a second process
+      // alongside the one that's still dying or silently no-oping.
+      this.pendingStart = { args, opts };
+      return;
+    }
     if (this.isRunning()) return;
-    this.stopping = false;
 
     const resolvedBinary = typeof this.binary === "function" ? this.binary() : this.binary;
     this.child = spawn(resolvedBinary, args, { windowsHide: true, cwd: opts?.cwd });
@@ -47,13 +64,21 @@ export class ManagedProcess {
     this.child.on("exit", (code, signal) => {
       console.log(`[${this.logTag}] exited (code=${code}, signal=${signal})`);
       this.child = undefined;
-      if (!this.stopping && code !== 0) {
+      const wasStopping = this.stopping;
+      this.stopping = false;
+      if (!wasStopping && code !== 0) {
         console.error(`[${this.logTag}] crashed — not auto-restarting`);
+      }
+      if (this.pendingStart) {
+        const { args, opts } = this.pendingStart;
+        this.pendingStart = undefined;
+        this.start(args, opts);
       }
     });
   }
 
   stop(): void {
+    this.pendingStart = undefined;
     if (!this.child) return;
     this.stopping = true;
     // Windows has no real POSIX signals — Node maps any kill() signal to

@@ -79,6 +79,28 @@ body {
   font-size: 0.9rem;
 }
 
+.insecure-warning {
+  background: oklch(65% 0.16 25 / 0.12);
+  border: 1px solid var(--danger);
+  color: var(--text);
+  padding: 0.7rem 1rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  margin: 1rem;
+}
+
+.input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+  margin-bottom: 0.9rem;
+}
+
+.input-row .field-row {
+  margin-bottom: 0;
+  flex: 1;
+}
+
 /* Brand pill (matches the "Luma Arcade" badge on the home carousel) */
 
 .brand-pill {
