@@ -135,16 +135,27 @@ body {
     var(--bg);
 }
 
+.login-page {
+  padding: 1rem;
+}
+
 .auth-card {
   background: var(--surface);
   border: 1px solid oklch(100% 0 0 / 0.06);
   border-radius: 16px;
   padding: 2.5rem;
-  min-width: 340px;
+  width: 100%;
+  max-width: 340px;
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
   box-shadow: 0 2rem 4rem rgba(0, 0, 0, 0.4);
+}
+
+.auth-card input {
+  /* 16px stops iOS Safari auto-zooming the page on focus — anything
+     smaller than 16px triggers it regardless of the viewport meta tag. */
+  font-size: 16px;
 }
 
 .auth-card h1 {
@@ -557,4 +568,45 @@ body {
 .save-bar button:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+/* Mobile: the settings page's fixed-width fields, side-by-side header
+   actions, and bottom save bar all need to collapse to a single column
+   and shrink their padding to fit a phone screen without horizontal
+   scroll. */
+@media (max-width: 640px) {
+  .settings-page {
+    padding: 1.5rem 1rem 6rem;
+  }
+
+  .library-header {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .field-row {
+    max-width: none;
+  }
+
+  .field-row input,
+  .field-row select,
+  .auth-card input,
+  .inline-form input,
+  .inline-form select {
+    font-size: 16px; /* prevents iOS Safari's auto-zoom-on-focus */
+  }
+
+  .input-row {
+    flex-wrap: wrap;
+  }
+
+  .row {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .save-bar {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
 }
