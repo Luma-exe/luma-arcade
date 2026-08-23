@@ -17,6 +17,22 @@ ShowUninstDetails show
 
 !define MUI_ABORTWARNING
 
+; --- Branding: generated from the same palette the app's own portal UI
+; uses (client/src/index.css) — see installer/assets and the generator
+; script referenced there, so the installer actually looks like it
+; belongs to LumaArcade instead of a bare default NSIS wizard. Must be
+; defined before the page macros below, which read these at insert time.
+!define MUI_ICON "assets\icon.ico"
+!define MUI_UNICON "assets\icon.ico"
+!define MUI_HEADERIMAGE
+!define MUI_HEADERIMAGE_BITMAP "assets\header.bmp"
+!define MUI_HEADERIMAGE_RIGHT
+!define MUI_WELCOMEFINISHPAGE_BITMAP "assets\welcome.bmp"
+!define MUI_UNWELCOMEFINISHPAGE_BITMAP "assets\welcome.bmp"
+
+!define MUI_WELCOMEPAGE_TITLE "Welcome to LumaArcade"
+!define MUI_WELCOMEPAGE_TEXT "This installs LumaArcade, your login-gated portal to stream your PC's game library from anywhere.$\r$\n$\r$\nIt also fetches and configures Sunshine, ES-DE, and moonlight-web-stream for you, and can set up the emulators of your choice so ES-DE finds them with no manual configuration.$\r$\n$\r$\nClick Next to continue."
+
 ; --- Existing-install detection + Repair/Install-more-emulators/Uninstall choice ---
 ; "full" (fresh install or Repair) runs the whole normal flow; "emulators-only"
 ; skips straight past the Sunshine/ES-DE/moonlight-web-stream/file-copy steps
@@ -116,6 +132,44 @@ Var EmuTeknoparrot
 Var EmuSteam
 Var EmuEpic
 Var SelectedEmulators
+Var Page1SelectAllBtn
+Var Page1SelectNoneBtn
+Var Page2SelectAllBtn
+Var Page2SelectNoneBtn
+
+Function Page1SelectAll
+  ${NSD_SetState} $EmuCemu ${BST_CHECKED}
+  ${NSD_SetState} $Emu3ds ${BST_CHECKED}
+  ${NSD_SetState} $EmuDolphin ${BST_CHECKED}
+  ${NSD_SetState} $EmuDuckstation ${BST_CHECKED}
+  ${NSD_SetState} $EmuMelonds ${BST_CHECKED}
+  ${NSD_SetState} $EmuPcsx2 ${BST_CHECKED}
+  ${NSD_SetState} $EmuPpsspp ${BST_CHECKED}
+  ${NSD_SetState} $EmuRpcs3 ${BST_CHECKED}
+  ${NSD_SetState} $EmuShadps4 ${BST_CHECKED}
+  ${NSD_SetState} $EmuSwitch ${BST_CHECKED}
+  ${NSD_SetState} $EmuVita3k ${BST_CHECKED}
+  ${NSD_SetState} $EmuXemu ${BST_CHECKED}
+  ${NSD_SetState} $EmuXenia ${BST_CHECKED}
+  ${NSD_SetState} $EmuRetroarch ${BST_CHECKED}
+FunctionEnd
+
+Function Page1SelectNone
+  ${NSD_SetState} $EmuCemu ${BST_UNCHECKED}
+  ${NSD_SetState} $Emu3ds ${BST_UNCHECKED}
+  ${NSD_SetState} $EmuDolphin ${BST_UNCHECKED}
+  ${NSD_SetState} $EmuDuckstation ${BST_UNCHECKED}
+  ${NSD_SetState} $EmuMelonds ${BST_UNCHECKED}
+  ${NSD_SetState} $EmuPcsx2 ${BST_UNCHECKED}
+  ${NSD_SetState} $EmuPpsspp ${BST_UNCHECKED}
+  ${NSD_SetState} $EmuRpcs3 ${BST_UNCHECKED}
+  ${NSD_SetState} $EmuShadps4 ${BST_UNCHECKED}
+  ${NSD_SetState} $EmuSwitch ${BST_UNCHECKED}
+  ${NSD_SetState} $EmuVita3k ${BST_UNCHECKED}
+  ${NSD_SetState} $EmuXemu ${BST_UNCHECKED}
+  ${NSD_SetState} $EmuXenia ${BST_UNCHECKED}
+  ${NSD_SetState} $EmuRetroarch ${BST_UNCHECKED}
+FunctionEnd
 
 Function EmulatorChoicePageCreate
   !insertmacro MUI_HEADER_TEXT "Choose emulators" \
@@ -155,6 +209,13 @@ Function EmulatorChoicePageCreate
   Pop $EmuXenia
   ${NSD_CreateCheckbox} 50% 96u 48% 12u "RetroArch (older/misc consoles)"
   Pop $EmuRetroarch
+
+  ${NSD_CreateButton} 0 116u 48% 12u "Select all"
+  Pop $Page1SelectAllBtn
+  ${NSD_OnClick} $Page1SelectAllBtn Page1SelectAll
+  ${NSD_CreateButton} 50% 116u 48% 12u "Select none"
+  Pop $Page1SelectNoneBtn
+  ${NSD_OnClick} $Page1SelectNoneBtn Page1SelectNone
 
   nsDialogs::Show
 FunctionEnd
@@ -219,6 +280,36 @@ Function EmulatorChoicePageLeave
   ${EndIf}
 FunctionEnd
 
+Function Page2SelectAll
+  ${NSD_SetState} $EmuFlycast ${BST_CHECKED}
+  ${NSD_SetState} $EmuScummvm ${BST_CHECKED}
+  ${NSD_SetState} $EmuEasyrpg ${BST_CHECKED}
+  ${NSD_SetState} $EmuHypseus ${BST_CHECKED}
+  ${NSD_SetState} $EmuTsugaru ${BST_CHECKED}
+  ${NSD_SetState} $EmuSupermodel ${BST_CHECKED}
+  ${NSD_SetState} $EmuDosboxStaging ${BST_CHECKED}
+  ${NSD_SetState} $EmuDosboxX ${BST_CHECKED}
+  ${NSD_SetState} $EmuVpinball ${BST_CHECKED}
+  ${NSD_SetState} $EmuKemulator ${BST_CHECKED}
+  ${NSD_SetState} $EmuRuffle ${BST_CHECKED}
+  ${NSD_SetState} $EmuTeknoparrot ${BST_CHECKED}
+FunctionEnd
+
+Function Page2SelectNone
+  ${NSD_SetState} $EmuFlycast ${BST_UNCHECKED}
+  ${NSD_SetState} $EmuScummvm ${BST_UNCHECKED}
+  ${NSD_SetState} $EmuEasyrpg ${BST_UNCHECKED}
+  ${NSD_SetState} $EmuHypseus ${BST_UNCHECKED}
+  ${NSD_SetState} $EmuTsugaru ${BST_UNCHECKED}
+  ${NSD_SetState} $EmuSupermodel ${BST_UNCHECKED}
+  ${NSD_SetState} $EmuDosboxStaging ${BST_UNCHECKED}
+  ${NSD_SetState} $EmuDosboxX ${BST_UNCHECKED}
+  ${NSD_SetState} $EmuVpinball ${BST_UNCHECKED}
+  ${NSD_SetState} $EmuKemulator ${BST_UNCHECKED}
+  ${NSD_SetState} $EmuRuffle ${BST_UNCHECKED}
+  ${NSD_SetState} $EmuTeknoparrot ${BST_UNCHECKED}
+FunctionEnd
+
 Function EmulatorChoicePage2Create
   !insertmacro MUI_HEADER_TEXT "Choose more emulators" \
     "Arcade, engines, and older PC systems. Same deal — selected ones are downloaded and set up automatically."
@@ -253,6 +344,13 @@ Function EmulatorChoicePage2Create
   Pop $EmuRuffle
   ${NSD_CreateCheckbox} 50% 80u 48% 12u "TeknoParrot (modern PC-based arcade)"
   Pop $EmuTeknoparrot
+
+  ${NSD_CreateButton} 0 100u 48% 12u "Select all"
+  Pop $Page2SelectAllBtn
+  ${NSD_OnClick} $Page2SelectAllBtn Page2SelectAll
+  ${NSD_CreateButton} 50% 100u 48% 12u "Select none"
+  Pop $Page2SelectNoneBtn
+  ${NSD_OnClick} $Page2SelectNoneBtn Page2SelectNone
 
   nsDialogs::Show
 FunctionEnd
@@ -386,6 +484,8 @@ Function FinishPageCheckboxLeave
   ${EndIf}
 FunctionEnd
 
+!define MUI_FINISHPAGE_TITLE "LumaArcade is ready"
+!define MUI_FINISHPAGE_TEXT "One-time setup left, both in a browser: open Sunshine once (https://localhost:47990) to set its admin password, then open LumaArcade's stream page and pair it from there.$\r$\n$\r$\nAfter that, everything launches from LumaArcade itself."
 !define MUI_FINISHPAGE_SHOWREADME ""
 !define MUI_FINISHPAGE_SHOWREADME_TEXT "Launch LumaArcade now"
 !define MUI_FINISHPAGE_SHOWREADME_FUNCTION LaunchApp
