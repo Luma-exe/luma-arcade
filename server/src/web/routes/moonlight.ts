@@ -20,6 +20,14 @@ export async function registerMoonlightRoutes(app: FastifyInstance) {
   await app.register(fastifyHttpProxy, {
     upstream: `http://127.0.0.1:${port}`,
     prefix: PROXY_PREFIX,
+    // Without this, @fastify/http-proxy strips the /stream prefix before
+    // forwarding upstream (a request to /stream/ arrives at
+    // moonlight-web-stream as bare /) - but moonlight-web-stream itself was
+    // launched with --path-prefix /stream, so it expects to see that
+    // prefix, not have it stripped, and 404s on the stripped path instead.
+    // Confirmed directly: moonlight-web-stream returns 200 for /stream/ and
+    // 404 for bare / on its own port.
+    rewritePrefix: PROXY_PREFIX,
     websocket: true,
     preHandler: requireAuth,
   });
