@@ -24,6 +24,15 @@ export function startTray(opts: {
     enabled: true,
     click: () => exec(`start ${opts.portalUrl}`),
   };
+
+  const settingsItem = {
+    title: "Settings",
+    tooltip: "Open LumaArcade settings — streaming, controls, network, and more",
+    checked: false,
+    enabled: true,
+    click: () => exec(`start ${opts.portalUrl}/?view=settings`),
+  };
+
   const quitItem = {
     title: "Quit",
     tooltip: "Stop LumaArcade",
@@ -40,14 +49,14 @@ export function startTray(opts: {
       icon: ICON_PATH,
       title: "LumaArcade",
       tooltip: "LumaArcade",
-      items: [openItem, quitItem],
+      items: [openItem, settingsItem, quitItem],
     },
     debug: false,
     copyDir: true,
   });
 
   tray.onClick((action) => {
-    (action.item as typeof openItem | typeof quitItem).click?.();
+    (action.item as typeof openItem | typeof settingsItem | typeof quitItem).click?.();
   });
 
   return tray;

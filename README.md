@@ -1,55 +1,67 @@
 # LumaArcade
 
-Self-hosted game streaming portal — a single Node.js/TypeScript process on your
-Windows gaming PC that runs in the system tray, serves a web UI, and streams
-your desktop/games to any browser with low-latency WebRTC video and
-mouse/keyboard/gamepad input piped back.
+A thin login shell in front of your own [Sunshine](https://github.com/LizardByte/Sunshine) +
+[ES-DE](https://es-de.org/) + [moonlight-web-stream](https://github.com/MrCreativ3001/moonlight-web-stream)
+setup. LumaArcade itself is a small Node.js/TypeScript process that runs in
+the system tray on your Windows gaming PC: it password-gates access, manages
+the moonlight-web-stream process's lifecycle, and reverse-proxies the browser
+to it. All of the actual game streaming - capture, encode, input, the
+in-stream UI - is handled by that stack, not by LumaArcade.
 
-All six build phases from the project brief are implemented: tray app +
-embedded server + auth, Steam/Epic/emulation library scanning with IGDB box
-art, per-game window capture with full-desktop fallback, optional Cloudflare
-Tunnel + coturn remote access, and the polish pass (reconnect/resume,
-connection-quality HUD, gamepad passthrough).
+## How it fits together
 
-## Prerequisites (verify before running)
+```
+Browser -> LumaArcade (auth + reverse proxy, one port)
+              |
+              v
+     moonlight-web-stream (its own process/port)
+              |
+              v
+   [ Moonlight protocol, LAN or internet ]
+              |
+              v
+         Sunshine (host PC)
+              |
+              v
+            ES-DE
+              |
+              v
+     Emulators & PC games
+```
 
-1. **Node.js 20+** and npm.
-2. **GStreamer 1.22+** on `PATH`, including:
-   - `gst-plugins-bad` (for `d3d11screencapturesrc`)
-   - `gst-plugins-rs`'s `webrtcsink` element — **not always bundled in the
-     stock Windows MSVC installer.** Verify:
-     ```bash
-     gst-inspect-1.0 webrtcsink
-     gst-inspect-1.0 d3d11screencapturesrc
-     ```
-     If `webrtcsink` is missing, you'll need a GStreamer build that includes
-     `gst-plugins-rs`. Per-game window capture additionally needs the
-     `window-handle` property on `d3d11screencapturesrc` (recent GStreamer) —
-     if it's absent, the app automatically falls back to full-desktop capture.
-3. An NVIDIA GPU + driver with NVENC. `webrtcsink` auto-negotiates its
-   encoder and should prefer a hardware H.264 encoder when available;
-   confirm with `gst-inspect-1.0 nvh264enc`.
-4. **Optional — gamepad passthrough**: [ViGEmBus](https://github.com/ViGEm/ViGEmBus)
-   installed system-wide. Without it, gamepad input from the browser is
-   silently ignored (logged once) rather than crashing anything.
-5. **Optional — remote access**: `cloudflared.exe` on `PATH`, and a coturn
-   Windows build (`turnserver.exe`) if you want a bundled TURN relay — coturn
-   isn't npm-installable, so download the official Windows release yourself
-   and point Settings → Network at its path.
-6. **Optional — box art**: a free Twitch developer app (for the IGDB API) at
-   dev.twitch.tv/console/apps, entered in Settings → Box art.
+Open the portal, log in, and you're handed off (via LumaArcade's `/stream`
+reverse proxy) straight into moonlight-web-stream's browser client, which is
+streaming Sunshine's video of ES-DE.
 
-## Getting started
+## Host setup (do this once, outside LumaArcade)
+
+1. **Install [Sunshine](https://github.com/LizardByte/Sunshine)** and
+   **[ES-DE](https://es-de.org/)** on the gaming PC. In Sunshine's web UI ->
+   Applications, add an entry for ES-DE pointing at its executable, so
+   Moonlight clients can request it by name.
+2. **Build/install [moonlight-web-stream](https://github.com/MrCreativ3001/moonlight-web-stream).**
+   It's not published to npm - clone the repo and follow its own build
+   instructions (Rust + a bundled web frontend). It runs as its own local
+   web server/process, separate from LumaArcade.
+3. In LumaArcade's Settings -> Streaming, point `moonlightWebStreamPath` /
+   port at that build and (optionally) let LumaArcade auto-start it for you.
+
+**Use a Windows account dedicated to this**, not your own personal daily
+account. Sunshine renders whatever's on that account's desktop to anyone who
+connects and streams through it - your files, browser sessions, saved
+passwords included. This matters even if you never touch anything else in
+this README.
+
+## Getting started (LumaArcade itself)
 
 ```bash
 npm install
-npm run dev:server   # terminal 1 — Fastify + GStreamer orchestration on :7777
-npm run dev:client   # terminal 2 — Vite dev server, proxies /api and /signalling to :7777
+npm run dev:server   # terminal 1 - Fastify auth + reverse proxy on :7777
+npm run dev:client   # terminal 2 - Vite dev server, proxies /api and /stream to :7777
 ```
 
 Open `http://localhost:5173`, set a password on first run, then use Settings
-to enable the sources you want (Steam/Epic are auto-detected; Emulation and
-Custom Apps need folders/paths configured first) and hit **Rescan library**.
+-> Streaming to point at your moonlight-web-stream install.
 
 For a production-style single-process run:
 
@@ -64,67 +76,146 @@ npm run start         # serves the built client from the same Fastify instance o
 npm run package        # requires NSIS (winget install NSIS.NSIS) and a system Node install to copy from
 ```
 
-Produces `installer/output/LumaArcadeSetup.exe` — a per-user install (no
+Produces `installer/output/LumaArcadeSetup.exe` - a per-user install (no
 admin/UAC prompt) to `%LOCALAPPDATA%\Programs\LumaArcade`, with a Start Menu
-shortcut, an uninstaller, and a finish-page "start with Windows" checkbox.
-It bundles a copied `node.exe` and production-only `node_modules` (including
+shortcut, an uninstaller, and a finish-page "start with Windows" checkbox. It
+bundles a copied `node.exe` and production-only `node_modules` (including
 `better-sqlite3`'s native binary) so end users don't need Node.js installed
-separately — see `installer/build.mjs` for the staging steps and
-`installer/LumaArcade.nsi` for the installer script itself. GStreamer/
-ViGEmBus/cloudflared/coturn are **not** bundled (see Prerequisites above);
-the installer just warns if `gst-launch-1.0` isn't found on `PATH`.
-
-## What each source needs to work
-
-- **Steam / Epic**: auto-detected from the local install (registry lookup /
-  `libraryfolders.vdf` for Steam, `EpicGamesLauncher\Data\Manifests` for
-  Epic). Launching shells out to the `steam://` / `com.epicgames.launcher://`
-  protocol handlers, so the respective client must be installed.
-- **Emulation**: add a ROM folder per console in Settings, pointing at a
-  standalone emulator executable and a launch-args template (`{rom}`
-  placeholder substituted with the ROM path at launch time) — this supports
-  any emulator's CLI convention without hardcoding one per console.
-- **Custom apps**: whitelist any `.exe` in Settings; shows up as its own tile.
+separately - see `installer/build.mjs` for the staging steps and
+`installer/LumaArcade.nsi` for the installer script itself. Sunshine, ES-DE,
+and moonlight-web-stream are **not** bundled or auto-installed - set them up
+per the Host setup section above, then point LumaArcade's Settings at your
+moonlight-web-stream build.
 
 ## Architecture notes
 
-- **WebRTC signalling**: GStreamer's `webrtcsink` element owns its own
-  `RTCPeerConnection` inside the spawned `gst-launch-1.0` child process and
-  speaks the `gst-plugins-rs` signalling protocol (JSON over WebSocket) to
-  negotiate SDP/ICE. The Node server implements that protocol as a relay in
-  `server/src/signalling/server.ts` — both the GStreamer process and the
-  browser connect to it as peers. This was reconstructed from the
-  `net/webrtc/protocol` crate in `gst-plugins-rs`; if the stream fails to
-  negotiate, diff the message shapes against that crate's current source.
-- **Input**: because the media `RTCPeerConnection` lives inside the
-  GStreamer child process rather than in Node, input events (mouse/keyboard/
-  gamepad) are sent over a dedicated authenticated WebSocket (`/input`)
-  rather than a WebRTC data channel — there's no in-process endpoint in Node
-  for a data channel terminating on the GStreamer side to reach.
-- **Per-game capture**: after launching a game we spawned ourselves
-  (emulation/custom), the server polls for the process's main window handle
-  and switches `d3d11screencapturesrc` to `window-handle=<hwnd>`. Steam/Epic
-  are launched via OS protocol handlers, so we never get a process id for
-  them — those always stream full desktop (documented limitation, not a bug).
+- **Auth**: unchanged from earlier versions - a single app-wide password,
+  signed session cookie (`luma_session`), `requireAuth` preHandler on every
+  protected route. See `server/src/web/auth.ts` / `session.ts`.
+- **Reverse proxy**: `server/src/web/routes/moonlight.ts` registers
+  `@fastify/http-proxy` under `/stream`, behind the same `requireAuth` guard
+  as everything else, proxying both HTTP and WebSocket traffic to
+  `http://127.0.0.1:<moonlightWebStreamPort>`. The proxy target is bound at
+  server startup, so changing the port in Settings needs a LumaArcade
+  restart to take effect.
+- **Process lifecycle**: `server/src/remote/moonlightWebStream.ts` spawns
+  and manages the moonlight-web-stream process using the same generic
+  `ManagedProcess` wrapper (`server/src/process/managedProcess.ts`) this app
+  has always used for long-lived child processes - it tolerates the binary
+  not being installed/configured yet rather than crashing, and now retries
+  with capped exponential backoff (5s up to 2min) if the process crashes or
+  exits unexpectedly instead of just staying down. Its actual launch
+  arguments are `--bind-address 127.0.0.1:<port> --path-prefix /stream` -
+  moonlight-web-stream has no `--port` flag; check its own `--help` output
+  before changing these if you're modifying this file.
 - **Auto-start** writes a `HKCU\...\Run` registry value, not a Windows
-  Service — services run in Session 0 and can't do screen capture or
-  `SendInput`.
-- **Remote access**: Cloudflare Tunnel proxies the HTTPS/WSS signalling
-  traffic but not raw UDP WebRTC/TURN media — if you enable the bundled
-  coturn relay, its port must be reachable directly (router port-forward),
-  configured via a separate "public host" setting rather than reused from
-  the tunnel hostname. Cloudflare Access policy (email OTP, domain) is set up
-  in the Cloudflare dashboard, not in this app; the app-level password stays
-  on regardless, as a second layer and because LAN access bypasses the
-  tunnel entirely.
-- **Gamepad**: verified against the actual `vigemclient` package source
-  (`node_modules/vigemclient/lib/X360Controller.js`) rather than assumed —
-  sticks take -1..1, triggers 0..1, matching the browser Gamepad API closely.
-  Degrades to a no-op with a single logged warning if ViGEmBus isn't
-  installed.
+  Service - services run in Session 0, which matters less now that
+  LumaArcade itself doesn't touch the display/input, but keeps LumaArcade's
+  own boot behavior consistent with before.
+- **Remote/WAN access**: LumaArcade itself is LAN-only - there's no bundled
+  tunnel or TURN relay anymore. If you want to play from outside your LAN,
+  that's handled by however you expose Sunshine/moonlight-web-stream
+  (port-forwarding, your own VPN/tunnel, etc.), not by LumaArcade.
 
-## Anti-cheat caveat
+## Troubleshooting
 
-Games with kernel-level anti-cheat (Valorant, some CoD/Battlefield titles)
-may flag capture or input-injection tooling. This is expected — don't try to
-work around it by hiding the program.
+**Moonlight/the stream shows a black screen or immediately disconnects, and
+Sunshine's own log says `Failed to start the specified application` or
+`Couldn't run [...]: System: Permission denied`.** This means nobody is
+actually logged into the host PC's physical console session right now -
+Sunshine (running as a Windows service) can only launch apps and capture the
+display of whichever session is on the console, and it can't do either if
+that session is sitting at an empty lock/login screen. Log into the host
+PC's console (physically, or with `mstsc /admin` if connecting over RDP -
+a normal RDP connection creates a *separate* session instead of resuming the
+console one, which won't fix this) and retry.
+
+**A normal RDP connection to the host "steals" the stream / breaks
+Sunshine's capture even though nobody logged out.** Same root cause as
+above, from the other direction: if the console account is already logged
+in and you RDP into it normally, Windows creates a second, separate session
+for that RDP connection rather than reconnecting you to the console one -
+leaving the console empty. Use `mstsc /v:<host> /admin` to reconnect to the
+console session directly instead.
+
+**Sunshine's Desktop Duplication capture is unreliable specifically over
+non-console sessions** (a known, unresolved upstream Sunshine limitation -
+[LizardByte/Sunshine#1832](https://github.com/LizardByte/Sunshine/issues/1832)).
+This isn't fixable by LumaArcade or moonlight-web-stream configuration -
+Windows only exposes DXGI Desktop Duplication (and Windows.Graphics.Capture)
+for the console-owning session, confirmed by testing directly against
+multiple real virtual display drivers, none of which were visible to a
+non-console session either. If you want a second person to use the PC
+locally while someone streams, give that second use case its own separate
+account connected over ordinary RDP (no capture needed there), rather than
+trying to make the *streamed* seat the isolated one.
+
+**The host machine also runs other software that needs an interactive
+login** (Docker Desktop is a common one - it has no true headless-service
+mode, and depends on someone being logged into that same session). If you
+change which account auto-logs into the console for streaming purposes,
+anything else depending on interactive login on a *different* account will
+stop coming back after a reboot. Windows only supports one account
+auto-logging into the console at a time - plan around this before switching
+which account "owns" the console.
+
+**Sunshine's `--creds` CLI flag ignores whatever config path you pass and
+always writes to its own default install-directory state file.** If you
+script Sunshine credential changes for a *specific* config (e.g. a
+non-default instance), use the `POST /api/password` HTTP endpoint against
+that instance's own port instead - it's correctly scoped per-instance and
+doesn't have this bug. Learned this the hard way: `--creds` silently
+overwrote an unrelated instance's admin login once.
+
+**`moonlight-web-stream` shows as "not reachable" in Settings.** Check the
+new detail line beneath that status (added specifically for this) - it
+distinguishes "the process isn't running at all" from "it's running but not
+answering yet," and surfaces the last error it hit, instead of just a flat
+yes/no.
+
+## Performance expectations
+
+Sunshine/Moonlight performance depends heavily on the host's GPU encoder
+(NVENC/AMF/QuickSync) and network path, not on LumaArcade or
+moonlight-web-stream - neither of them touch video encoding. As a starting
+point:
+- 1080p60 at a moderate bitrate (~10-15 Mbps) is comfortable for most modern
+  NVENC-capable GPUs on a wired LAN connection.
+- Wi-Fi and internet-routed connections add latency and packet loss that
+  hurt responsiveness more than raw bitrate does - prefer wired where
+  possible, especially for the host.
+- The browser-based moonlight-web-stream client is inherently a step behind
+  a native Moonlight client on latency and decode efficiency - expect a
+  noticeably better experience from LumaArcade's website for slower-paced
+  games than for twitch-reflex-dependent ones.
+
+## Known operational quirks (PM2-based deployments)
+
+If you run `luma-arcade` / `moonlight-web-stream` under PM2 rather than the
+built-in `HKCU\...\Run` auto-start (e.g. because you're also running other
+Node services on the same box), a few real PM2-on-Windows gotchas are worth
+knowing before you hit them the hard way:
+
+- **PM2's inter-process communication on Windows uses a single, fixed named
+  pipe** (`\\.\pipe\rpc.sock`), not one scoped per `PM2_HOME` the way it is
+  on Linux/Mac (a per-`PM2_HOME` unix socket file). Two different Windows
+  accounts both running their own PM2 daemon on the same machine will
+  collide on that pipe - whichever daemon already holds it "wins," and the
+  other account's `pm2` commands silently end up talking to it instead of
+  spawning their own daemon (`connect EPERM \\.\pipe\rpc.sock` on the losing
+  side). There is no supported way around this short of not running two
+  PM2 daemons on one machine at once - use plain Windows Scheduled Tasks for
+  a second account's processes instead.
+- **A given PM2 version's CLI argument parsing for `-- <app args>` is not
+  consistent across versions** - some versions correctly pass everything
+  after `--` through to the child process, others misparse it as PM2's own
+  flags (`error: unknown option ...`). Use an `ecosystem.config.js` file
+  with an explicit `args: [...]` array instead of CLI flags when you need to
+  pass arguments to a managed process - it sidesteps this entirely.
+- **`pm2 list`'s "user" column is cosmetic, not authoritative.** If a
+  cross-account pipe collision (above) happens, PM2 will still *display*
+  the account that issued the `pm2 start` command in that column, even
+  though the process was actually spawned by - and is owned by - whichever
+  account's daemon actually handled the request. Verify real process
+  ownership with `Get-WmiObject Win32_Process | ForEach-Object { $_.GetOwner() }`
+  if this matters, not `pm2 list`.

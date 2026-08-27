@@ -7,9 +7,7 @@ import { getAllSettings } from "./config/settings.js";
 import { getDb } from "./db/index.js";
 import { createServer } from "./web/server.js";
 import { startTray } from "./tray/index.js";
-import { capturePipeline } from "./capture/gstProcess.js";
-import { cloudflaredProcess, syncCloudflaredWithSettings } from "./remote/cloudflared.js";
-import { coturnProcess, syncCoturnWithSettings } from "./remote/coturn.js";
+import { moonlightProcess, syncMoonlightWithSettings } from "./remote/moonlightWebStream.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -25,8 +23,7 @@ async function main() {
   const portalUrl = `http://localhost:${port}`;
   console.log(`LumaArcade listening at ${portalUrl}`);
 
-  syncCloudflaredWithSettings();
-  syncCoturnWithSettings();
+  syncMoonlightWithSettings();
 
   // Double-clicking the Start Menu shortcut only starts this background
   // server with no window — open the portal automatically so it doesn't
@@ -40,9 +37,7 @@ async function main() {
   startTray({
     portalUrl,
     onQuit: () => {
-      capturePipeline.stop();
-      cloudflaredProcess.stop();
-      coturnProcess.stop();
+      moonlightProcess.stop();
       process.exit(0);
     },
   });
@@ -63,9 +58,7 @@ function getOrCreateCookieSecret(): string {
 }
 
 process.on("SIGINT", () => {
-  capturePipeline.stop();
-  cloudflaredProcess.stop();
-  coturnProcess.stop();
+  moonlightProcess.stop();
   process.exit(0);
 });
 

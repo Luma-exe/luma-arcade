@@ -233,6 +233,22 @@ body {
   white-space: nowrap;
 }
 
+.monitor-tabs {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.monitor-tabs button {
+  padding: 0.3rem 0.7rem;
+  font-size: 0.8rem;
+}
+
+.monitor-tabs button.active {
+  background: var(--accent-2);
+  color: oklch(20% 0 0);
+  border-color: transparent;
+}
+
 .stream-error-overlay {
   position: absolute;
   top: 50%;
@@ -248,6 +264,72 @@ body {
 
 .stream-error-overlay button {
   margin-top: 0.5rem;
+}
+
+.control-prompt {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: oklch(20% 0.012 250 / 0.85);
+  color: var(--text);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 0.85rem 1.75rem;
+  font-family: var(--font-body);
+  font-weight: 700;
+  cursor: pointer;
+  z-index: 5;
+}
+
+.banner-stack {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+}
+
+.update-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  background: var(--accent);
+  color: var(--accent-ink);
+  padding: 0.6rem 1rem;
+  font-family: var(--font-body);
+  font-weight: 600;
+}
+
+.update-banner.rdp-banner {
+  background: var(--danger);
+  color: oklch(98% 0 0);
+}
+
+.update-banner button {
+  border: 1px solid var(--accent-ink);
+  background: transparent;
+  color: var(--accent-ink);
+  border-radius: 999px;
+  padding: 0.3rem 0.8rem;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.input-warning {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  background: oklch(26% 0.012 250 / 0.9);
+  border: 1px solid var(--danger);
+  border-radius: 10px;
+  padding: 0.6rem 1rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  max-width: 360px;
 }
 
 /* Settings page */

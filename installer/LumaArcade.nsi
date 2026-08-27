@@ -12,19 +12,28 @@ ShowInstDetails show
 ShowUninstDetails show
 
 !include "MUI2.nsh"
-!include "LogicLib.nsh"
 
 !define MUI_ABORTWARNING
+
+; Security reminder shown on the welcome page rather than buried only in the
+; README - anyone who connects and streams through LumaArcade gets full
+; access to whatever Windows account it runs under (files, browser sessions,
+; saved passwords). Cheap to say once, up front, before install even starts.
+!define MUI_WELCOMEPAGE_TITLE "Welcome to LumaArcade Setup"
+!define MUI_WELCOMEPAGE_TEXT "This will install LumaArcade.$\r$\n$\r$\nRecommended: install and run this under a Windows account dedicated to it, not your own personal daily account - anyone who streams through it gets full access to whatever's on that account's desktop.$\r$\n$\r$\nClick Next to continue."
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
 
+; --- Finish page: start-with-Windows checkbox ---
 Var StartWithWindows
+
 Function FinishPageCheckbox
   ${NSD_CreateCheckbox} 120u -18u 100% 12u "Start LumaArcade when Windows starts"
   Pop $StartWithWindows
 FunctionEnd
+
 Function FinishPageCheckboxLeave
   ${NSD_GetState} $StartWithWindows $0
   ${If} $0 == ${BST_CHECKED}
@@ -47,22 +56,6 @@ FunctionEnd
 
 Function LaunchApp
   Exec 'wscript.exe "$INSTDIR\LumaArcade.vbs"'
-FunctionEnd
-
-Function .onInit
-  ; Non-blocking check: GStreamer is a large external dependency this
-  ; installer intentionally doesn't bundle (see README). Warn, don't block —
-  ; and never show a dialog under /S, since nothing is there to click it.
-  IfSilent skip_gst_check
-  nsExec::ExecToStack 'where gst-launch-1.0'
-  Pop $0
-  ${If} $0 != 0
-    MessageBox MB_OK|MB_ICONEXCLAMATION \
-      "GStreamer (with the webrtcsink/d3d11 plugins) wasn't found on PATH.$\r$\n$\r$\n\
-      LumaArcade will still install, but video streaming needs it. See the$\r$\n\
-      README's Prerequisites section for setup instructions." /SD IDOK
-  ${EndIf}
-  skip_gst_check:
 FunctionEnd
 
 Section "Install"
@@ -93,11 +86,17 @@ Section "Uninstall"
   RMDir "$SMPROGRAMS\${APP_NAME}"
 
   ; /SD IDYES: under a silent uninstall (/S) there's no one to click the box,
-  ; so default to the safe choice (keep data) instead of the box blocking —
+  ; so default to the safe choice (keep data) instead of the box blocking -
   ; deterministic either way, rather than relying on unspecified fallback
   ; behavior for an unanswered dialog.
-  IfFileExists "$INSTDIR\server\luma-arcade.db" 0 +3
+  IfFileExists "$INSTDIR\server\luma-arcade.db" 0 keepdata
     MessageBox MB_YESNO|MB_ICONQUESTION "Keep your LumaArcade settings and library data?" /SD IDYES IDYES keepdata
+    ; Back up to Documents before deleting either way - a silent/scripted
+    ; uninstall (/S) can't be asked "are you sure", and a deleted db is
+    ; otherwise unrecoverable. Overwrites any previous backup from an
+    ; earlier uninstall rather than accumulating timestamped copies.
+    CreateDirectory "$DOCUMENTS\LumaArcade-backup"
+    CopyFiles /SILENT "$INSTDIR\server\luma-arcade.db*" "$DOCUMENTS\LumaArcade-backup\"
     Delete "$INSTDIR\server\luma-arcade.db"
     Delete "$INSTDIR\server\luma-arcade.db-wal"
     Delete "$INSTDIR\server\luma-arcade.db-shm"

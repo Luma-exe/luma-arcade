@@ -25,10 +25,17 @@ declare module "systray2" {
     item: MenuItem;
   }
 
+  interface UpdateItemAction {
+    type: "update-item";
+    item: MenuItem;
+    seq_id?: number;
+  }
+
   export default class SysTray {
     constructor(options: SysTrayOptions);
     onClick(cb: (action: ClickAction) => void): void;
     kill(exitNode?: boolean): void;
     ready(): Promise<void>;
+    sendAction(action: UpdateItemAction): Promise<this>;
   }
 }

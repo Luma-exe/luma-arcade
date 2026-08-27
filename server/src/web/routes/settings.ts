@@ -1,8 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { disableAutoStart, enableAutoStart } from "../../autostart/index.js";
 import { getAllSettings, setSettings, type AppSettings } from "../../config/settings.js";
-import { syncCloudflaredWithSettings } from "../../remote/cloudflared.js";
-import { syncCoturnWithSettings } from "../../remote/coturn.js";
+import { syncMoonlightWithSettings } from "../../remote/moonlightWebStream.js";
 import { requireAuth } from "../session.js";
 
 export async function registerSettingsRoutes(app: FastifyInstance) {
@@ -25,8 +24,7 @@ export async function registerSettingsRoutes(app: FastifyInstance) {
       }
 
       setSettings(body);
-      syncCloudflaredWithSettings();
-      syncCoturnWithSettings();
+      syncMoonlightWithSettings();
       return getAllSettings();
     }
   );
