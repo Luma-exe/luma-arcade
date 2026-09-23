@@ -18,6 +18,13 @@ export interface UpdateStatus {
   error?: string;
 }
 
+export interface HealthCheck {
+  id: string;
+  label: string;
+  status: "ok" | "warn" | "error";
+  detail: string;
+}
+
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? res.statusText);
   return res.json();
@@ -37,7 +44,10 @@ export const api = {
       json<{ reachable: boolean; processRunning: boolean; lastError?: string }>(r)
     ),
 
-  checkForUpdate: () => fetch("/api/update/check").then((r) => json<UpdateStatus>(r)),
+  getHostHealth: () =>
+    fetch("/api/health/host").then((r) => json<{ checks: HealthCheck[] }>(r)),
+
+  checkForUpdate:() => fetch("/api/update/check").then((r) => json<UpdateStatus>(r)),
   applyUpdate: () =>
     fetch("/api/update/apply", { method: "POST" }).then((r) =>
       json<{ ok: boolean; log: string[]; error?: string }>(r)

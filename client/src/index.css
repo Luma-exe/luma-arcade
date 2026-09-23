@@ -41,6 +41,8 @@
   --accent-2: oklch(70% 0.11 190);
   --pill-bg: oklch(12% 0.01 250);
   --danger: oklch(65% 0.16 25);
+  --success: oklch(74% 0.14 150);
+  --warning: oklch(80% 0.14 85);
 
   --font-display: "Gilroy", "Segoe UI", sans-serif;
   --font-accent: "ChangaOne", "Segoe UI", sans-serif;
@@ -401,6 +403,46 @@ body {
   text-transform: uppercase;
   color: var(--accent-2);
   margin: 0 0 1rem;
+}
+
+.health-row {
+  display: grid;
+  grid-template-columns: 1.25rem 11rem 1fr;
+  gap: 0.6rem;
+  align-items: baseline;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid oklch(100% 0 0 / 0.05);
+  font-size: 0.95rem;
+}
+
+.health-row:last-of-type {
+  margin-bottom: 1rem;
+}
+
+.health-icon {
+  font-weight: 700;
+  text-align: center;
+}
+
+.health-ok .health-icon { color: var(--success); }
+.health-warn .health-icon { color: var(--warning); }
+.health-error .health-icon { color: var(--danger); }
+
+.health-label {
+  font-weight: 600;
+}
+
+.health-detail {
+  color: var(--muted);
+}
+
+@media (max-width: 600px) {
+  .health-row {
+    grid-template-columns: 1.25rem 1fr;
+  }
+  .health-detail {
+    grid-column: 2;
+  }
 }
 
 .toggle-row {

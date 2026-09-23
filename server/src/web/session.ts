@@ -1,5 +1,6 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { isSessionValid } from "./auth.js";
+import { isHttpsRequest } from "./requestOrigin.js";
 
 export const SESSION_COOKIE = "luma_session";
 
@@ -10,11 +11,17 @@ export function getSessionId(request: FastifyRequest): string | undefined {
   return unsigned.valid ? (unsigned.value ?? undefined) : undefined;
 }
 
-export function setSessionCookie(reply: FastifyReply, sessionId: string, expiresAt: Date): void {
+export function setSessionCookie(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  sessionId: string,
+  expiresAt: Date
+): void {
   reply.setCookie(SESSION_COOKIE, sessionId, {
     path: "/",
     httpOnly: true,
-    secure: false, // LAN-only, plain HTTP in Phase 1
+    // Secure over the public HTTPS tunnel; plain HTTP on the LAN still works.
+    secure: isHttpsRequest(request),
     sameSite: "lax",
     signed: true,
     expires: expiresAt,

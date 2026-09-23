@@ -70,6 +70,9 @@ npm run build
 npm run start         # serves the built client from the same Fastify instance on :7777
 ```
 
+7777 is only the default - the listen port is a setting (Settings -> General),
+so a deployment may well be on something else.
+
 ## Building the Windows installer
 
 ```bash
@@ -89,9 +92,22 @@ moonlight-web-stream build.
 
 ## Architecture notes
 
-- **Auth**: unchanged from earlier versions - a single app-wide password,
-  signed session cookie (`luma_session`), `requireAuth` preHandler on every
-  protected route. See `server/src/web/auth.ts` / `session.ts`.
+- **Auth**: a single app-wide password, signed session cookie
+  (`luma_session`), `requireAuth` preHandler on every protected route. See
+  `server/src/web/auth.ts` / `session.ts`.
+- **Running behind a tunnel** (e.g. cloudflared on this machine): Fastify
+  trusts forwarding headers from loopback only (`server/src/web/requestOrigin.ts`),
+  so the login rate limit is per real visitor (`CF-Connecting-IP`) instead of
+  one shared bucket, and the session cookie is `Secure` over HTTPS while
+  plain-HTTP LAN access keeps working. Requests arriving through the tunnel
+  count as "internet"; those can't do first-run password setup, and can't
+  change the settings that make the host execute a file or rebind
+  (`moonlightWebStreamPath`/`Port`, `devTreePath`, `port`) - do those from
+  the home network.
+- **Host health** (Settings -> Host health, `server/src/web/routes/health.ts`):
+  checks Sunshine's service and encoders, moonlight-web-stream, whether the
+  virtual-controller driver Sunshine needs is installed, whether anyone is
+  logged into the console session, and whether ES-DE is running.
 - **Reverse proxy**: `server/src/web/routes/moonlight.ts` registers
   `@fastify/http-proxy` under `/stream`, behind the same `requireAuth` guard
   as everything else, proxying both HTTP and WebSocket traffic to
@@ -118,6 +134,16 @@ moonlight-web-stream build.
   (port-forwarding, your own VPN/tunnel, etc.), not by LumaArcade.
 
 ## Troubleshooting
+
+Start with Settings -> Host health; most of the issues below show up there.
+
+**The stream works but the controller does nothing in ES-DE/games (Windows
+Server hosts).** Sunshine emulates Xbox 360 pads through ViGEmBus, but
+Windows Server doesn't ship the Xbox 360 controller driver (`xusb22.sys`),
+so the virtual pads appear in Device Manager with no driver and no app ever
+sees them. Either install that driver, or set `gamepad = ds4` in
+`sunshine.conf` (PS4 emulation uses the built-in HID driver - fine for ES-DE
+and RetroArch, but Xbox-only PC games won't see it).
 
 **Moonlight/the stream shows a black screen or immediately disconnects, and
 Sunshine's own log says `Failed to start the specified application` or

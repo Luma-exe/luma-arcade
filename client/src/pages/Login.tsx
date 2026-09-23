@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 export function Login({ onLoggedIn }: { onLoggedIn: () => void }) {
   const [passwordSet, setPasswordSet] = useState<boolean | null>(null);
+  const [canSetPassword, setCanSetPassword] = useState(true);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -10,7 +11,10 @@ export function Login({ onLoggedIn }: { onLoggedIn: () => void }) {
   useEffect(() => {
     fetch("/api/auth/status")
       .then((res) => res.json())
-      .then((data) => setPasswordSet(data.passwordSet))
+      .then((data) => {
+        setPasswordSet(data.passwordSet);
+        setCanSetPassword(data.canSetPassword ?? true);
+      })
       .catch(() => setPasswordSet(false));
   }, []);
 
@@ -51,6 +55,24 @@ export function Login({ onLoggedIn }: { onLoggedIn: () => void }) {
   }
 
   if (passwordSet === null) return <div className="center login-page">Loading…</div>;
+
+  if (!passwordSet && !canSetPassword) {
+    return (
+      <div className="center login-page">
+        <div className="auth-card">
+          <div className="brand-pill">
+            <span className="brand-pill-dot" />
+            Luma Arcade
+          </div>
+          <h1>Not set up yet</h1>
+          <p className="muted">
+            For security, the portal password can only be set from the home network. Open
+            LumaArcade on the host PC or another device at home to finish setup.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="center login-page">

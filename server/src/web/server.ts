@@ -17,24 +17,40 @@ import { clearSessionCookie, getSessionId, requireAuth, setSessionCookie } from 
 import { registerSettingsRoutes } from "./routes/settings.js";
 import { registerUpdateRoutes } from "./routes/update.js";
 import { registerMoonlightRoutes } from "./routes/moonlight.js";
+import { registerHealthRoutes } from "./routes/health.js";
+import { clientIp, isLocalRequest, TRUSTED_PROXIES } from "./requestOrigin.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const COOKIE_SECRET_SETTING_KEY = "cookieSecret";
 
 export async function createServer(opts: { port: number; cookieSecret: string }) {
-  const app = Fastify({ logger: { level: process.env.LUMA_LOG_LEVEL || "info" } });
+  const app = Fastify({
+    logger: { level: process.env.LUMA_LOG_LEVEL || "info" },
+    // cloudflared (and the Vite dev proxy) connect from loopback; trusting
+    // them makes request.ip/request.protocol reflect the real visitor.
+    trustProxy: TRUSTED_PROXIES,
+  });
 
   await app.register(fastifyCookie, { secret: opts.cookieSecret });
   await app.register(fastifyStatic, {
     root: path.join(__dirname, "..", "..", "..", "client", "dist"),
   });
 
-  app.get("/api/auth/status", async () => ({ passwordSet: isPasswordSet() }));
+  app.get("/api/auth/status", async (request) => ({
+    passwordSet: isPasswordSet(),
+    canSetPassword: isLocalRequest(request),
+  }));
 
   app.post<{ Body: { password: string } }>("/api/auth/set-password", async (request, reply) => {
     if (isPasswordSet()) {
       reply.code(409).send({ error: "password already set" });
+      return;
+    }
+    // Otherwise whoever reached the public URL first after a DB reset would
+    // get to choose the password.
+    if (!isLocalRequest(request)) {
+      reply.code(403).send({ error: "first-time setup must be done from the home network" });
       return;
     }
     const { password } = request.body ?? {};
@@ -44,12 +60,12 @@ export async function createServer(opts: { port: number; cookieSecret: string })
     }
     await setPassword(password);
     const session = createSession();
-    setSessionCookie(reply, session.id, session.expiresAt);
+    setSessionCookie(request, reply, session.id, session.expiresAt);
     return { ok: true };
   });
 
   app.post<{ Body: { password: string } }>("/api/auth/login", async (request, reply) => {
-    const ip = request.ip;
+    const ip = clientIp(request);
     if (isRateLimited(ip)) {
       reply.code(429).send({ error: "too many attempts, try again shortly" });
       return;
@@ -63,7 +79,7 @@ export async function createServer(opts: { port: number; cookieSecret: string })
     }
     clearAttempts(ip);
     const session = createSession();
-    setSessionCookie(reply, session.id, session.expiresAt);
+    setSessionCookie(request, reply, session.id, session.expiresAt);
     return { ok: true };
   });
 
@@ -79,6 +95,7 @@ export async function createServer(opts: { port: number; cookieSecret: string })
   await registerSettingsRoutes(app);
   await registerUpdateRoutes(app);
   await registerMoonlightRoutes(app);
+  await registerHealthRoutes(app);
 
   await app.listen({ port: opts.port, host: "0.0.0.0" });
 

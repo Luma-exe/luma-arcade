@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, type AppSettings, type UpdateStatus } from "../lib/api.js";
+import { api, type AppSettings, type HealthCheck, type UpdateStatus } from "../lib/api.js";
 
 export function Settings({ onBack }: { onBack: () => void }) {
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -13,6 +13,8 @@ export function Settings({ onBack }: { onBack: () => void }) {
   const [applyingUpdate, setApplyingUpdate] = useState(false);
   const [updateLog, setUpdateLog] = useState<string[] | null>(null);
   const [updateError, setUpdateError] = useState<string | null>(null);
+  const [health, setHealth] = useState<HealthCheck[] | null>(null);
+  const [checkingHealth, setCheckingHealth] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +23,19 @@ export function Settings({ onBack }: { onBack: () => void }) {
     api.getSettings().then(setSettings);
     checkMoonlight();
     checkUpdate();
+    checkHealth();
   }, []);
+
+  async function checkHealth() {
+    setCheckingHealth(true);
+    try {
+      setHealth((await api.getHostHealth()).checks);
+    } catch {
+      setHealth(null);
+    } finally {
+      setCheckingHealth(false);
+    }
+  }
 
   async function checkMoonlight() {
     setCheckingMoonlight(true);
@@ -105,6 +119,25 @@ export function Settings({ onBack }: { onBack: () => void }) {
       </header>
 
       {error && <p className="error">{error}</p>}
+
+      <Section title="Host health">
+        <p className="muted">
+          Everything outside LumaArcade that has to be right for a stream to work.
+        </p>
+        {health?.map((check) => (
+          <div key={check.id} className={`health-row health-${check.status}`}>
+            <span className="health-icon">
+              {check.status === "ok" ? "✓" : check.status === "warn" ? "!" : "✗"}
+            </span>
+            <span className="health-label">{check.label}</span>
+            <span className="health-detail">{check.detail}</span>
+          </div>
+        ))}
+        {!health && !checkingHealth && <p className="error">Couldn't run the health check.</p>}
+        <button onClick={checkHealth} disabled={checkingHealth}>
+          {checkingHealth ? "Checking." : "Recheck"}
+        </button>
+      </Section>
 
       <Section title="Streaming">
         <p className="muted">
