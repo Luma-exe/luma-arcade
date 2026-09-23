@@ -1,4 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import path from "node:path";
 
 /** Generic spawn/log/stop wrapper reused for every long-lived child process
  * this app manages (currently just moonlight-web-stream). */
@@ -37,7 +38,14 @@ export class ManagedProcess {
     clearTimeout(this.restartTimer);
 
     const resolvedBinary = typeof this.binary === "function" ? this.binary() : this.binary;
-    this.child = spawn(resolvedBinary, args, { windowsHide: true });
+    // moonlight-web-stream resolves its config's relative paths (`static`,
+    // `server/data.json`, `./streamer`) against its own working directory,
+    // not against wherever LumaArcade happens to be running from — without
+    // this it starts but every relative path lookup fails.
+    this.child = spawn(resolvedBinary, args, {
+      windowsHide: true,
+      cwd: path.dirname(resolvedBinary),
+    });
 
     this.child.stdout.on("data", (chunk) => {
       process.stdout.write(`[${this.logTag}] ${chunk}`);
