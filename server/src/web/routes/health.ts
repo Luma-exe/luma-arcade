@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { execFile } from "node:child_process";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statfsSync } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
 import { getSetting } from "../../config/settings.js";
@@ -79,7 +79,8 @@ async function checkSunshine(): Promise<HealthCheck[]> {
   // Sunshine logs which hardware encoders it found at startup.
   try {
     const log = readFileSync(path.join(SUNSHINE_CONFIG_DIR, "sunshine.log"), "utf8");
-    const found = [...log.matchAll(/Found (\S+) encoder: (\S+)/g)].map((m) => `${m[1]} (${m[2]})`);
+    // Sunshine re-probes (and re-logs) its encoders on some reconnects
+    const found = [...new Set([...log.matchAll(/Found (\S+) encoder: (\S+)/g)].map((m) => `${m[1]} (${m[2]})`))];
     checks.push({
       id: "encoder",
       label: "Video encoder",
@@ -218,6 +219,136 @@ async function checkMoonlight(): Promise<HealthCheck> {
   };
 }
 
+/** Whether someone is streaming right now, from Sunshine's connect/disconnect
+ * log lines (its own API needs its separate admin login). */
+function checkStream(): HealthCheck {
+  let last: RegExpMatchArray | undefined;
+  try {
+    const log = readFileSync(path.join(SUNSHINE_CONFIG_DIR, "sunshine.log"), "utf8");
+    last = [...log.matchAll(/^\[[\d-]+ (\d{2}:\d{2}):[\d.]+\]: Info: CLIENT (CONNECTED|DISCONNECTED)/gm)].at(-1);
+  } catch {}
+  const detail = !last
+    ? "No stream since Sunshine last started"
+    : last[2] === "CONNECTED"
+      ? `Someone is streaming now (since ${last[1]})`
+      : `No active stream (last one ended ${last[1]})`;
+  return { id: "stream", label: "Stream", status: "ok", detail };
+}
+
+const GB = 1024 ** 3;
+// The system drive, the drive with ES-DE's ROMs/emulators/BIOS, and the
+// separate disk the nightly save backup (below) writes to.
+const DISKS = [
+  { root: "C:\\", use: "system" },
+  { root: "G:\\", use: "games" },
+  { root: "E:\\", use: "save backups" },
+];
+
+function checkDiskSpace(): HealthCheck {
+  const parts: string[] = [];
+  let status: Status = "ok";
+  for (const { root, use } of DISKS) {
+    try {
+      const s = statfsSync(root);
+      const free = s.bavail * s.bsize;
+      const pct = (free / (s.blocks * s.bsize)) * 100;
+      // Emulators write shader caches and saves as they go; a full games
+      // drive shows up as crashes, not as a clear "disk full" error.
+      if (free < 5 * GB || pct < 3) status = "error";
+      else if ((pct < 10 || free < 20 * GB) && status === "ok") status = "warn";
+      parts.push(`${root.slice(0, 2)} (${use}) ${Math.round(free / GB)} GB free, ${Math.round(pct)}%`);
+    } catch {
+      parts.push(`${root.slice(0, 2)} (${use}) not found`);
+      if (status === "ok") status = "warn";
+    }
+  }
+  return { id: "disk", label: "Disk space", status, detail: parts.join(" · ") };
+}
+
+// ES-DE's emulators folder and the account ES-DE (and so every emulator)
+// runs as; emulators that aren't in portable mode keep data in its profile.
+const EMULATORS = "G:\\ES-DE\\Emulators";
+const ARCADE_ROAMING = "C:\\Users\\Arcade\\AppData\\Roaming";
+
+function iniValue(file: string, key: string): string | undefined {
+  try {
+    const m = new RegExp(`^\\s*${key}\\s*=\\s*(.+?)\\s*$`, "m").exec(readFileSync(file, "utf8"));
+    return m?.[1].replace(/^'(.*)'$/, "$1");
+  } catch {
+    return undefined;
+  }
+}
+
+function nonEmptyDir(dir: string): boolean {
+  try {
+    return readdirSync(dir).length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/** The BIOS/firmware/key files each console's emulator can't start games
+ * without, checked where that emulator is actually configured to look. */
+function checkBiosFiles(): HealthCheck {
+  const pcsx2Ini = path.join(EMULATORS, "PCSX2-Qt", "inis", "PCSX2.ini");
+  const pcsx2Dir = iniValue(pcsx2Ini, "Bios");
+  const pcsx2File = iniValue(pcsx2Ini, "BIOS");
+  const xemuToml = path.join(ARCADE_ROAMING, "xemu", "xemu", "xemu.toml");
+  const xemuFiles = ["bootrom_path", "flashrom_path", "hdd_path"].map((k) => iniValue(xemuToml, k));
+
+  const required: [string, boolean][] = [
+    ["PS1 BIOS", nonEmptyDir(path.join(EMULATORS, "duckstation", "bios"))],
+    ["PS2 BIOS", !!pcsx2Dir && !!pcsx2File && existsSync(path.join(pcsx2Dir, pcsx2File))],
+    ["PS3 firmware", existsSync(path.join(EMULATORS, "RPCS3", "dev_flash", "vsh", "module", "vsh.self"))],
+    ["Vita firmware", existsSync(path.join(EMULATORS, "Vita3K", "vs0", "vsh"))],
+    ["Switch keys", existsSync(path.join(EMULATORS, "eden", "user", "keys", "prod.keys"))],
+    ["Switch firmware", nonEmptyDir(path.join(EMULATORS, "eden", "user", "nand", "system", "Contents", "registered"))],
+    ["Xbox BIOS", xemuFiles.every((f) => !!f && existsSync(f))],
+    ["Wii U keys", existsSync(path.join(ARCADE_ROAMING, "Cemu", "keys.txt"))],
+  ];
+  const missing = required.filter(([, ok]) => !ok).map(([name]) => name);
+  return {
+    id: "bios",
+    label: "BIOS & firmware",
+    status: missing.length ? "warn" : "ok",
+    detail: missing.length
+      ? `Missing: ${missing.join(", ")} - games for those systems won't start`
+      : `All present (${required.map(([name]) => name).join(", ")})`,
+  };
+}
+
+// Written by E:\GameSaveBackups\backup-saves.ps1 ("Game Save Backup" task)
+const BACKUP_STATUS = "E:\\GameSaveBackups\\last-run.json";
+
+function checkSaveBackup(): HealthCheck {
+  try {
+    const run = JSON.parse(readFileSync(BACKUP_STATUS, "utf8").replace(/^\uFEFF/, "")) as {
+      time: string;
+      failed: string[] | string | null;
+      sizeMB: number;
+    };
+    const hours = (Date.now() - new Date(run.time).getTime()) / 3_600_000;
+    const failed = ([] as string[]).concat(run.failed ?? []);
+    const age = hours < 1 ? "under an hour" : hours < 48 ? `${Math.round(hours)} hours` : `${Math.round(hours / 24)} days`;
+    return {
+      id: "backup",
+      label: "Save backup",
+      // nightly at 4am, so anything past a day and a half means runs are failing
+      status: failed.length || hours > 36 ? "warn" : "ok",
+      detail: failed.length
+        ? `Last backup ${age} ago couldn't copy: ${failed.join(", ")}`
+        : `Last backup ${age} ago (${run.sizeMB} MB)${hours > 36 ? " - the nightly task isn't running" : ""}`,
+    };
+  } catch {
+    return {
+      id: "backup",
+      label: "Save backup",
+      status: "warn",
+      detail: "No save backup has run yet (scheduled task \"Game Save Backup\")",
+    };
+  }
+}
+
 /** One-shot diagnosis of everything outside LumaArcade that has to be right
  * for a stream to work - the checks that used to mean digging through
  * Sunshine/ES-DE logs and Device Manager by hand. */
@@ -231,6 +362,19 @@ export async function registerHealthRoutes(app: FastifyInstance) {
       checkTurn(),
     ]);
     const [sunshine, moonlight, consoleSession, esde, turn] = results;
-    return { checks: [...sunshine, moonlight, checkControllers(), consoleSession, esde, turn] };
+    return {
+      checks: [
+        checkStream(),
+        ...sunshine,
+        moonlight,
+        checkControllers(),
+        consoleSession,
+        esde,
+        turn,
+        checkBiosFiles(),
+        checkDiskSpace(),
+        checkSaveBackup(),
+      ],
+    };
   });
 }
