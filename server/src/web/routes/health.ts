@@ -147,6 +147,43 @@ async function checkEsDe(): Promise<HealthCheck> {
   };
 }
 
+/** Runs moonlight-web-stream's ICE server script exactly as it does at
+ * stream start, and reports whether it hands out a TURN relay (needed on
+ * networks that block direct connections) or only STUN. */
+async function checkTurn(): Promise<HealthCheck> {
+  const exe = getSetting("moonlightWebStreamPath");
+  const script = exe && path.join(path.dirname(exe), "server", "turn_ice_script.bat");
+  if (!script || !existsSync(script)) {
+    return { id: "turn", label: "Remote play relay", status: "warn", detail: "No TURN script found next to moonlight-web-stream" };
+  }
+
+  let servers: { urls: string[] }[] = [];
+  let failure = "";
+  try {
+    const { stdout, stderr } = await run("cmd.exe", ["/c", script], {
+      cwd: path.dirname(exe),
+      windowsHide: true,
+      timeout: 15000,
+    });
+    servers = JSON.parse(stdout);
+    failure = stderr.trim();
+  } catch (err) {
+    failure = (err as Error).message;
+  }
+
+  if (servers.some((s) => s.urls.some((u) => u.startsWith("turn")))) {
+    return { id: "turn", label: "Remote play relay", status: "ok", detail: "Cloudflare TURN credentials issued" };
+  }
+  return {
+    id: "turn",
+    label: "Remote play relay",
+    status: "warn",
+    detail: failure
+      ? `TURN unavailable (${failure}), streams will use direct connections only`
+      : "No TURN key set in moonlight-web-stream's server/cloudflare_turn.json - streams may fail on mobile data or strict networks",
+  };
+}
+
 async function checkMoonlight(): Promise<HealthCheck> {
   const port = getSetting("moonlightWebStreamPort");
   let reachable = false;
@@ -175,8 +212,9 @@ export async function registerHealthRoutes(app: FastifyInstance) {
       checkMoonlight(),
       checkConsoleSession(),
       checkEsDe(),
+      checkTurn(),
     ]);
-    const [sunshine, moonlight, consoleSession, esde] = results;
-    return { checks: [...sunshine, moonlight, checkControllers(), consoleSession, esde] };
+    const [sunshine, moonlight, consoleSession, esde, turn] = results;
+    return { checks: [...sunshine, moonlight, checkControllers(), consoleSession, esde, turn] };
   });
 }
