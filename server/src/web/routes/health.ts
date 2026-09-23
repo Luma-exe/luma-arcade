@@ -12,7 +12,12 @@ const run = promisify(execFile);
 // Sunshine's default install location; its config and log live here.
 const SUNSHINE_CONFIG_DIR = "C:\\Program Files\\Sunshine\\config";
 const SUNSHINE_HTTP_PORT = 47989;
-const XUSB_DRIVER = path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "drivers", "xusb22.sys");
+// The Xbox 360 controller driver: xusb22.sys ships with Windows 10/11 client,
+// xusb21.sys comes from Microsoft's standalone package (what Windows Server
+// needs, since it ships neither).
+const XUSB_DRIVERS = ["xusb22.sys", "xusb21.sys"].map((file) =>
+  path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "drivers", file)
+);
 
 type Status = "ok" | "warn" | "error";
 export interface HealthCheck {
@@ -88,7 +93,7 @@ async function checkSunshine(): Promise<HealthCheck[]> {
 
 function checkControllers(): HealthCheck {
   const gamepad = (readSunshineConf().gamepad ?? "auto").toLowerCase();
-  const hasXusb = existsSync(XUSB_DRIVER);
+  const hasXusb = XUSB_DRIVERS.some((file) => existsSync(file));
   const needsXusb = gamepad === "auto" || gamepad === "x360";
 
   if (needsXusb && !hasXusb) {
@@ -96,7 +101,7 @@ function checkControllers(): HealthCheck {
       id: "controllers",
       label: "Virtual controllers",
       status: "error",
-      detail: `Sunshine emulates Xbox 360 pads (gamepad = ${gamepad}) but the Xbox 360 driver (xusb22.sys) isn't installed, so games won't see them. Install it, or set gamepad = ds4.`,
+      detail: `Sunshine emulates Xbox 360 pads (gamepad = ${gamepad}) but the Xbox 360 driver (xusb21/xusb22.sys) isn't installed, so games won't see them. Install it, or set gamepad = ds4.`,
     };
   }
   return {
