@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { execFile } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
 import { getSetting } from "../../config/settings.js";
@@ -91,9 +91,20 @@ async function checkSunshine(): Promise<HealthCheck[]> {
   return checks;
 }
 
+/** A freshly installed driver sits in the driver store until the first
+ * matching device appears; only then is its .sys copied into drivers\. */
+function xusbInDriverStore(): boolean {
+  const store = path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "DriverStore", "FileRepository");
+  try {
+    return readdirSync(store).some((dir) => /^xusb2[12]\.inf_amd64_/i.test(dir));
+  } catch {
+    return false;
+  }
+}
+
 function checkControllers(): HealthCheck {
   const gamepad = (readSunshineConf().gamepad ?? "auto").toLowerCase();
-  const hasXusb = XUSB_DRIVERS.some((file) => existsSync(file));
+  const hasXusb = XUSB_DRIVERS.some((file) => existsSync(file)) || xusbInDriverStore();
   const needsXusb = gamepad === "auto" || gamepad === "x360";
 
   if (needsXusb && !hasXusb) {
