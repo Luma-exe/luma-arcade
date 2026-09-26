@@ -168,8 +168,34 @@ async function checkEsDe(): Promise<HealthCheck> {
 // to whatever size the stream client asks for.
 const VDD_SETTINGS = "C:\\VirtualDisplayDriver\\vdd_settings.xml";
 
-function parseModes(text: string, pattern: RegExp): Set<string> {
-  return new Set([...text.matchAll(pattern)].map((m) => `${m[1]}x${m[2]}`));
+/** Every "WxH@Hz" mode the driver offers: each <resolution> at its own
+ * refresh rate, plus the <g_refresh_rate>s, which apply to every size. */
+function parseDriverModes(xml: string): { modes: Set<string>; sizes: number } {
+  const entries = [
+    ...xml.matchAll(/<width>(\d+)<\/width>\s*<height>(\d+)<\/height>\s*<refresh_rate>(\d+)<\/refresh_rate>/g),
+  ];
+  const globalRates = [...xml.matchAll(/<g_refresh_rate>(\d+)<\/g_refresh_rate>/g)].map((m) => m[1]);
+  const modes = new Set<string>();
+  const sizes = new Set<string>();
+  for (const [, w, h, hz] of entries) {
+    sizes.add(`${w}x${h}`);
+    for (const rate of [hz, ...globalRates]) modes.add(`${w}x${h}@${rate}`);
+  }
+  return { modes, sizes: sizes.size };
+}
+
+/** Every "WxH@Hz" the stream client can request: each STREAM_MODES size at
+ * each HOST_FPS rate up to that size's own limit. */
+function parseClientModes(source: string): string[] {
+  const list = /const STREAM_MODES = \[([\s\S]*?)\];/.exec(source)?.[1] ?? "";
+  const rates = (/const HOST_FPS = \[([^\]]*)\]/.exec(source)?.[1] ?? "60").split(",").map(Number);
+  const modes: string[] = [];
+  for (const [, w, h, max] of list.matchAll(/\[(\d+),\s*(\d+)(?:,\s*(\d+))?\]/g)) {
+    for (const rate of rates) {
+      if (rate <= Number(max ?? 60)) modes.push(`${w}x${h}@${rate}`);
+    }
+  }
+  return modes;
 }
 
 /** The virtual display Sunshine captures: its monitor has to be plugged in
@@ -195,34 +221,34 @@ async function checkVirtualDisplay(): Promise<HealthCheck> {
     };
   }
 
-  let driverModes: Set<string>;
+  let driver: { modes: Set<string>; sizes: number };
   try {
-    driverModes = parseModes(
-      readFileSync(VDD_SETTINGS, "utf8"),
-      /<width>(\d+)<\/width>\s*<height>(\d+)<\/height>/g
-    );
+    driver = parseDriverModes(readFileSync(VDD_SETTINGS, "utf8"));
   } catch {
     return { id: "vdd", label, status: "warn", detail: `Connected, but ${VDD_SETTINGS} is missing - only the driver's built-in 16:9 sizes are available` };
   }
 
-  // The sizes moonlight-web-stream's client snaps streams to (STREAM_MODES).
+  // The sizes/frame rates moonlight-web-stream's client can ask for.
   const exe = getSetting("moonlightWebStreamPath");
-  let clientModes = new Set<string>();
+  let clientModes: string[] = [];
   try {
-    const source = readFileSync(path.join(path.dirname(exe), "static", "stream", "size.js"), "utf8");
-    const list = /const STREAM_MODES = \[([\s\S]*?)\];/.exec(source)?.[1] ?? "";
-    clientModes = parseModes(list, /\[(\d+),\s*(\d+)\]/g);
+    clientModes = parseClientModes(readFileSync(path.join(path.dirname(exe), "static", "stream", "size.js"), "utf8"));
   } catch {}
-  const missing = [...clientModes].filter((mode) => !driverModes.has(mode));
+  const missing = clientModes.filter((mode) => !driver.modes.has(mode));
   if (missing.length > 0) {
     return {
       id: "vdd",
       label,
       status: "warn",
-      detail: `Connected, but missing sizes the stream client may ask for: ${missing.join(", ")} - add them to ${VDD_SETTINGS}`,
+      detail: `Connected, but missing modes the stream client may ask for: ${missing.join(", ")} - add them to ${VDD_SETTINGS}`,
     };
   }
-  return { id: "vdd", label, status: "ok", detail: `Connected, ${driverModes.size} screen sizes available` };
+  return {
+    id: "vdd",
+    label,
+    status: "ok",
+    detail: `Connected, ${driver.sizes} screen sizes, up to ${Math.max(...[...driver.modes].map((m) => Number(m.split("@")[1])))} Hz`,
+  };
 }
 
 /** Runs moonlight-web-stream's ICE server script exactly as it does at
