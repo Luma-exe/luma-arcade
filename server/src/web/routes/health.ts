@@ -164,6 +164,67 @@ async function checkEsDe(): Promise<HealthCheck> {
   };
 }
 
+// MttVDD reads its mode list from here; Sunshine switches that virtual display
+// to whatever size the stream client asks for.
+const VDD_SETTINGS = "C:\\VirtualDisplayDriver\\vdd_settings.xml";
+
+function parseModes(text: string, pattern: RegExp): Set<string> {
+  return new Set([...text.matchAll(pattern)].map((m) => `${m[1]}x${m[2]}`));
+}
+
+/** The virtual display Sunshine captures: its monitor has to be plugged in
+ * (a bad vdd_settings.xml makes the driver drop it, leaving nothing to
+ * stream), and it has to offer every size the stream client can ask for. */
+async function checkVirtualDisplay(): Promise<HealthCheck> {
+  const label = "Virtual display";
+  const ps = await output("powershell.exe", [
+    "-NoProfile",
+    "-Command",
+    "Get-PnpDevice -FriendlyName '*VDD by MTT*' -ErrorAction SilentlyContinue | ForEach-Object Status",
+  ]);
+  const statuses = ps.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  if (statuses.length === 0) {
+    return { id: "vdd", label, status: "error", detail: "Virtual Display Driver isn't installed" };
+  }
+  if (!statuses.includes("OK")) {
+    return {
+      id: "vdd",
+      label,
+      status: "error",
+      detail: `Virtual monitor isn't plugged in (${statuses.join(", ")}) - check ${VDD_SETTINGS}, then restart the driver: pnputil /restart-device ROOT\\DISPLAY\\0000`,
+    };
+  }
+
+  let driverModes: Set<string>;
+  try {
+    driverModes = parseModes(
+      readFileSync(VDD_SETTINGS, "utf8"),
+      /<width>(\d+)<\/width>\s*<height>(\d+)<\/height>/g
+    );
+  } catch {
+    return { id: "vdd", label, status: "warn", detail: `Connected, but ${VDD_SETTINGS} is missing - only the driver's built-in 16:9 sizes are available` };
+  }
+
+  // The sizes moonlight-web-stream's client snaps streams to (STREAM_MODES).
+  const exe = getSetting("moonlightWebStreamPath");
+  let clientModes = new Set<string>();
+  try {
+    const source = readFileSync(path.join(path.dirname(exe), "static", "stream", "size.js"), "utf8");
+    const list = /const STREAM_MODES = \[([\s\S]*?)\];/.exec(source)?.[1] ?? "";
+    clientModes = parseModes(list, /\[(\d+),\s*(\d+)\]/g);
+  } catch {}
+  const missing = [...clientModes].filter((mode) => !driverModes.has(mode));
+  if (missing.length > 0) {
+    return {
+      id: "vdd",
+      label,
+      status: "warn",
+      detail: `Connected, but missing sizes the stream client may ask for: ${missing.join(", ")} - add them to ${VDD_SETTINGS}`,
+    };
+  }
+  return { id: "vdd", label, status: "ok", detail: `Connected, ${driverModes.size} screen sizes available` };
+}
+
 /** Runs moonlight-web-stream's ICE server script exactly as it does at
  * stream start, and reports whether it hands out a TURN relay (needed on
  * networks that block direct connections) or only STUN. */
@@ -225,11 +286,17 @@ function checkStream(): HealthCheck {
   let last: RegExpMatchArray | undefined;
   try {
     const log = readFileSync(path.join(SUNSHINE_CONFIG_DIR, "sunshine.log"), "utf8");
-    last = [...log.matchAll(/^\[[\d-]+ (\d{2}:\d{2}):[\d.]+\]: Info: CLIENT (CONNECTED|DISCONNECTED)/gm)].at(-1);
+    // Quitting from the client ends the session without a CLIENT
+    // DISCONNECTED line; Sunshine restoring the display marks the end then.
+    last = [
+      ...log.matchAll(
+        /^\[[\d-]+ (\d{2}:\d{2}):[\d.]+\]: Info: (CLIENT CONNECTED|CLIENT DISCONNECTED|Trying to revert applied display device settings)/gm
+      ),
+    ].at(-1);
   } catch {}
   const detail = !last
     ? "No stream since Sunshine last started"
-    : last[2] === "CONNECTED"
+    : last[2] === "CLIENT CONNECTED"
       ? `Someone is streaming now (since ${last[1]})`
       : `No active stream (last one ended ${last[1]})`;
   return { id: "stream", label: "Stream", status: "ok", detail };
@@ -360,13 +427,15 @@ export async function registerHealthRoutes(app: FastifyInstance) {
       checkConsoleSession(),
       checkEsDe(),
       checkTurn(),
+      checkVirtualDisplay(),
     ]);
-    const [sunshine, moonlight, consoleSession, esde, turn] = results;
+    const [sunshine, moonlight, consoleSession, esde, turn, virtualDisplay] = results;
     return {
       checks: [
         checkStream(),
         ...sunshine,
         moonlight,
+        virtualDisplay,
         checkControllers(),
         consoleSession,
         esde,
