@@ -19,6 +19,7 @@ import { registerUpdateRoutes } from "./routes/update.js";
 import { registerMoonlightRoutes } from "./routes/moonlight.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerSpeedtestRoutes } from "./routes/speedtest.js";
+import { registerHomeRoutes } from "./routes/home.js";
 import { clientIp, isLocalRequest, TRUSTED_PROXIES } from "./requestOrigin.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -98,6 +99,7 @@ export async function createServer(opts: { port: number; cookieSecret: string })
   await registerMoonlightRoutes(app);
   await registerHealthRoutes(app);
   await registerSpeedtestRoutes(app);
+  await registerHomeRoutes(app);
 
   await app.listen({ port: opts.port, host: "0.0.0.0" });
 

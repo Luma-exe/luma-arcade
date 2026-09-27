@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 import { getSetting } from "../../config/settings.js";
 import { moonlightProcess } from "../../remote/moonlightWebStream.js";
 import { requireAuth } from "../session.js";
+import { HOME_SCRIPT, HOME_TASK } from "./home.js";
 
 const run = promisify(execFile);
 
@@ -442,6 +443,26 @@ function checkSaveBackup(): HealthCheck {
   }
 }
 
+/** The stream page's Home button needs its scheduled task and script on the
+ * host (see routes/home.ts). */
+async function checkHomeHelper(): Promise<HealthCheck> {
+  const task = await output("schtasks.exe", ["/query", "/tn", HOME_TASK, "/fo", "LIST"]);
+  const hasTask = /TaskName:/i.test(task);
+  const hasScript = existsSync(HOME_SCRIPT);
+  const missing = [
+    hasTask ? null : "scheduled task LumaArcade\\Home",
+    hasScript ? null : HOME_SCRIPT,
+  ].filter(Boolean);
+  return {
+    id: "home",
+    label: "Home button",
+    status: missing.length ? "warn" : "ok",
+    detail: missing.length
+      ? `Not set up, missing ${missing.join(" and ")} (see moonlight-web-stream host/README.md)`
+      : "Ready to switch back to ES-DE / Steam Big Picture",
+  };
+}
+
 /** One-shot diagnosis of everything outside LumaArcade that has to be right
  * for a stream to work - the checks that used to mean digging through
  * Sunshine/ES-DE logs and Device Manager by hand. */
@@ -454,8 +475,9 @@ export async function registerHealthRoutes(app: FastifyInstance) {
       checkEsDe(),
       checkTurn(),
       checkVirtualDisplay(),
+      checkHomeHelper(),
     ]);
-    const [sunshine, moonlight, consoleSession, esde, turn, virtualDisplay] = results;
+    const [sunshine, moonlight, consoleSession, esde, turn, virtualDisplay, home] = results;
     return {
       checks: [
         checkStream(),
@@ -465,6 +487,7 @@ export async function registerHealthRoutes(app: FastifyInstance) {
         checkControllers(),
         consoleSession,
         esde,
+        home,
         turn,
         checkBiosFiles(),
         checkDiskSpace(),
