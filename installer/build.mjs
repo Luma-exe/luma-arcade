@@ -16,8 +16,11 @@ function run(cmd, cwd) {
   execSync(cmd, { cwd, stdio: "inherit", shell: true });
 }
 
-console.log("=== 1. Building client + server ===");
-run("npm run build", repoRoot);
+// Only the server ships: LumaArcade no longer serves the React client (its
+// "/" redirects into moonlight-web-stream under /stream, whose sign-in is the
+// only login), so client/dist would be dead weight in the install.
+console.log("=== 1. Building server ===");
+run("npm run build -w server", repoRoot);
 
 console.log("=== 2. Staging files ===");
 if (existsSync(stagingDir)) rmSync(stagingDir, { recursive: true, force: true });
@@ -34,21 +37,20 @@ cpSync(
   path.join(repoRoot, "server", "package.json"),
   path.join(stagingDir, "server", "package.json")
 );
-cpSync(path.join(repoRoot, "client", "dist"), path.join(stagingDir, "client", "dist"), {
-  recursive: true,
-});
 
 console.log("=== 3. Installing production dependencies into staged copy ===");
 run("npm install --omit=dev --no-audit --no-fund", path.join(stagingDir, "server"));
 
-if (
-  !existsSync(
-    path.join(stagingDir, "server", "node_modules", "better-sqlite3", "build", "Release")
-  )
-) {
-  throw new Error(
-    "better-sqlite3 native binary missing from staged node_modules — packaging would produce a broken installer"
-  );
+for (const nativeModule of ["better-sqlite3", "bcrypt"]) {
+  const moduleDir = path.join(stagingDir, "server", "node_modules", nativeModule);
+  if (
+    !existsSync(path.join(moduleDir, "build", "Release")) &&
+    !existsSync(path.join(moduleDir, "lib", "binding"))
+  ) {
+    throw new Error(
+      `${nativeModule} native binary missing from staged node_modules — packaging would produce a broken installer`
+    );
+  }
 }
 
 console.log("=== 4. Copying portable node.exe ===");

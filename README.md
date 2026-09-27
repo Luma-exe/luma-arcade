@@ -3,7 +3,8 @@
 A thin login shell in front of your own [Sunshine](https://github.com/LizardByte/Sunshine) +
 [ES-DE](https://es-de.org/) + [moonlight-web-stream](https://github.com/MrCreativ3001/moonlight-web-stream)
 setup. LumaArcade itself is a small Node.js/TypeScript process that runs in
-the system tray on your Windows gaming PC: it password-gates access, manages
+the system tray on your Windows gaming PC: it adds per-user access rules on
+top of moonlight-web-stream's own sign-in, manages
 the moonlight-web-stream process's lifecycle, and reverse-proxies the browser
 to it. All of the actual game streaming - capture, encode, input, the
 in-stream UI - is handled by that stack, not by LumaArcade.
@@ -29,9 +30,10 @@ Browser -> LumaArcade (auth + reverse proxy, one port)
      Emulators & PC games
 ```
 
-Open the portal, log in, and you're handed off (via LumaArcade's `/stream`
-reverse proxy) straight into moonlight-web-stream's browser client, which is
-streaming Sunshine's video of ES-DE.
+Opening LumaArcade's `/` redirects to its `/stream` reverse proxy, i.e.
+moonlight-web-stream's browser client. Its sign-in (moonlight-web-stream's
+users and roles) is the only login; LumaArcade reads that session to decide
+who may use which apps and the admin/settings API.
 
 ## Host setup (do this once, outside LumaArcade)
 
@@ -60,14 +62,15 @@ npm run dev:server   # terminal 1 - Fastify auth + reverse proxy on :7777
 npm run dev:client   # terminal 2 - Vite dev server, proxies /api and /stream to :7777
 ```
 
-Open `http://localhost:5173`, set a password on first run, then use Settings
--> Streaming to point at your moonlight-web-stream install.
+Point the `moonlightWebStreamPath` setting at your moonlight-web-stream
+install, then open `http://localhost:7777/` and sign in with a
+moonlight-web-stream account (an Admin one to reach Settings).
 
 For a production-style single-process run:
 
 ```bash
 npm run build
-npm run start         # serves the built client from the same Fastify instance on :7777
+npm run start         # Fastify on :7777
 ```
 
 7777 is only the default - the listen port is a setting (Settings -> General),
@@ -82,8 +85,8 @@ npm run package        # requires NSIS (winget install NSIS.NSIS) and a system N
 Produces `installer/output/LumaArcadeSetup.exe` - a per-user install (no
 admin/UAC prompt) to `%LOCALAPPDATA%\Programs\LumaArcade`, with a Start Menu
 shortcut, an uninstaller, and a finish-page "start with Windows" checkbox. It
-bundles a copied `node.exe` and production-only `node_modules` (including
-`better-sqlite3`'s native binary) so end users don't need Node.js installed
+bundles the built server, a copied `node.exe` and production-only
+`node_modules` (including `better-sqlite3`'s and `bcrypt`'s native binaries) so end users don't need Node.js installed
 separately - see `installer/build.mjs` for the staging steps and
 `installer/LumaArcade.nsi` for the installer script itself. Sunshine, ES-DE,
 and moonlight-web-stream are **not** bundled or auto-installed - set them up
@@ -92,16 +95,18 @@ moonlight-web-stream build.
 
 ## Architecture notes
 
-- **Auth**: a single app-wide password, signed session cookie
-  (`luma_session`), `requireAuth` preHandler on every protected route. See
-  `server/src/web/auth.ts` / `session.ts`.
+- **Auth**: moonlight-web-stream's sign-in. Its session cookie is scoped to
+  `/stream`, so pages there call LumaArcade at `/stream/luma-api/...`
+  (rewritten to `/api/...`); `requireAuth` / `requireAdmin` ask
+  moonlight-web-stream who the cookie belongs to (`server/src/web/streamUser.ts`).
+  Per-user app access and session rules live in LumaArcade's DB
+  (`web/access.ts`, `web/appAccess.ts`, admin API in `web/routes/admin.ts`).
 - **Running behind a tunnel** (e.g. cloudflared on this machine): Fastify
   trusts forwarding headers from loopback only (`server/src/web/requestOrigin.ts`),
   so the login rate limit is per real visitor (`CF-Connecting-IP`) instead of
   one shared bucket, and the session cookie is `Secure` over HTTPS while
   plain-HTTP LAN access keeps working. Requests arriving through the tunnel
-  count as "internet"; those can't do first-run password setup, and can't
-  change the settings that make the host execute a file or rebind
+  count as "internet"; those can't change the settings that make the host execute a file or rebind
   (`moonlightWebStreamPath`/`Port`, `devTreePath`, `port`) - do those from
   the home network.
 - **Host health** (Settings -> Host health, `server/src/web/routes/health.ts`):

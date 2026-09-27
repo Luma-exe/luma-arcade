@@ -103,6 +103,7 @@ Section "Uninstall"
   keepdata:
 
   RMDir /r "$INSTDIR\server\dist"
+  RMDir /r "$INSTDIR\server\assets"
   RMDir /r "$INSTDIR\server\node_modules"
   Delete "$INSTDIR\server\package.json"
   Delete "$INSTDIR\server\package-lock.json"
