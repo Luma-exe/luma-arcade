@@ -10,6 +10,11 @@ import { moonlightProcess, MOONLIGHT_PATH_PREFIX } from "../../remote/moonlightW
 
 const PROXY_PREFIX = MOONLIGHT_PATH_PREFIX;
 
+// A login's client IP, taken in preHandler: by the time moonlight-web-stream's
+// reply reaches onResponse the request's socket is gone (request.socket is
+// null), and reading it there crashed the whole server on every sign-in.
+const loginIps = new WeakMap<object, string>();
+
 /** Reverse-proxies everything under /stream to the locally-run
  * moonlight-web-stream process, behind the same session-cookie auth gate as
  * every other route — see remote/moonlightWebStream.ts for how that process
@@ -37,9 +42,13 @@ export async function registerMoonlightRoutes(app: FastifyInstance) {
     // is the only login, and it guards its own API. Its login does get the
     // rate limit LumaArcade's old portal password had.
     preHandler: async (request, reply) => {
-      if (isLoginRequest(request) && isRateLimited(clientIp(request))) {
-        reply.code(429).send({ error: "Too many sign-in attempts. Wait a minute and try again." });
-        return;
+      if (isLoginRequest(request)) {
+        const ip = clientIp(request);
+        if (isRateLimited(ip)) {
+          reply.code(429).send({ error: "Too many sign-in attempts. Wait a minute and try again." });
+          return;
+        }
+        loginIps.set(request, ip);
       }
       await rememberSocketAccess(request);
     },
@@ -52,9 +61,10 @@ export async function registerMoonlightRoutes(app: FastifyInstance) {
           : headers,
       onResponse: (request, reply, res) => {
         const req = request as unknown as FastifyRequest;
-        if (isLoginRequest(req)) {
-          if (reply.statusCode === 401 || reply.statusCode === 404) recordFailedAttempt(clientIp(req));
-          else if (reply.statusCode < 300) clearAttempts(clientIp(req));
+        const loginIp = loginIps.get(req);
+        if (loginIp) {
+          if (reply.statusCode === 401 || reply.statusCode === 404) recordFailedAttempt(loginIp);
+          else if (reply.statusCode < 300) clearAttempts(loginIp);
         }
         if (isAppListRequest(req, PROXY_PREFIX)) {
           void filterAppList(req, reply as never, res as unknown as { stream: Readable });

@@ -23,7 +23,8 @@ function isPrivateAddress(address: string): boolean {
  * internet. cloudflared connects from loopback and always adds
  * CF-Connecting-IP; nothing on the LAN can reach us *from* loopback. */
 function isViaTunnel(request: FastifyRequest): boolean {
-  return isLoopback(request.socket.remoteAddress ?? "") && !!request.headers["cf-connecting-ip"];
+  // socket can already be null (e.g. in a proxy's onResponse), so don't throw.
+  return isLoopback(request.socket?.remoteAddress ?? "") && !!request.headers["cf-connecting-ip"];
 }
 
 /** The real visitor's IP. Behind the tunnel every socket is 127.0.0.1, which
