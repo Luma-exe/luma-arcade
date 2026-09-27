@@ -41,16 +41,19 @@ cpSync(
 console.log("=== 3. Installing production dependencies into staged copy ===");
 run("npm install --omit=dev --no-audit --no-fund", path.join(stagingDir, "server"));
 
-for (const nativeModule of ["better-sqlite3", "bcrypt"]) {
-  const moduleDir = path.join(stagingDir, "server", "node_modules", nativeModule);
-  if (
-    !existsSync(path.join(moduleDir, "build", "Release")) &&
-    !existsSync(path.join(moduleDir, "lib", "binding"))
-  ) {
-    throw new Error(
-      `${nativeModule} native binary missing from staged node_modules — packaging would produce a broken installer`
-    );
-  }
+// Load the native modules with the same Node that gets bundled, instead of
+// looking for their binaries on disk: better-sqlite3 now ships prebuilds/
+// rather than build/Release, and newer npm can skip install scripts
+// (bcrypt's binary download) unless they're approved.
+try {
+  run(
+    `"${NODE_EXE}" -e "new (require('better-sqlite3'))(':memory:').close(); require('bcrypt').hashSync('x', 4)"`,
+    path.join(stagingDir, "server")
+  );
+} catch {
+  throw new Error(
+    "better-sqlite3 or bcrypt won't load from the staged node_modules — packaging would produce a broken installer"
+  );
 }
 
 console.log("=== 4. Copying portable node.exe ===");
