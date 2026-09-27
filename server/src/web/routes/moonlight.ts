@@ -6,6 +6,8 @@ import { clearAttempts, isRateLimited, recordFailedAttempt } from "../auth.js";
 import { clientIp } from "../requestOrigin.js";
 import { getSetting } from "../../config/settings.js";
 import { requireAuth } from "../session.js";
+import { mayStopSession } from "../sessions.js";
+import { streamUser } from "../streamUser.js";
 import { moonlightProcess, MOONLIGHT_PATH_PREFIX } from "../../remote/moonlightWebStream.js";
 
 const PROXY_PREFIX = MOONLIGHT_PATH_PREFIX;
@@ -49,6 +51,13 @@ export async function registerMoonlightRoutes(app: FastifyInstance) {
           return;
         }
         loginIps.set(request, ip);
+      }
+      if (isStopSessionRequest(request)) {
+        const user = await streamUser(request);
+        if (user && !mayStopSession(user)) {
+          reply.code(403).send({ error: "This game belongs to someone else. Ask them to hand it over instead." });
+          return;
+        }
       }
       await rememberSocketAccess(request);
     },
@@ -101,6 +110,10 @@ export async function registerMoonlightRoutes(app: FastifyInstance) {
       }
     }
   );
+}
+
+function isStopSessionRequest(request: FastifyRequest): boolean {
+  return request.method === "POST" && request.url.split("?")[0] === `${PROXY_PREFIX}/api/host/cancel`;
 }
 
 function isLoginRequest(request: FastifyRequest): boolean {

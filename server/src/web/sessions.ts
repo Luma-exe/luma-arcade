@@ -97,6 +97,14 @@ export function streamEnded(socket: object): void {
   streaming.delete(socket);
 }
 
+/** Closing what's running on the PC ("Stop current session") is for whoever
+ * it belongs to; others can only ask for a hand-over. Admins still can. */
+export function mayStopSession(user: StreamUser): boolean {
+  if (user.admin) return true;
+  const current = [...streaming.values()][0]?.user ?? (sunshineBusy ? owner?.user : null);
+  return !current || current.id === user.id;
+}
+
 /** For the PC card: who has it, from this person's point of view. */
 export function status(user: StreamUser | null) {
   const current = [...streaming.values()][0] ?? null;
