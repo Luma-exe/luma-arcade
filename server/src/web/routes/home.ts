@@ -6,6 +6,7 @@ import { readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { requireAuth } from "../session.js";
+import { getActiveInput } from "./input.js";
 
 const run = promisify(execFile);
 
@@ -24,7 +25,19 @@ export interface HomeQueryResult {
   error?: string;
   launcher?: string;
   onLauncher?: boolean;
-  game?: { hwnd: number; title: string; process: string } | null;
+  game?: {
+    hwnd: number;
+    title: string;
+    process: string;
+    /** the exe's description, e.g. "Xenia Canary" */
+    app?: string;
+    /** PNG data URL of the app's icon */
+    icon?: string | null;
+    /** the game's name from its ROM or Steam folder, when it's that window */
+    name?: string;
+    /** ES-DE system name ("xbox360", "wii"...) or "pc" */
+    system?: string | null;
+  } | null;
 }
 
 export interface HomeGoResult {
@@ -70,6 +83,16 @@ function runHome<T>(request: Record<string, unknown>, timeoutMs: number): Promis
   return job;
 }
 
+export interface HostWindow {
+  hwnd: number;
+  title: string;
+  process: string;
+  foreground: boolean;
+  minimized: boolean;
+  /** PNG data URL of the app's icon, when it could be read */
+  icon: string | null;
+}
+
 function launcherParam(value: unknown): Launcher | "" {
   return value === "es-de" || value === "steam" ? value : "";
 }
@@ -83,10 +106,44 @@ export async function registerHomeRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req, reply) => {
       try {
-        return await runHome<HomeQueryResult>(
-          { action: "query", launcher: launcherParam(req.body?.launcher) },
-          10_000
-        );
+        // What's running (ROM path / Steam folder) knows the game's real
+        // name; the window title is often an emulator's version string.
+        const [result, active] = await Promise.all([
+          runHome<HomeQueryResult>({ action: "query", launcher: launcherParam(req.body?.launcher) }, 10_000),
+          getActiveInput().catch(() => null),
+        ]);
+        const game = result.game;
+        if (game && active?.title && active.process?.toLowerCase() === `${game.process}.exe`.toLowerCase()) {
+          game.name = active.title;
+          game.system = active.system;
+        }
+        return result;
+      } catch (err) {
+        return reply.code(503).send({ ok: false, error: (err as Error).message });
+      }
+    }
+  );
+
+  // The stream's window picker (hold Alt+Tab): the desktop's app windows,
+  // and switching to one of them.
+  app.post("/api/windows", { preHandler: requireAuth }, async (_req, reply) => {
+    try {
+      return await runHome<{ ok: boolean; error?: string; windows?: HostWindow[] }>({ action: "windows" }, 12_000);
+    } catch (err) {
+      return reply.code(503).send({ ok: false, error: (err as Error).message });
+    }
+  });
+
+  app.post<{ Body: { hwnd?: number } }>(
+    "/api/windows/focus",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const hwnd = Number(req.body?.hwnd);
+      if (!Number.isSafeInteger(hwnd) || hwnd <= 0) {
+        return reply.code(400).send({ ok: false, error: "No window given" });
+      }
+      try {
+        return await runHome<{ ok: boolean; error?: string }>({ action: "focus", hwnd }, 10_000);
       } catch (err) {
         return reply.code(503).send({ ok: false, error: (err as Error).message });
       }

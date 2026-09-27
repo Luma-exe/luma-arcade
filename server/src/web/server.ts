@@ -1,28 +1,16 @@
 import Fastify from "fastify";
 import fastifyCookie from "@fastify/cookie";
-import fastifyStatic from "@fastify/static";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import {
-  clearAttempts,
-  createSession,
-  destroySession,
-  isPasswordSet,
-  isRateLimited,
-  recordFailedAttempt,
-  setPassword,
-  verifyPassword,
-} from "./auth.js";
-import { clearSessionCookie, getSessionId, requireAuth, setSessionCookie } from "./session.js";
+import { requireAuth } from "./session.js";
 import { registerSettingsRoutes } from "./routes/settings.js";
 import { registerUpdateRoutes } from "./routes/update.js";
 import { registerMoonlightRoutes } from "./routes/moonlight.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerSpeedtestRoutes } from "./routes/speedtest.js";
 import { registerHomeRoutes } from "./routes/home.js";
-import { clientIp, isLocalRequest, TRUSTED_PROXIES } from "./requestOrigin.js";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { registerInputRoutes } from "./routes/input.js";
+import { registerAdminRoutes } from "./routes/admin.js";
+import { MOONLIGHT_PATH_PREFIX } from "../remote/moonlightWebStream.js";
+import { TRUSTED_PROXIES } from "./requestOrigin.js";
 
 const COOKIE_SECRET_SETTING_KEY = "cookieSecret";
 
@@ -32,66 +20,25 @@ export async function createServer(opts: { port: number; cookieSecret: string })
     // cloudflared (and the Vite dev proxy) connect from loopback; trusting
     // them makes request.ip/request.protocol reflect the real visitor.
     trustProxy: TRUSTED_PROXIES,
+    // Pages under /stream call LumaArcade at /stream/luma-api/... instead of
+    // /api/...: moonlight-web-stream scopes its session cookie to /stream,
+    // so only there does the browser send it, and only with it can
+    // LumaArcade tell who is asking (web/streamUser.ts).
+    rewriteUrl: (req) =>
+      req.url?.startsWith(`${MOONLIGHT_PATH_PREFIX}/luma-api/`)
+        ? `/api/${req.url.slice(MOONLIGHT_PATH_PREFIX.length + "/luma-api/".length)}`
+        : req.url ?? "/",
   });
 
   await app.register(fastifyCookie, { secret: opts.cookieSecret });
-  await app.register(fastifyStatic, {
-    root: path.join(__dirname, "..", "..", "..", "client", "dist"),
+
+  // The arcade is moonlight-web-stream under /stream, and its sign-in is the
+  // only login (LumaArcade's old portal password page is gone). The tray's
+  // Settings item links to /?view=settings, which carries over.
+  app.get("/", async (request, reply) => {
+    const query = request.url.includes("?") ? request.url.slice(request.url.indexOf("?")) : "";
+    return reply.redirect(`${MOONLIGHT_PATH_PREFIX}/${query}`);
   });
-
-  app.get("/api/auth/status", async (request) => ({
-    passwordSet: isPasswordSet(),
-    canSetPassword: isLocalRequest(request),
-  }));
-
-  app.post<{ Body: { password: string } }>("/api/auth/set-password", async (request, reply) => {
-    if (isPasswordSet()) {
-      reply.code(409).send({ error: "password already set" });
-      return;
-    }
-    // Otherwise whoever reached the public URL first after a DB reset would
-    // get to choose the password.
-    if (!isLocalRequest(request)) {
-      reply.code(403).send({ error: "first-time setup must be done from the home network" });
-      return;
-    }
-    const { password } = request.body ?? {};
-    if (!password || password.length < 8) {
-      reply.code(400).send({ error: "password must be at least 8 characters" });
-      return;
-    }
-    await setPassword(password);
-    const session = createSession();
-    setSessionCookie(request, reply, session.id, session.expiresAt);
-    return { ok: true };
-  });
-
-  app.post<{ Body: { password: string } }>("/api/auth/login", async (request, reply) => {
-    const ip = clientIp(request);
-    if (isRateLimited(ip)) {
-      reply.code(429).send({ error: "too many attempts, try again shortly" });
-      return;
-    }
-    const { password } = request.body ?? {};
-    const valid = password ? await verifyPassword(password) : false;
-    if (!valid) {
-      recordFailedAttempt(ip);
-      reply.code(401).send({ error: "invalid password" });
-      return;
-    }
-    clearAttempts(ip);
-    const session = createSession();
-    setSessionCookie(request, reply, session.id, session.expiresAt);
-    return { ok: true };
-  });
-
-  app.post("/api/auth/logout", async (request, reply) => {
-    const sessionId = getSessionId(request);
-    if (sessionId) destroySession(sessionId);
-    clearSessionCookie(reply);
-    return { ok: true };
-  });
-
   app.get("/api/me", { preHandler: requireAuth }, async () => ({ ok: true }));
 
   await registerSettingsRoutes(app);
@@ -100,6 +47,8 @@ export async function createServer(opts: { port: number; cookieSecret: string })
   await registerHealthRoutes(app);
   await registerSpeedtestRoutes(app);
   await registerHomeRoutes(app);
+  await registerInputRoutes(app);
+  await registerAdminRoutes(app);
 
   await app.listen({ port: opts.port, host: "0.0.0.0" });
 

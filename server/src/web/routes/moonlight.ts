@@ -1,5 +1,9 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import fastifyHttpProxy from "@fastify/http-proxy";
+import type { Readable } from "node:stream";
+import { checkStreamInit, filterAppList, isAppListRequest, rememberSocketAccess, streamClosed } from "../appAccess.js";
+import { clearAttempts, isRateLimited, recordFailedAttempt } from "../auth.js";
+import { clientIp } from "../requestOrigin.js";
 import { getSetting } from "../../config/settings.js";
 import { requireAuth } from "../session.js";
 import { moonlightProcess, MOONLIGHT_PATH_PREFIX } from "../../remote/moonlightWebStream.js";
@@ -29,7 +33,41 @@ export async function registerMoonlightRoutes(app: FastifyInstance) {
     // 404 for bare / on its own port.
     rewritePrefix: PROXY_PREFIX,
     websocket: true,
-    preHandler: requireAuth,
+    // No gate of LumaArcade's own any more: moonlight-web-stream's sign-in
+    // is the only login, and it guards its own API. Its login does get the
+    // rate limit LumaArcade's old portal password had.
+    preHandler: async (request, reply) => {
+      if (isLoginRequest(request) && isRateLimited(clientIp(request))) {
+        reply.code(429).send({ error: "Too many sign-in attempts. Wait a minute and try again." });
+        return;
+      }
+      await rememberSocketAccess(request);
+    },
+    // Per-person app access (routes/admin.ts, appAccess.ts): the app list
+    // is filtered on the way out, and a stream's Init message is checked.
+    replyOptions: {
+      rewriteRequestHeaders: (request, headers) =>
+        isAppListRequest(request as unknown as FastifyRequest, PROXY_PREFIX)
+          ? { ...headers, "accept-encoding": "identity" }
+          : headers,
+      onResponse: (request, reply, res) => {
+        const req = request as unknown as FastifyRequest;
+        if (isLoginRequest(req)) {
+          if (reply.statusCode === 401 || reply.statusCode === 404) recordFailedAttempt(clientIp(req));
+          else if (reply.statusCode < 300) clearAttempts(clientIp(req));
+        }
+        if (isAppListRequest(req, PROXY_PREFIX)) {
+          void filterAppList(req, reply as never, res as unknown as { stream: Readable });
+        } else {
+          reply.send((res as unknown as { stream: Readable }).stream);
+        }
+      },
+    },
+    wsHooks: {
+      onIncomingMessage: (_context, source, target, message) =>
+        checkStreamInit(source as never, target as never, message.data, message.binary),
+      onDisconnect: (_context, source) => streamClosed(source as never),
+    },
   });
 
   app.get(
@@ -53,4 +91,8 @@ export async function registerMoonlightRoutes(app: FastifyInstance) {
       }
     }
   );
+}
+
+function isLoginRequest(request: FastifyRequest): boolean {
+  return request.method === "POST" && request.url.split("?")[0] === `${PROXY_PREFIX}/api/login`;
 }

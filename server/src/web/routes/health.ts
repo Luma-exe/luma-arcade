@@ -5,7 +5,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { getSetting } from "../../config/settings.js";
 import { moonlightProcess } from "../../remote/moonlightWebStream.js";
-import { requireAuth } from "../session.js";
+import { requireAdmin } from "../streamUser.js";
 import { HOME_SCRIPT, HOME_TASK } from "./home.js";
 
 const run = promisify(execFile);
@@ -467,7 +467,7 @@ async function checkHomeHelper(): Promise<HealthCheck> {
  * for a stream to work - the checks that used to mean digging through
  * Sunshine/ES-DE logs and Device Manager by hand. */
 export async function registerHealthRoutes(app: FastifyInstance) {
-  app.get("/api/health/host", { preHandler: requireAuth }, async () => {
+  app.get("/api/health/host", { preHandler: requireAdmin }, async () => {
     const results = await Promise.all([
       checkSunshine(),
       checkMoonlight(),

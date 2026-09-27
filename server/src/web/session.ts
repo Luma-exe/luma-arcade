@@ -1,5 +1,5 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
-import { isSessionValid } from "./auth.js";
+import { streamUser } from "./streamUser.js";
 import { isHttpsRequest } from "./requestOrigin.js";
 
 export const SESSION_COOKIE = "luma_session";
@@ -32,9 +32,11 @@ export function clearSessionCookie(reply: FastifyReply): void {
   reply.clearCookie(SESSION_COOKIE, { path: "/" });
 }
 
+/** Signed in to moonlight-web-stream (its session cookie reaches LumaArcade
+ * on /stream/... requests, see server.ts). That one sign-in replaced
+ * LumaArcade's old shared portal password. */
 export async function requireAuth(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  const sessionId = getSessionId(request);
-  if (!sessionId || !isSessionValid(sessionId)) {
+  if (!(await streamUser(request))) {
     reply.code(401).send({ error: "unauthorized" });
   }
 }

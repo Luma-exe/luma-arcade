@@ -3,7 +3,7 @@ import { disableAutoStart, enableAutoStart } from "../../autostart/index.js";
 import { getAllSettings, setSettings, type AppSettings } from "../../config/settings.js";
 import { syncMoonlightWithSettings } from "../../remote/moonlightWebStream.js";
 import { isLocalRequest } from "../requestOrigin.js";
-import { requireAuth } from "../session.js";
+import { requireAdmin } from "../streamUser.js";
 
 /** Settings that make the host execute a file or rebind the server. Anyone
  * with the password could otherwise turn a leaked password into running
@@ -16,11 +16,11 @@ const LOCAL_ONLY_KEYS: (keyof AppSettings)[] = [
 ];
 
 export async function registerSettingsRoutes(app: FastifyInstance) {
-  app.get("/api/settings", { preHandler: requireAuth }, async () => getAllSettings());
+  app.get("/api/settings", { preHandler: requireAdmin }, async () => getAllSettings());
 
   app.put<{ Body: Partial<AppSettings> }>(
     "/api/settings",
-    { preHandler: requireAuth },
+    { preHandler: requireAdmin },
     async (request, reply) => {
       const current = getAllSettings();
       // Only known settings. The settings table also holds internal values
