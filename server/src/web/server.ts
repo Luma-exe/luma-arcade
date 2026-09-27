@@ -9,6 +9,7 @@ import { registerSpeedtestRoutes } from "./routes/speedtest.js";
 import { registerHomeRoutes } from "./routes/home.js";
 import { registerInputRoutes } from "./routes/input.js";
 import { registerAdminRoutes } from "./routes/admin.js";
+import { registerHandoverRoutes } from "./routes/handover.js";
 import { MOONLIGHT_PATH_PREFIX } from "../remote/moonlightWebStream.js";
 import { TRUSTED_PROXIES } from "./requestOrigin.js";
 
@@ -49,6 +50,7 @@ export async function createServer(opts: { port: number; cookieSecret: string })
   await registerHomeRoutes(app);
   await registerInputRoutes(app);
   await registerAdminRoutes(app);
+  await registerHandoverRoutes(app);
 
   await app.listen({ port: opts.port, host: "0.0.0.0" });
 

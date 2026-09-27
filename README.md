@@ -109,6 +109,12 @@ moonlight-web-stream build.
   count as "internet"; those can't change the settings that make the host execute a file or rebind
   (`moonlightWebStreamPath`/`Port`, `devTreePath`, `port`) - do those from
   the home network.
+- **One PC, one player** (`server/src/web/sessions.ts`): whoever is
+  streaming has the PC. Someone else who connects asks them to hand it
+  over (`routes/handover.ts`): the streamer gets a notification with Hand
+  over / ✕ that lapses after 10 seconds, and the asker sees the answer.
+  Handing over closes the streamer's stream and lets the asker in; admins
+  can also take over without waiting.
 - **Host health** (Settings -> Host health, `server/src/web/routes/health.ts`):
   checks Sunshine's service and encoders, moonlight-web-stream, whether the
   virtual-controller driver Sunshine needs is installed, whether anyone is
