@@ -1,36 +1,6 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
+import { isGuest } from "./sessions.js";
 import { streamUser } from "./streamUser.js";
-import { isHttpsRequest } from "./requestOrigin.js";
-
-export const SESSION_COOKIE = "luma_session";
-
-export function getSessionId(request: FastifyRequest): string | undefined {
-  const raw = request.cookies[SESSION_COOKIE];
-  if (!raw) return undefined;
-  const unsigned = request.unsignCookie(raw);
-  return unsigned.valid ? (unsigned.value ?? undefined) : undefined;
-}
-
-export function setSessionCookie(
-  request: FastifyRequest,
-  reply: FastifyReply,
-  sessionId: string,
-  expiresAt: Date
-): void {
-  reply.setCookie(SESSION_COOKIE, sessionId, {
-    path: "/",
-    httpOnly: true,
-    // Secure over the public HTTPS tunnel; plain HTTP on the LAN still works.
-    secure: isHttpsRequest(request),
-    sameSite: "lax",
-    signed: true,
-    expires: expiresAt,
-  });
-}
-
-export function clearSessionCookie(reply: FastifyReply): void {
-  reply.clearCookie(SESSION_COOKIE, { path: "/" });
-}
 
 /** Signed in to moonlight-web-stream (its session cookie reaches LumaArcade
  * on /stream/... requests, see server.ts). That one sign-in replaced
@@ -38,5 +8,16 @@ export function clearSessionCookie(reply: FastifyReply): void {
 export async function requireAuth(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   if (!(await streamUser(request))) {
     reply.code(401).send({ error: "unauthorized" });
+  }
+}
+
+/** Signed in, and not just a co-op guest in someone else's game: guests
+ * play along but don't go Home, switch windows or close the game. */
+export async function requireOwnerOrFree(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  const user = await streamUser(request);
+  if (!user) {
+    reply.code(401).send({ error: "unauthorized" });
+  } else if (isGuest(user)) {
+    reply.code(403).send({ error: "You're playing along as a guest; only the person you joined can do that." });
   }
 }

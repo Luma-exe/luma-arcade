@@ -4,7 +4,10 @@ import path from "node:path";
 import { SETTINGS_SECTIONS, deleteAccess, getAccess, getAllAccess, setAccess, type UserAccess } from "../access.js";
 import { requireAuth } from "../session.js";
 import { clearStreamUserCache, requireAdmin, streamUser } from "../streamUser.js";
-import { decide, status as sessionStatus } from "../sessions.js";
+import { decide, guestStream, status as sessionStatus } from "../sessions.js";
+import { playSummary, usage } from "../playLog.js";
+import { getAllLimits, setLimits, timeLeft } from "../limits.js";
+import { activeAnnouncements, postAnnouncement, removeAnnouncement } from "../announcements.js";
 import {
   copyAllDevices,
   copyDevice,
@@ -71,7 +74,16 @@ export async function registerAdminRoutes(app: FastifyInstance) {
   // (sessions.ts): the PC card and the stream page ask before connecting.
   app.get("/api/sessions/status", { preHandler: requireAuth }, async (request) => {
     const user = await streamUser(request);
-    return { ...sessionStatus(user), decision: user ? decide(user) : { allowed: false } };
+    let decision = user ? decide(user) : { allowed: false };
+    // Out of play time beats everything else (limits.ts).
+    if (user) {
+      try {
+        const left = timeLeft(user);
+        if (left.remainingMs === 0) decision = { allowed: false, reason: left.reason };
+      } catch {}
+    }
+    // A co-op guest's page asks the host for exactly the player's stream.
+    return { ...sessionStatus(user), decision, coop: user ? guestStream(user) : null };
   });
 
   app.get("/api/admin/apps", { preHandler: requireAdmin }, async (_req, reply) => {
@@ -99,6 +111,45 @@ export async function registerAdminRoutes(app: FastifyInstance) {
 
   app.delete<{ Params: { id: string } }>("/api/admin/access/:id", { preHandler: requireAdmin }, async (req) => {
     deleteAccess(toId(req.params.id));
+    return { ok: true };
+  });
+
+  // Play history: who played what, and for how long (playLog.ts).
+  app.get<{ Querystring: { days?: string } }>("/api/admin/playtime", { preHandler: requireAdmin }, async (req) => {
+    const days = Math.min(365, Math.max(1, Number(req.query.days) || 30));
+    return playSummary(days);
+  });
+
+  // Play time limits per person, with what they've used (limits.ts).
+  app.get("/api/admin/limits", { preHandler: requireAdmin }, async () => {
+    const limits = getAllLimits();
+    const used: Record<number, { todayMs: number; weekMs: number }> = {};
+    for (const u of listUsers()) used[u.id] = usage(u.id);
+    return { limits, used };
+  });
+
+  app.put<{ Params: { id: string } }>("/api/admin/limits/:id", { preHandler: requireAdmin }, async (req, reply) => {
+    try {
+      return { limits: setLimits(toId(req.params.id), req.body) };
+    } catch (err) {
+      return reply.code(400).send({ error: (err as Error).message });
+    }
+  });
+
+  // Announcements (announcements.ts).
+  app.get("/api/admin/announcements", { preHandler: requireAdmin }, async () => ({ announcements: activeAnnouncements() }));
+
+  app.post<{ Body: { text?: string; hours?: number } }>("/api/admin/announcements", { preHandler: requireAdmin }, async (req, reply) => {
+    const user = await streamUser(req);
+    try {
+      return postAnnouncement(req.body?.text, user?.name ?? "Admin", req.body?.hours);
+    } catch (err) {
+      return reply.code(400).send({ error: (err as Error).message });
+    }
+  });
+
+  app.delete<{ Params: { id: string } }>("/api/admin/announcements/:id", { preHandler: requireAdmin }, async (req) => {
+    removeAnnouncement(toId(req.params.id));
     return { ok: true };
   });
 

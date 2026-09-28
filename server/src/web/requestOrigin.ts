@@ -41,9 +41,3 @@ export function clientIp(request: FastifyRequest): string {
 export function isLocalRequest(request: FastifyRequest): boolean {
   return !isViaTunnel(request) && isPrivateAddress(request.ip);
 }
-
-/** Whether the browser reached us over HTTPS (through the tunnel), so
- * cookies can be marked Secure without breaking plain-HTTP LAN access. */
-export function isHttpsRequest(request: FastifyRequest): boolean {
-  return request.protocol === "https";
-}

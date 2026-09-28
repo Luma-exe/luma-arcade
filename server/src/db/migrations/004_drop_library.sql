@@ -1,3 +1,0 @@
-DROP TABLE IF EXISTS games;
-DROP TABLE IF EXISTS rom_folders;
-DROP TABLE IF EXISTS custom_apps;

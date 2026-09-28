@@ -58,8 +58,8 @@ this README.
 
 ```bash
 npm install
-npm run dev:server   # terminal 1 - Fastify auth + reverse proxy on :7777
-npm run dev:client   # terminal 2 - Vite dev server, proxies /api and /stream to :7777
+npm run dev:server   # Fastify auth + reverse proxy on :7777, restarts on change
+npm test             # session lock, hand-over, queue, app access, play log
 ```
 
 Point the `moonlightWebStreamPath` setting at your moonlight-web-stream
@@ -104,8 +104,7 @@ moonlight-web-stream build.
 - **Running behind a tunnel** (e.g. cloudflared on this machine): Fastify
   trusts forwarding headers from loopback only (`server/src/web/requestOrigin.ts`),
   so the login rate limit is per real visitor (`CF-Connecting-IP`) instead of
-  one shared bucket, and the session cookie is `Secure` over HTTPS while
-  plain-HTTP LAN access keeps working. Requests arriving through the tunnel
+  one shared bucket. Requests arriving through the tunnel
   count as "internet"; those can't change the settings that make the host execute a file or rebind
   (`moonlightWebStreamPath`/`Port`, `devTreePath`, `port`) - do those from
   the home network.
@@ -114,9 +113,47 @@ moonlight-web-stream build.
   over (`routes/handover.ts`): the streamer gets a notification with Hand
   over / ✕ that lapses after 10 seconds, and the asker sees the answer.
   Handing over closes the streamer's stream and lets the asker in; admins
-  can also take over without waiting.
+  can also take over without waiting. A player whose stream page reports no
+  input for 15 minutes hands over as soon as someone asks. A game left open
+  with nobody streaming stops being its player's after 10 minutes (3 when
+  someone is waiting), and anyone can then take it or close it. People can
+  also wait in line: once the PC is free it's held 90 seconds for whoever
+  is first, and their page connects them.
+- **Play history** (`server/src/web/playLog.ts`, admin page's Play history
+  tab): every stream's player, app, start and length, in the `play_sessions`
+  table.
+- **Per-player saves** (`host/profiles.ps1`, see `host/README.md`): a
+  Sunshine prep-cmd swaps the emulators' save folders and ES-DE's
+  favorites/play counts to whoever's stream is starting. Players snapshot
+  and restore their own saves from Settings -> My saves (`routes/saves.ts`).
+- **Co-op** (`sessions.ts`, `routes/coop.ts`): the person playing invites
+  someone (quick panel -> Play together); the invite shows on their home
+  screen, and they join the same screen as player 2 at the player's exact
+  size and frame rate, controllers only. Needs `channels = 2` in
+  `sunshine.conf`. Guests can't go Home, switch windows or close the game.
+- **Stream page report** (every 30 s): idle time and stream quality
+  (bitrate, fps, ping, dropped frames, loss) - shown per session in Play
+  history - answered with play time left and announcements.
+- **Play time limits** (`web/limits.ts`, admin -> person -> Play time):
+  minutes per day/week; a stream is refused or ended once they're used up.
+- **Announcements** (`web/announcements.ts`, admin -> Announcements): shown
+  on everyone's home screen and popped up once on stream pages.
+- **Guest links** (`web/guestLinks.ts`, `routes/guestLinks.ts`, admin ->
+  Guest links, or Play together -> "Or send a link" for admins): `/g/<token>`
+  for someone without an account, either their own turn on the PC or
+  joining the creator's game as player 2. Each link has its own throwaway
+  moonlight-web-stream account (made with the admin's session); opening the
+  link signs the visitor in as it. Its play time and expiry count as a time
+  limit, so warnings and the cut-off work as usual. Admins see who's playing,
+  and can message, change time, kick or turn a link off (which deletes its
+  account). New accounts only see PCs set to "Everyone", so the paired PC is
+  shared that way.
+- **Messages** (`web/messages.ts`): an admin can message anyone (person
+  page or guest link); it pops up on their stream or home screen within a
+  few seconds.
 - **Host health** (Settings -> Host health, `server/src/web/routes/health.ts`):
-  checks Sunshine's service and encoders, moonlight-web-stream, whether the
+  checks Sunshine's service (including whether its HTTPS port has hung,
+  with a Restart Sunshine button) and encoders, moonlight-web-stream, whether the
   virtual-controller driver Sunshine needs is installed, whether anyone is
   logged into the console session, and whether ES-DE is running.
 - **Reverse proxy**: `server/src/web/routes/moonlight.ts` registers

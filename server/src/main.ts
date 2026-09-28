@@ -1,13 +1,13 @@
 import path from "node:path";
-import { randomBytes } from "node:crypto";
 import { exec } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { initDb } from "./db/index.js";
 import { getAllSettings } from "./config/settings.js";
-import { getDb } from "./db/index.js";
 import { createServer } from "./web/server.js";
 import { startTray } from "./tray/index.js";
 import { moonlightProcess, syncMoonlightWithSettings } from "./remote/moonlightWebStream.js";
+import { initPlayLog } from "./web/playLog.js";
+import { explainPortInUse } from "./portCheck.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -15,10 +15,17 @@ async function main() {
   const dbPath = path.join(__dirname, "..", "luma-arcade.db");
   initDb(dbPath);
 
-  const cookieSecret = getOrCreateCookieSecret();
+  initPlayLog();
   const { port } = getAllSettings();
 
-  await createServer({ port, cookieSecret });
+  try {
+    await createServer({ port });
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "EADDRINUSE") {
+      console.error(await explainPortInUse(port));
+    }
+    throw err;
+  }
 
   const portalUrl = `http://localhost:${port}`;
   console.log(`LumaArcade listening at ${portalUrl}`);
@@ -41,20 +48,6 @@ async function main() {
       process.exit(0);
     },
   });
-}
-
-function getOrCreateCookieSecret(): string {
-  const db = getDb();
-  const row = db.prepare("SELECT value FROM settings WHERE key = 'cookieSecret'").get() as
-    | { value: string }
-    | undefined;
-  if (row) return JSON.parse(row.value);
-
-  const secret = randomBytes(32).toString("hex");
-  db.prepare("INSERT INTO settings (key, value) VALUES ('cookieSecret', ?)").run(
-    JSON.stringify(secret)
-  );
-  return secret;
 }
 
 process.on("SIGINT", () => {

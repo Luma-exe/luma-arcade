@@ -1,5 +1,4 @@
 import Fastify from "fastify";
-import fastifyCookie from "@fastify/cookie";
 import { requireAuth } from "./session.js";
 import { registerSettingsRoutes } from "./routes/settings.js";
 import { registerUpdateRoutes } from "./routes/update.js";
@@ -10,12 +9,14 @@ import { registerHomeRoutes } from "./routes/home.js";
 import { registerInputRoutes } from "./routes/input.js";
 import { registerAdminRoutes } from "./routes/admin.js";
 import { registerHandoverRoutes } from "./routes/handover.js";
+import { registerProfileRoutes } from "./routes/profiles.js";
+import { registerCoopRoutes } from "./routes/coop.js";
+import { registerSavesRoutes } from "./routes/saves.js";
+import { registerGuestLinkRoutes } from "./routes/guestLinks.js";
 import { MOONLIGHT_PATH_PREFIX } from "../remote/moonlightWebStream.js";
 import { TRUSTED_PROXIES } from "./requestOrigin.js";
 
-const COOKIE_SECRET_SETTING_KEY = "cookieSecret";
-
-export async function createServer(opts: { port: number; cookieSecret: string }) {
+export async function createServer(opts: { port: number }) {
   const app = Fastify({
     logger: { level: process.env.LUMA_LOG_LEVEL || "info" },
     // cloudflared (and the Vite dev proxy) connect from loopback; trusting
@@ -30,8 +31,6 @@ export async function createServer(opts: { port: number; cookieSecret: string })
         ? `/api/${req.url.slice(MOONLIGHT_PATH_PREFIX.length + "/luma-api/".length)}`
         : req.url ?? "/",
   });
-
-  await app.register(fastifyCookie, { secret: opts.cookieSecret });
 
   // The arcade is moonlight-web-stream under /stream, and its sign-in is the
   // only login (LumaArcade's old portal password page is gone). The tray's
@@ -51,10 +50,12 @@ export async function createServer(opts: { port: number; cookieSecret: string })
   await registerInputRoutes(app);
   await registerAdminRoutes(app);
   await registerHandoverRoutes(app);
+  await registerProfileRoutes(app);
+  await registerCoopRoutes(app);
+  await registerSavesRoutes(app);
+  await registerGuestLinkRoutes(app);
 
   await app.listen({ port: opts.port, host: "0.0.0.0" });
 
   return app;
 }
-
-export { COOKIE_SECRET_SETTING_KEY };

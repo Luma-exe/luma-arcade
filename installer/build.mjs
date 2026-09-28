@@ -16,9 +16,8 @@ function run(cmd, cwd) {
   execSync(cmd, { cwd, stdio: "inherit", shell: true });
 }
 
-// Only the server ships: LumaArcade no longer serves the React client (its
-// "/" redirects into moonlight-web-stream under /stream, whose sign-in is the
-// only login), so client/dist would be dead weight in the install.
+// Only the server ships: LumaArcade's "/" redirects into moonlight-web-stream
+// under /stream, whose sign-in is the only login.
 console.log("=== 1. Building server ===");
 run("npm run build -w server", repoRoot);
 
@@ -41,19 +40,14 @@ cpSync(
 console.log("=== 3. Installing production dependencies into staged copy ===");
 run("npm install --omit=dev --no-audit --no-fund", path.join(stagingDir, "server"));
 
-// Load the native modules with the same Node that gets bundled, instead of
-// looking for their binaries on disk: better-sqlite3 now ships prebuilds/
-// rather than build/Release, and newer npm can skip install scripts
-// (bcrypt's binary download) unless they're approved.
+// Load the native module with the same Node that gets bundled, instead of
+// looking for its binary on disk: better-sqlite3 now ships prebuilds/
+// rather than build/Release, and newer npm can skip install scripts unless
+// they're approved.
 try {
-  run(
-    `"${NODE_EXE}" -e "new (require('better-sqlite3'))(':memory:').close(); require('bcrypt').hashSync('x', 4)"`,
-    path.join(stagingDir, "server")
-  );
+  run(`"${NODE_EXE}" -e "new (require('better-sqlite3'))(':memory:').close()"`, path.join(stagingDir, "server"));
 } catch {
-  throw new Error(
-    "better-sqlite3 or bcrypt won't load from the staged node_modules — packaging would produce a broken installer"
-  );
+  throw new Error("better-sqlite3 won't load from the staged node_modules — packaging would produce a broken installer");
 }
 
 console.log("=== 4. Copying portable node.exe ===");

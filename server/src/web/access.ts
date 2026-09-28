@@ -8,6 +8,7 @@ export const SETTINGS_SECTIONS = [
   { id: "input", name: "Mouse & keyboard" },
   { id: "controller", name: "Controllers" },
   { id: "touch", name: "Touch controls" },
+  { id: "saves", name: "My saves (snapshots)" },
   { id: "sidebar", name: "Stream sidebar" },
   { id: "other", name: "Language & other" },
 ] as const;

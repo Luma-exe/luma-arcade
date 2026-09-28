@@ -26,7 +26,7 @@ export interface SelfUpdateResult {
 }
 
 /** Pulls the configured dev-tree checkout, rebuilds it, and copies the
- * fresh client/server dist over this install — the same manual sequence
+ * fresh server dist over this install — the same manual sequence
  * used throughout development, just automated behind one call. Requires
  * `devTreePath` to be set (see settings.ts for why this isn't attempted
  * against an arbitrary installed copy with no source tree available). */
@@ -56,9 +56,6 @@ export async function applySelfUpdate(): Promise<SelfUpdateResult> {
     log.push(await run("npm", ["run", "build"], devTreePath));
 
     log.push("Deploying build...");
-    cpSync(path.join(devTreePath, "client", "dist"), path.join(INSTALL_ROOT, "client", "dist"), {
-      recursive: true,
-    });
     cpSync(path.join(devTreePath, "server", "dist"), path.join(INSTALL_ROOT, "server", "dist"), {
       recursive: true,
     });

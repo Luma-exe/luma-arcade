@@ -1,4 +1,4 @@
-import { cpSync, writeFileSync } from "node:fs";
+import { cpSync, rmSync, writeFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, "..");
 
+// Replaced, not merged: a migration deleted from src must not linger in dist.
+rmSync(path.join(root, "dist", "db", "migrations"), { recursive: true, force: true });
 cpSync(
   path.join(root, "src", "db", "migrations"),
   path.join(root, "dist", "db", "migrations"),

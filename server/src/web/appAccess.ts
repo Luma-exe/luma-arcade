@@ -1,12 +1,16 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { Readable } from "node:stream";
 import { getAccess, isAppAllowed, type UserAccess } from "./access.js";
-import { decide, streamEnded, streamStarted } from "./sessions.js";
+import { timeLeft } from "./limits.js";
+import { playEnded, playStarted } from "./playLog.js";
+import { decide, guestStream, streamEnded, streamStarted } from "./sessions.js";
 import { streamUser, type StreamUser } from "./streamUser.js";
 
 // Enforces "which apps may this person start" (admin screen) in the
 // /stream proxy: their app list only shows allowed apps, and a stream for
 // any other app is refused when its WebSocket says which app it wants.
+// Streams are also refused past a play time limit (limits.ts), and ended
+// when they run into one.
 
 interface AppEntry {
   app_id: number;
@@ -20,6 +24,12 @@ const appTitles = new Map<string, string>();
 /** Whoever opened each upgrade connection, and their app access (null =
  * every app), keyed by its socket. */
 const socketAccess = new WeakMap<object, { user: StreamUser; access: UserAccess | null }>();
+
+/** Open streams: who, and their play_sessions row (playLog.ts). */
+const openStreams = new Map<WsLike, { user: StreamUser; row: number | null }>();
+
+/** How often running streams are checked against time limits. */
+const LIMIT_CHECK_MS = 30_000;
 
 export function isAppListRequest(request: FastifyRequest, prefix: string): boolean {
   return request.method === "GET" && request.url.split("?")[0] === `${prefix}/api/apps`;
@@ -87,19 +97,87 @@ export function checkStreamInit(source: WsLike, target: WsLike, data: unknown, b
     }
     source.close(code, reason.slice(0, 120));
   };
+  const title = appTitles.get(`${init.host_id}:${init.app_id}`);
   if (who.access?.apps) {
-    const title = appTitles.get(`${init.host_id}:${init.app_id}`);
     if (!isAppAllowed(who.access, title)) {
       return refuse(4003, title ? `You don't have access to ${title}` : "You don't have access to that app");
     }
   }
+  // Out of play time (limits.ts).
+  let left: ReturnType<typeof timeLeft> | null = null;
+  try {
+    left = timeLeft(who.user);
+  } catch {
+    // no database: no limits
+  }
+  if (left?.remainingMs === 0) return refuse(4012, left.reason ?? "You're out of play time");
   // One PC, one screen: someone else's game isn't yours to join (sessions.ts).
   const decision = decide(who.user);
   if (!decision.allowed) return refuse(4009, decision.reason ?? "Someone else is using this PC");
-  streamStarted(source, who.user);
+  if (decision.guest) {
+    // Co-op: only the game you were invited into.
+    const coop = guestStream(who.user);
+    if (coop && (coop.hostId !== init.host_id || coop.appId !== init.app_id)) {
+      return refuse(4013, `Join ${decision.ownerName}'s game from their invite`);
+    }
+  }
+  const role = streamStarted(source, who.user);
+  let row: number | null = null;
+  try {
+    row = playStarted(who.user.id, who.user.name, title || `App ${init.app_id ?? "?"}`, Date.now(), role === "guest");
+  } catch {
+    // the play log is a nice-to-have; never let it stop a stream
+  }
+  openStreams.set(source, { user: who.user, row });
 }
+
+/** End this person's streams now (an admin kicking a guest). */
+export function closeStreamsOf(userId: number, reason: string): number {
+  let closed = 0;
+  for (const [socket, s] of openStreams) {
+    if (s.user.id !== userId) continue;
+    try {
+      socket.close(4014, reason.slice(0, 120));
+    } catch {
+      // already gone
+    }
+    streamClosed(socket);
+    closed++;
+  }
+  return closed;
+}
+
+/** End streams whose player has run out of play time. */
+export function enforceTimeLimits(now = Date.now()): void {
+  for (const [socket, s] of openStreams) {
+    let left;
+    try {
+      left = timeLeft(s.user, now);
+    } catch {
+      return;
+    }
+    if (left.remainingMs !== 0) continue;
+    try {
+      socket.close(4012, (left.reason ?? "You're out of play time").slice(0, 120));
+    } catch {
+      // already gone
+    }
+    streamClosed(socket);
+  }
+}
+
+if (process.env.NODE_ENV !== "test") setInterval(() => enforceTimeLimits(), LIMIT_CHECK_MS).unref();
 
 /** wsHooks.onDisconnect */
 export function streamClosed(source: WsLike): void {
   streamEnded(source);
+  const open = openStreams.get(source);
+  if (!open) return;
+  openStreams.delete(source);
+  if (open.row === null) return;
+  try {
+    playEnded(open.row);
+  } catch {
+    // see above
+  }
 }

@@ -5,7 +5,7 @@ import { existsSync } from "node:fs";
 import { readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
-import { requireAuth } from "../session.js";
+import { requireOwnerOrFree } from "../session.js";
 import { getActiveInput } from "./input.js";
 
 const run = promisify(execFile);
@@ -103,7 +103,7 @@ export async function registerHomeRoutes(app: FastifyInstance) {
   // What's in front right now, so the page can ask about it by name.
   app.post<{ Body: { launcher?: string } }>(
     "/api/home/query",
-    { preHandler: requireAuth },
+    { preHandler: requireOwnerOrFree },
     async (req, reply) => {
       try {
         // What's running (ROM path / Steam folder) knows the game's real
@@ -126,7 +126,7 @@ export async function registerHomeRoutes(app: FastifyInstance) {
 
   // The stream's window picker (hold Alt+Tab): the desktop's app windows,
   // and switching to one of them.
-  app.post("/api/windows", { preHandler: requireAuth }, async (_req, reply) => {
+  app.post("/api/windows", { preHandler: requireOwnerOrFree }, async (_req, reply) => {
     try {
       return await runHome<{ ok: boolean; error?: string; windows?: HostWindow[] }>({ action: "windows" }, 12_000);
     } catch (err) {
@@ -136,7 +136,7 @@ export async function registerHomeRoutes(app: FastifyInstance) {
 
   app.post<{ Body: { hwnd?: number } }>(
     "/api/windows/focus",
-    { preHandler: requireAuth },
+    { preHandler: requireOwnerOrFree },
     async (req, reply) => {
       const hwnd = Number(req.body?.hwnd);
       if (!Number.isSafeInteger(hwnd) || hwnd <= 0) {
@@ -152,7 +152,7 @@ export async function registerHomeRoutes(app: FastifyInstance) {
 
   app.post<{ Body: { launcher?: string; close?: boolean; hwnd?: number } }>(
     "/api/home/go",
-    { preHandler: requireAuth },
+    { preHandler: requireOwnerOrFree },
     async (req, reply) => {
       const hwnd = Number(req.body?.hwnd);
       try {

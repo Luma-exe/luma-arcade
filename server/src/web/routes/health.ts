@@ -1,10 +1,13 @@
 import type { FastifyInstance } from "fastify";
 import { execFile } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statfsSync } from "node:fs";
+import { request as httpsRequest } from "node:https";
 import path from "node:path";
 import { promisify } from "node:util";
 import { getSetting } from "../../config/settings.js";
 import { moonlightProcess } from "../../remote/moonlightWebStream.js";
+import { readData } from "../../remote/moonlightData.js";
+import { status as sessionStatus } from "../sessions.js";
 import { requireAdmin } from "../streamUser.js";
 import { HOME_SCRIPT, HOME_TASK } from "./home.js";
 
@@ -13,6 +16,8 @@ const run = promisify(execFile);
 // Sunshine's default install location; its config and log live here.
 const SUNSHINE_CONFIG_DIR = "C:\\Program Files\\Sunshine\\config";
 const SUNSHINE_HTTP_PORT = 47989;
+// Paired clients (moonlight-web-stream) talk to Sunshine over HTTPS here.
+const SUNSHINE_HTTPS_PORT = 47984;
 // The Xbox 360 controller driver: xusb22.sys ships with Windows 10/11 client,
 // xusb21.sys comes from Microsoft's standalone package (what Windows Server
 // needs, since it ships neither).
@@ -26,7 +31,15 @@ export interface HealthCheck {
   label: string;
   status: Status;
   detail: string;
+  /** A fix the settings screen offers as a button (POST /api/health/action/:id). */
+  action?: { id: string; label: string; confirm?: string };
 }
+
+const RESTART_SUNSHINE = {
+  id: "restart-sunshine",
+  label: "Restart Sunshine",
+  confirm: "Restart Sunshine? It takes a few seconds, and anything open on the PC stays open.",
+};
 
 async function output(file: string, args: string[]): Promise<string> {
   try {
@@ -64,16 +77,24 @@ async function checkSunshine(): Promise<HealthCheck[]> {
     reachable = res.status < 500;
   } catch {}
 
+  // Sunshine's HTTPS side can hang on its own (TLS handshakes never finish)
+  // while plain HTTP still answers: Moonlight then shows the PC as offline.
+  const https = running && reachable ? await sunshineHttps() : null;
   const checks: HealthCheck[] = [
     {
       id: "sunshine",
       label: "Sunshine",
-      status: running && reachable ? "ok" : "error",
+      status: running && reachable && https !== "hung" ? "ok" : "error",
       detail: !running
         ? "SunshineService isn't running"
-        : reachable
-          ? "Service running and answering"
-          : `Service running but not answering on port ${SUNSHINE_HTTP_PORT}`,
+        : !reachable
+          ? `Service running but not answering on port ${SUNSHINE_HTTP_PORT}`
+          : https === "hung"
+            ? `Stuck: its secure port ${SUNSHINE_HTTPS_PORT} doesn't answer, so the PC shows as offline in the arcade. Restart Sunshine (when nobody is playing) to fix it.`
+            : https === "unpaired"
+              ? "Service running and answering (no paired client to test its secure port with)"
+              : "Service running and answering",
+      action: running ? RESTART_SUNSHINE : undefined,
     },
   ];
 
@@ -91,6 +112,51 @@ async function checkSunshine(): Promise<HealthCheck[]> {
   } catch {}
 
   return checks;
+}
+
+/** A paired client's certificate and key from moonlight-web-stream, which
+ * Sunshine wants before it answers on HTTPS. */
+function pairedClient(): { key: string; cert: string } | null {
+  try {
+    for (const host of Object.values(readData().hosts ?? {})) {
+      const pair = host.pair_info as { client_private_key?: string; client_certificate?: string } | undefined;
+      if (pair?.client_private_key && pair.client_certificate && /^(localhost|127\.0\.0\.1|::1)$/.test(host.address)) {
+        return { key: pair.client_private_key, cert: pair.client_certificate };
+      }
+    }
+  } catch {}
+  return null;
+}
+
+/** Does Sunshine's HTTPS port finish a request? "hung" when the handshake
+ * or reply never comes, like Moonlight sees it. */
+function sunshineHttps(): Promise<"ok" | "hung" | "unpaired"> {
+  const client = pairedClient();
+  if (!client) return Promise.resolve("unpaired");
+  return new Promise((resolve) => {
+    const req = httpsRequest(
+      {
+        host: "127.0.0.1",
+        port: SUNSHINE_HTTPS_PORT,
+        path: "/serverinfo",
+        key: client.key,
+        cert: client.cert,
+        // Sunshine's certificate is self-signed; this only checks it answers.
+        rejectUnauthorized: false,
+        timeout: 5000,
+      },
+      (res) => {
+        res.resume();
+        resolve("ok");
+      }
+    );
+    req.on("timeout", () => {
+      req.destroy();
+      resolve("hung");
+    });
+    req.on("error", () => resolve("hung"));
+    req.end();
+  });
 }
 
 /** A freshly installed driver sits in the driver store until the first
@@ -414,7 +480,31 @@ function checkBiosFiles(): HealthCheck {
 // Written by E:\GameSaveBackups\backup-saves.ps1 ("Game Save Backup" task)
 const BACKUP_STATUS = "E:\\GameSaveBackups\\last-run.json";
 
-function checkSaveBackup(): HealthCheck {
+const BACKUP_TASK = "Game Save Backup";
+/** schtasks' Last Result for a task that has never run (0x41303). */
+const TASK_NEVER_RAN = 267011;
+
+/** The scheduled task's own "Last Result" (0 = success). */
+async function backupTaskResult(): Promise<{ exists: boolean; code: number | null }> {
+  const out = await output("schtasks.exe", ["/query", "/tn", BACKUP_TASK, "/v", "/fo", "LIST"]);
+  if (!/TaskName:/i.test(out)) return { exists: false, code: null };
+  const m = /Last Result:\s*(-?\d+)/i.exec(out);
+  return { exists: true, code: m ? Number(m[1]) : null };
+}
+
+async function checkSaveBackup(): Promise<HealthCheck> {
+  const [task, base] = [await backupTaskResult(), readBackupStatus()];
+  if (!task.exists) {
+    return { ...base, status: "warn", detail: `The scheduled task "${BACKUP_TASK}" is missing, so saves aren't being backed up. ${base.detail}` };
+  }
+  if (task.code !== null && task.code !== 0 && task.code !== TASK_NEVER_RAN) {
+    return { ...base, status: "error", detail: `The last nightly run failed (exit code ${task.code}). ${base.detail}` };
+  }
+  return base;
+}
+
+/** What backup-saves.ps1 itself reported about its last run. */
+function readBackupStatus(): HealthCheck {
   try {
     const run = JSON.parse(readFileSync(BACKUP_STATUS, "utf8").replace(/^\uFEFF/, "")) as {
       time: string;
@@ -441,6 +531,44 @@ function checkSaveBackup(): HealthCheck {
       detail: "No save backup has run yet (scheduled task \"Game Save Backup\")",
     };
   }
+}
+
+// Per-player saves (host/profiles.ps1, a prep-cmd on Sunshine's ES-DE app).
+const PROFILES_SCRIPT = "C:\\ProgramData\\LumaArcade\\profiles.ps1";
+const PROFILES_DIR = "C:\\ProgramData\\LumaArcade\\profiles";
+
+function checkPlayerSaves(): HealthCheck {
+  const label = "Player saves";
+  let apps = "";
+  try {
+    apps = readFileSync(path.join(SUNSHINE_CONFIG_DIR, "apps.json"), "utf8");
+  } catch {}
+  if (!/profiles\.ps1/i.test(apps)) {
+    return { id: "profiles", label, status: "ok", detail: "Off: everyone shares one set of saves (host/README.md explains how to give each player their own)" };
+  }
+  if (!existsSync(PROFILES_SCRIPT)) {
+    return { id: "profiles", label, status: "error", detail: `Sunshine runs ${PROFILES_SCRIPT}, but it isn't there - ES-DE may not start` };
+  }
+  let current = "nobody yet";
+  try {
+    const state = JSON.parse(readFileSync(path.join(PROFILES_DIR, "state.json"), "utf8").replace(/^\uFEFF/, "")) as { name?: string };
+    if (state.name) current = state.name;
+  } catch {}
+  // The last switch's log lines: anything that went wrong shows here.
+  let problem = "";
+  try {
+    const lines = readFileSync(path.join(PROFILES_DIR, "profiles.log"), "utf8").trim().split(/\r?\n/);
+    const lastSwitch = lines.map((l) => /Switching saves/.test(l)).lastIndexOf(true);
+    problem = lines.slice(Math.max(0, lastSwitch)).find((l) => /Failed|couldn't|left alone|still running/i.test(l)) ?? "";
+  } catch {}
+  return {
+    id: "profiles",
+    label,
+    status: problem ? "warn" : "ok",
+    detail: problem
+      ? `Last switch had a problem: ${problem.replace(/^\S+ \S+ /, "")}`
+      : `On: each player has their own saves and ES-DE favorites. Loaded now: ${current}'s`,
+  };
 }
 
 /** The stream page's Home button needs its scheduled task and script on the
@@ -476,8 +604,9 @@ export async function registerHealthRoutes(app: FastifyInstance) {
       checkTurn(),
       checkVirtualDisplay(),
       checkHomeHelper(),
+      checkSaveBackup(),
     ]);
-    const [sunshine, moonlight, consoleSession, esde, turn, virtualDisplay, home] = results;
+    const [sunshine, moonlight, consoleSession, esde, turn, virtualDisplay, home, backup] = results;
     return {
       checks: [
         checkStream(),
@@ -491,8 +620,27 @@ export async function registerHealthRoutes(app: FastifyInstance) {
         turn,
         checkBiosFiles(),
         checkDiskSpace(),
-        checkSaveBackup(),
+        backup,
+        checkPlayerSaves(),
       ],
     };
+  });
+
+  // Fixes offered next to a check (HealthCheck.action).
+  app.post<{ Params: { id: string } }>("/api/health/action/:id", { preHandler: requireAdmin }, async (req, reply) => {
+    if (req.params.id !== RESTART_SUNSHINE.id) return reply.code(404).send({ error: "No such action" });
+    if (sessionStatus(null).streaming) {
+      return reply.code(409).send({ error: "Someone is streaming right now; restarting Sunshine would drop them. Try again when they're done." });
+    }
+    try {
+      await run("powershell.exe", ["-NoProfile", "-Command", "Restart-Service SunshineService -Force -ErrorAction Stop"], {
+        windowsHide: true,
+        timeout: 60_000,
+      });
+      return { ok: true, message: "Sunshine restarted" };
+    } catch (err) {
+      const e = err as { stderr?: string; message: string };
+      return reply.code(500).send({ error: `Couldn't restart Sunshine: ${(e.stderr || e.message).trim().split(/\r?\n/)[0]}` });
+    }
   });
 }
