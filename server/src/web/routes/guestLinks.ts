@@ -1,10 +1,13 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { setAccess } from "../access.js";
+import { getAccess, setAccess } from "../access.js";
 import { closeStreamsOf } from "../appAccess.js";
 import { isRateLimited, recordFailedAttempt } from "../auth.js";
 import {
   allLinks,
+  cleanDefaults,
   cleanUpAccounts,
+  getGuestDefaults,
+  setGuestDefaults,
   convertLink,
   createLink,
   getLink,
@@ -76,6 +79,7 @@ function view(link: GuestLinkRow, playing: Set<number>, now = Date.now()) {
     accountDeleted: !!link.account_deleted_at,
     convertedTo: link.converted_at ? link.converted_to_name : null,
     convertedToId: link.converted_at ? link.converted_to_user_id : null,
+    access: getAccess(link.user_id),
   };
 }
 
@@ -85,16 +89,14 @@ function toId(value: unknown): number {
   return id;
 }
 
+/** A new link's choices: whatever the request says, the rest from the
+ * admin's defaults. A player-2 link joins whatever game its creator plays,
+ * so it never gets an app list. */
 function parseNew(body: unknown, mode?: GuestMode) {
-  const b = (body ?? {}) as { name?: unknown; mode?: unknown; minutes?: unknown; hours?: unknown; apps?: unknown };
+  const b = (body ?? {}) as Record<string, unknown>;
   const name = typeof b.name === "string" && b.name.trim() ? b.name.trim().slice(0, 40) : "Guest";
-  const m = mode ?? (b.mode === "coop" ? "coop" : "play");
-  const minutes = b.minutes == null || b.minutes === "" ? null : Math.round(Number(b.minutes));
-  if (minutes !== null && !(minutes > 0 && minutes <= 7 * 24 * 60)) throw new Error("Play time must be between 1 minute and a week");
-  const hours = Number(b.hours ?? 24);
-  if (!(hours > 0 && hours <= 24 * 90)) throw new Error("A link can last between a few minutes and 90 days");
-  const apps = Array.isArray(b.apps) ? b.apps.filter((x): x is string => typeof x === "string") : null;
-  return { name, mode: m as GuestMode, minutes, hours, apps };
+  const choices = cleanDefaults(mode ? { ...b, mode } : b, getGuestDefaults());
+  return { ...choices, name, apps: choices.mode === "coop" ? null : choices.apps };
 }
 
 async function adminAction(request: FastifyRequest, reply: FastifyReply, run: (admin: StreamUser, cookie: string) => Promise<unknown> | unknown) {
@@ -153,6 +155,13 @@ export async function registerGuestLinkRoutes(app: FastifyInstance) {
 
   // --- admins
 
+  // Defaults for new links: type, play time, lifetime, apps, settings access.
+  app.get("/api/admin/guest-links/defaults", { preHandler: requireAdmin }, async () => getGuestDefaults());
+
+  app.put("/api/admin/guest-links/defaults", { preHandler: requireAdmin }, (request, reply) =>
+    adminAction(request, reply, () => setGuestDefaults(request.body))
+  );
+
   app.get("/api/admin/guest-links", { preHandler: requireAdmin }, async (request) => {
     // Needs an admin's session, so old accounts are tidied up now.
     await cleanUpAccounts(request.headers.cookie ?? "").catch(() => 0);
@@ -164,7 +173,7 @@ export async function registerGuestLinkRoutes(app: FastifyInstance) {
     adminAction(request, reply, async (admin, cookie) => {
       const input = parseNew(request.body);
       const link = await createLink(cookie, admin, input);
-      if (input.apps) setAccess(link.user_id, { apps: input.apps, settings: null });
+      if (input.apps || input.settings) setAccess(link.user_id, { apps: input.apps, settings: input.settings });
       clearStreamUserCache();
       return view(link, playingUserIds());
     })
@@ -250,6 +259,7 @@ export async function registerGuestLinkRoutes(app: FastifyInstance) {
     adminAction(request, reply, async (admin, cookie) => {
       const input = parseNew(request.body, "coop");
       const link = await createLink(cookie, admin, input);
+      if (input.settings) setAccess(link.user_id, { apps: null, settings: input.settings });
       return view(link, playingUserIds());
     })
   );

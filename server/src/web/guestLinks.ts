@@ -307,3 +307,57 @@ export async function convertLink(cookie: string, id: number, account: NewAccoun
   link = getLink(id)!;
   return link;
 }
+
+// --- defaults for new links (admin screen), kept in the settings table
+
+const DEFAULTS_KEY = "guestLinkDefaults";
+
+export interface GuestDefaults {
+  mode: GuestMode;
+  /** total play time, null = no cap */
+  minutes: number | null;
+  /** how long a link works */
+  hours: number;
+  /** apps an own-turn guest may start; null = every app */
+  apps: string[] | null;
+  /** settings screen sections they may open; null = every player section */
+  settings: string[] | null;
+}
+
+const BUILT_IN: GuestDefaults = { mode: "play", minutes: 60, hours: 24, apps: null, settings: null };
+
+function stringList(v: unknown): string[] | null {
+  return Array.isArray(v) ? [...new Set(v.filter((x): x is string => typeof x === "string"))] : null;
+}
+
+/** Checks and tidies defaults (or a link's own choices); throws on nonsense. */
+export function cleanDefaults(input: unknown, base: GuestDefaults = BUILT_IN): GuestDefaults {
+  const b = (input ?? {}) as Record<string, unknown>;
+  const has = (k: string) => Object.prototype.hasOwnProperty.call(b, k);
+  const mode: GuestMode = has("mode") ? (b.mode === "coop" ? "coop" : "play") : base.mode;
+  const minutes = has("minutes") ? (b.minutes == null || b.minutes === "" ? null : Math.round(Number(b.minutes))) : base.minutes;
+  if (minutes !== null && !(minutes > 0 && minutes <= 7 * 24 * 60)) throw new Error("Play time must be between 1 minute and a week");
+  const hours = has("hours") ? Number(b.hours) : base.hours;
+  if (!(hours > 0 && hours <= 24 * 90)) throw new Error("A link can last between a few minutes and 90 days");
+  const apps = has("apps") ? stringList(b.apps) : base.apps;
+  const settings = has("settings") ? stringList(b.settings) : base.settings;
+  return { mode, minutes, hours, apps, settings };
+}
+
+export function getGuestDefaults(): GuestDefaults {
+  const row = getDb().prepare("SELECT value FROM settings WHERE key = ?").get(DEFAULTS_KEY) as { value: string } | undefined;
+  if (!row) return { ...BUILT_IN };
+  try {
+    return cleanDefaults(JSON.parse(row.value));
+  } catch {
+    return { ...BUILT_IN };
+  }
+}
+
+export function setGuestDefaults(input: unknown): GuestDefaults {
+  const clean = cleanDefaults(input, getGuestDefaults());
+  getDb()
+    .prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+    .run(DEFAULTS_KEY, JSON.stringify(clean));
+  return clean;
+}

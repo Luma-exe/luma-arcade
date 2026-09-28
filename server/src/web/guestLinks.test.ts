@@ -7,6 +7,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { getDb, initDb } from "../db/index.js";
 import { setSetting } from "../config/settings.js";
 import { timeLeft } from "./limits.js";
+import { getAccess } from "./access.js";
 import { playEnded, playStarted } from "./playLog.js";
 import { registerGuestLinkRoutes } from "./routes/guestLinks.js";
 import { recordStream, resetSessions, streamStarted, decide } from "./sessions.js";
@@ -73,7 +74,7 @@ beforeEach(() => {
   mock.timers.enable({ apis: ["Date", "setTimeout"], now: new Date(2026, 8, 30, 12, 0, 0).getTime() });
   resetSessions();
   clearStreamUserCache();
-  getDb().exec("DELETE FROM guest_links; DELETE FROM play_sessions; DELETE FROM user_access;");
+  getDb().exec("DELETE FROM guest_links; DELETE FROM play_sessions; DELETE FROM user_access; DELETE FROM settings WHERE key = 'guestLinkDefaults';");
   calls.length = 0;
 });
 afterEach(() => mock.timers.reset());
@@ -217,5 +218,44 @@ describe("guest links", () => {
     const link = await create({ name: "Sam", hours: 5 });
     const res = await app.inject({ method: "POST", url: `/api/admin/guest-links/${link.id}/convert`, payload: { name: "Sam", password: "hunter2", roleId: 2 } });
     assert.equal(res.statusCode, 401);
+  });
+
+  it("new links take the admin's defaults for apps and settings access", async () => {
+    const put = await app.inject({
+      method: "PUT",
+      url: "/api/admin/guest-links/defaults",
+      headers: { cookie: ADMIN },
+      payload: { apps: ["ES-DE"], settings: ["quality", "controller"], minutes: 30, hours: 6 },
+    });
+    assert.equal(put.statusCode, 200, put.body);
+    const got = await app.inject({ method: "GET", url: "/api/admin/guest-links/defaults", headers: { cookie: ADMIN } });
+    assert.deepEqual(got.json(), { mode: "play", minutes: 30, hours: 6, apps: ["ES-DE"], settings: ["quality", "controller"] });
+
+    const link = await create({ name: "Sam" });
+    assert.deepEqual(getAccess(link.userId), { apps: ["ES-DE"], settings: ["quality", "controller"] });
+    const listed = (await app.inject({ method: "GET", url: "/api/admin/guest-links", headers: { cookie: ADMIN } })).json() as {
+      links: { minutes: number; access: { apps: string[] } }[];
+    };
+    assert.equal(listed.links[0].minutes, 30);
+    assert.deepEqual(listed.links[0].access.apps, ["ES-DE"]);
+  });
+
+  it("a link's own choices beat the defaults", async () => {
+    await app.inject({ method: "PUT", url: "/api/admin/guest-links/defaults", headers: { cookie: ADMIN }, payload: { apps: ["ES-DE"], settings: [] } });
+    const link = await create({ name: "Sam", apps: null, settings: null });
+    assert.deepEqual(getAccess(link.userId), { apps: null, settings: null });
+  });
+
+  it("player-2 links never get an app list (they join whatever is running)", async () => {
+    await app.inject({ method: "PUT", url: "/api/admin/guest-links/defaults", headers: { cookie: ADMIN }, payload: { apps: ["ES-DE"], settings: ["controller"] } });
+    const link = await create({ name: "Pal", mode: "coop" });
+    assert.deepEqual(getAccess(link.userId), { apps: null, settings: ["controller"] });
+  });
+
+  it("rejects silly defaults", async () => {
+    const res = await app.inject({ method: "PUT", url: "/api/admin/guest-links/defaults", headers: { cookie: ADMIN }, payload: { hours: -1 } });
+    assert.equal(res.statusCode, 400);
+    const noAdmin = await app.inject({ method: "PUT", url: "/api/admin/guest-links/defaults", payload: { hours: 5 } });
+    assert.equal(noAdmin.statusCode, 401);
   });
 });
