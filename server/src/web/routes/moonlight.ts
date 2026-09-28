@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import fastifyHttpProxy from "@fastify/http-proxy";
 import type { Readable } from "node:stream";
-import { checkStreamInit, filterAppList, isAppListRequest, rememberSocketAccess, streamClosed } from "../appAccess.js";
+import { checkStreamInit, filterAppList, isAppListRequest, rememberSocketAccess, streamClosed, streamOwnerName, streamSocketOpened } from "../appAccess.js";
 import { clearAttempts, isRateLimited, recordFailedAttempt } from "../auth.js";
 import { clientIp } from "../requestOrigin.js";
 import { getSetting } from "../../config/settings.js";
@@ -64,6 +64,19 @@ export async function registerMoonlightRoutes(app: FastifyInstance) {
     // Per-person app access (routes/admin.ts, appAccess.ts): the app list
     // is filtered on the way out, and a stream's Init message is checked.
     replyOptions: {
+      // moonlight-web-stream sends every file "no-store", so browsers fetch
+      // all ~120 of the site's scripts again on every visit, through the
+      // tunnel. Its files carry an ETag and it answers If-None-Match with
+      // 304, so the site's own files are kept but checked each time
+      // (updates still show at once), and the codec libraries and images,
+      // which never change, are kept for a week. API answers are untouched.
+      rewriteHeaders: (headers, request) => {
+        const path = (request?.url ?? "").split("?")[0];
+        if (request?.method !== "GET" || path.startsWith(`${PROXY_PREFIX}/api/`) || !headers.etag) return headers;
+        const longLived = /\/(libopus|libopenh264|resources)\//.test(path);
+        const { pragma: _pragma, ...rest } = headers;
+        return { ...rest, "cache-control": longLived ? "public, max-age=604800" : "no-cache" };
+      },
       rewriteRequestHeaders: (request, headers) =>
         isAppListRequest(request as unknown as FastifyRequest, PROXY_PREFIX)
           ? { ...headers, "accept-encoding": "identity" }
@@ -83,9 +96,18 @@ export async function registerMoonlightRoutes(app: FastifyInstance) {
       },
     },
     wsHooks: {
-      onIncomingMessage: (_context, source, target, message) =>
-        checkStreamInit(source as never, target as never, message.data, message.binary),
-      onDisconnect: (_context, source) => streamClosed(source as never),
+      onConnect: (_context, source) => streamSocketOpened(source as never),
+      onIncomingMessage: (context, source, target, message) => {
+        const before = streamOwnerName(source as never);
+        checkStreamInit(source as never, target as never, message.data, message.binary);
+        const who = streamOwnerName(source as never);
+        if (who && !before) context.log.info({ player: who }, "stream started");
+      },
+      onDisconnect: (context, source) => {
+        const who = streamOwnerName(source as never);
+        if (who) context.log.info({ player: who }, "stream ended");
+        streamClosed(source as never);
+      },
     },
   });
 

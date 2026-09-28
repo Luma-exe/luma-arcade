@@ -4,7 +4,7 @@ import { Readable } from "node:stream";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { getDb, initDb } from "../db/index.js";
 import { isAppAllowed, setAccess } from "./access.js";
-import { checkStreamInit, enforceTimeLimits, filterAppList, rememberSocketAccess, streamClosed } from "./appAccess.js";
+import { checkStreamInit, enforceTimeLimits, filterAppList, rememberSocketAccess, streamClosed, streamSocketOpened } from "./appAccess.js";
 import { setLimits } from "./limits.js";
 import { playSummary } from "./playLog.js";
 import { resetSessions } from "./sessions.js";
@@ -145,5 +145,26 @@ describe("time limits in the proxy", () => {
     assert.match(first.source.reason, /today/);
     const again = await openStream("alice", 1);
     assert.equal(again.source.closed, 4012, "can't start another today");
+  });
+});
+
+describe("stream socket keepalive", () => {
+  it("pings every stream socket until it closes, so tunnels don't drop it", () => {
+    mock.timers.enable({ apis: ["setInterval"] });
+    try {
+      let pings = 0;
+      const source = { ping: () => pings++, close() {} };
+      streamSocketOpened(source);
+      streamSocketOpened(source);
+      mock.timers.tick(25_000);
+      assert.equal(pings, 1, "one timer per socket");
+      mock.timers.tick(50_000);
+      assert.equal(pings, 3);
+      streamClosed(source);
+      mock.timers.tick(100_000);
+      assert.equal(pings, 3, "stops once closed");
+    } finally {
+      mock.timers.reset();
+    }
   });
 });

@@ -66,12 +66,11 @@ const num = (v: unknown, max: number) => (typeof v === "number" && Number.isFini
 
 /** Was this sample one a player would notice: choppy, laggy or lossy? */
 export function badSample(q: QualitySample): boolean {
-  const fps = num(q.fps, 1000);
-  const target = num(q.targetFps, 1000) || 60;
+  // Frame rate isn't judged: the PC only sends a frame when the picture
+  // changes, so menus and paused games arrive at a fraction of the target.
   const frames = num(q.frames, 1e7);
   const packets = num(q.packets, 1e8);
   return (
-    (fps > 0 && fps < target * 0.8) ||
     num(q.rttMs, 1e5) > 80 ||
     (frames > 0 && num(q.dropped, 1e7) / frames > 0.02) ||
     (packets > 0 && num(q.lost, 1e8) / packets > 0.01)

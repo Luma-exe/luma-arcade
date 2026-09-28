@@ -145,9 +145,9 @@ describe("time limits", () => {
 });
 
 describe("stream quality", () => {
-  it("grades choppy, laggy and lossy samples", () => {
+  it("grades laggy and lossy samples, not still screens", () => {
     assert.equal(badSample({ fps: 59, targetFps: 60, rttMs: 20 }), false);
-    assert.equal(badSample({ fps: 40, targetFps: 60 }), true);
+    assert.equal(badSample({ fps: 40, targetFps: 60 }), false, "a still screen sends fewer frames");
     assert.equal(badSample({ rttMs: 150 }), true);
     assert.equal(badSample({ frames: 1800, dropped: 100 }), true);
     assert.equal(badSample({ packets: 10000, lost: 500 }), true);

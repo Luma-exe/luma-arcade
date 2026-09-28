@@ -168,8 +168,40 @@ export function enforceTimeLimits(now = Date.now()): void {
 
 if (process.env.NODE_ENV !== "test") setInterval(() => enforceTimeLimits(), LIMIT_CHECK_MS).unref();
 
+/** Stream sockets carry nothing once WebRTC is up, and Cloudflare's tunnel
+ * drops a WebSocket after ~100 s without traffic - while the video goes on.
+ * That dropped the player from sessions.ts, so the next person walked
+ * straight in. A ping every 25 s keeps it open (browsers answer by
+ * themselves). */
+const KEEPALIVE_MS = 25_000;
+const keepalives = new Map<object, ReturnType<typeof setInterval>>();
+
+/** wsHooks.onConnect */
+export function streamSocketOpened(source: WsLike & { ping?(): void }): void {
+  if (!source.ping || keepalives.has(source)) return;
+  const timer = setInterval(() => {
+    try {
+      source.ping!();
+    } catch {
+      // closing: onDisconnect clears it
+    }
+  }, KEEPALIVE_MS);
+  timer.unref?.();
+  keepalives.set(source, timer);
+}
+
+/** Whoever this stream belongs to, for the log. */
+export function streamOwnerName(source: WsLike): string | null {
+  return openStreams.get(source)?.user.name ?? null;
+}
+
 /** wsHooks.onDisconnect */
 export function streamClosed(source: WsLike): void {
+  const keepalive = keepalives.get(source);
+  if (keepalive) {
+    clearInterval(keepalive);
+    keepalives.delete(source);
+  }
   streamEnded(source);
   const open = openStreams.get(source);
   if (!open) return;

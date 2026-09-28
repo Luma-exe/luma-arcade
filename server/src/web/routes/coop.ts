@@ -20,7 +20,7 @@ async function withUser(request: FastifyRequest, reply: FastifyReply, run: (user
   return result;
 }
 
-function toStream(body: unknown): CoopStream | null {
+export function toStream(body: unknown): CoopStream | null {
   const b = (body ?? {}) as Record<string, unknown>;
   const n = (k: string) => Number(b[k]);
   const stream = { hostId: n("hostId"), appId: n("appId"), width: n("width"), height: n("height"), fps: n("fps") };
@@ -46,7 +46,7 @@ export async function registerCoopRoutes(app: FastifyInstance) {
     })
   );
 
-  app.post<{ Body: { userId?: number; stream?: unknown } }>("/api/coop/invite", { preHandler: requireAuth }, (request, reply) =>
+  app.post<{ Body: { userId?: number; stream?: unknown; role?: string } }>("/api/coop/invite", { preHandler: requireAuth }, (request, reply) =>
     withUser(request, reply, (user) => {
       const stream = toStream(request.body?.stream);
       if (!stream) return { error: "Missing the stream to share." };
@@ -56,7 +56,7 @@ export async function registerCoopRoutes(app: FastifyInstance) {
         if (u) to = { id: u.id, name: u.name, roleId: u.roleId, admin: false };
       } catch {}
       if (!to) return { error: "No such person." };
-      return createInvite(user, to, stream);
+      return createInvite(user, to, stream, request.body?.role === "spectator" ? "spectator" : "player2");
     })
   );
 
@@ -69,14 +69,27 @@ export async function registerCoopRoutes(app: FastifyInstance) {
   );
 
   /** The stream page's report every 30 s (activity.js). */
-  app.post<{ Body: { idleMs?: number; quality?: QualitySample; stream?: unknown } }>("/api/sessions/activity", { preHandler: requireAuth }, (request, reply) =>
+  app.post<{ Body: { idleMs?: number; quality?: QualitySample; stream?: unknown; ice?: unknown } }>("/api/sessions/activity", { preHandler: requireAuth }, (request, reply) =>
     withUser(request, reply, (user) => {
+      // Once per stream: the connection routes the browser tried and how
+      // each went (WebRTCTransport.getIceReport) - why someone is relayed.
+      const ice = request.body?.ice;
+      if (ice && typeof ice === "object" && JSON.stringify(ice).length < 20_000) {
+        request.log.info({ player: user.name, ice }, "connection routes");
+      }
       recordActivity(user, Number(request.body?.idleMs));
       // What a player-2 guest link would join with (routes/guestLinks.ts).
       const stream = toStream(request.body?.stream);
       if (stream) recordStream(user, stream);
       const q = request.body?.quality;
       if (q && typeof q === "object") {
+        // What the stream asked for next to what arrived, for tracing
+        // picture-quality complaints (Automatic quality picks the ask).
+        const r = q as QualitySample & { targetKbps?: unknown };
+        request.log.info(
+          { player: user.name, targetKbps: Number(r.targetKbps) || null, kbps: r.kbps, fps: r.fps, size: `${r.width}x${r.height}`, relay: !!r.relay, lost: r.lost, dropped: r.dropped },
+          "stream quality"
+        );
         try {
           recordQuality(user.id, q);
         } catch {
