@@ -2,7 +2,8 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import type { Readable } from "node:stream";
 import { getAccess, isAppAllowed, type UserAccess } from "./access.js";
 import { timeLeft } from "./limits.js";
-import { playEnded, playStarted } from "./playLog.js";
+import { nameUnnamedApps, playEnded, playStarted } from "./playLog.js";
+import { knownAppName, sunshineAppName } from "./sunshine.js";
 import { decide, guestStream, streamEnded, streamStarted } from "./sessions.js";
 import { streamUser, type StreamUser } from "./streamUser.js";
 
@@ -97,7 +98,9 @@ export function checkStreamInit(source: WsLike, target: WsLike, data: unknown, b
     }
     source.close(code, reason.slice(0, 120));
   };
-  const title = appTitles.get(`${init.host_id}:${init.app_id}`);
+  // (A page that never loaded the app list - a co-op guest, a reconnect
+  // after a restart - still gets the name, from Sunshine's own list.)
+  const title = appTitles.get(`${init.host_id}:${init.app_id}`) ?? knownAppName(Number(init.app_id)) ?? undefined;
   if (who.access?.apps) {
     if (!isAppAllowed(who.access, title)) {
       return refuse(4003, title ? `You don't have access to ${title}` : "You don't have access to that app");
@@ -125,6 +128,7 @@ export function checkStreamInit(source: WsLike, target: WsLike, data: unknown, b
   let row: number | null = null;
   try {
     row = playStarted(who.user.id, who.user.name, title || `App ${init.app_id ?? "?"}`, Date.now(), role === "guest");
+    if (!title) void nameUnnamedApps(sunshineAppName).catch(() => {});
   } catch {
     // the play log is a nice-to-have; never let it stop a stream
   }

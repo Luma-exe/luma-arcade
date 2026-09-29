@@ -41,6 +41,21 @@ export function playStarted(userId: number, userName: string, app: string, now =
   );
 }
 
+/** Rows saved as "App <id>" (the page never sent the app list, e.g. a
+ * co-op guest or a reconnect after a restart) get the app's real name. */
+export async function nameUnnamedApps(lookup: (appId: number) => Promise<string | null>): Promise<number> {
+  const db = getDb();
+  const unnamed = db.prepare("SELECT DISTINCT app FROM play_sessions WHERE app LIKE 'App %'").all() as { app: string }[];
+  let renamed = 0;
+  for (const { app } of unnamed) {
+    const id = Number(app.slice(4));
+    if (!Number.isSafeInteger(id)) continue;
+    const name = await lookup(id).catch(() => null);
+    if (name) renamed += db.prepare("UPDATE play_sessions SET app = ? WHERE app = ?").run(name, app).changes;
+  }
+  return renamed;
+}
+
 export function playEnded(id: number, now = Date.now()): void {
   getDb().prepare("UPDATE play_sessions SET ended_at = ?, last_seen_at = ? WHERE id = ? AND ended_at IS NULL").run(now, now, id);
 }

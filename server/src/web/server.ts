@@ -13,6 +13,9 @@ import { registerProfileRoutes } from "./routes/profiles.js";
 import { registerCoopRoutes } from "./routes/coop.js";
 import { registerSavesRoutes } from "./routes/saves.js";
 import { registerGuestLinkRoutes } from "./routes/guestLinks.js";
+import { registerPollRoutes } from "./routes/poll.js";
+import { registerGameRoutes } from "./routes/games.js";
+import { registerWelcomeRoutes } from "./routes/welcome.js";
 import { MOONLIGHT_PATH_PREFIX } from "../remote/moonlightWebStream.js";
 import { TRUSTED_PROXIES } from "./requestOrigin.js";
 
@@ -33,12 +36,8 @@ export async function createServer(opts: { port: number }) {
   });
 
   // The arcade is moonlight-web-stream under /stream, and its sign-in is the
-  // only login (LumaArcade's old portal password page is gone). The tray's
-  // Settings item links to /?view=settings, which carries over.
-  app.get("/", async (request, reply) => {
-    const query = request.url.includes("?") ? request.url.slice(request.url.indexOf("?")) : "";
-    return reply.redirect(`${MOONLIGHT_PATH_PREFIX}/${query}`);
-  });
+  // only login. "/" is the welcome page (routes/welcome.ts); the tray's
+  // Settings item links to /?view=settings, which still goes to the arcade.
   app.get("/api/me", { preHandler: requireAuth }, async () => ({ ok: true }));
 
   await registerSettingsRoutes(app);
@@ -54,6 +53,9 @@ export async function createServer(opts: { port: number }) {
   await registerCoopRoutes(app);
   await registerSavesRoutes(app);
   await registerGuestLinkRoutes(app);
+  await registerPollRoutes(app);
+  await registerGameRoutes(app);
+  await registerWelcomeRoutes(app);
 
   await app.listen({ port: opts.port, host: "0.0.0.0" });
 

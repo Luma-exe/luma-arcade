@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Luma Arcade</title>
+<meta name="description" content="Play games from Luma's PC in your browser.">
+<link rel="icon" href="/stream/resources/luma-star-64.png" sizes="64x64" type="image/png">
+<link rel="icon" href="/stream/resources/luma-star-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/stream/resources/luma-star-apple-180.png">
+<meta name="theme-color" content="#0d3f6e">
+<!--
+  arcade.lumaplayground.com's front page (LumaArcade web/routes/welcome.ts).
+  Signed in already: straight on to the arcade. Otherwise Sign in, or ask
+  for an account (sent to Luma on Discord, once per visitor).
+-->
+<style>
+  :root {
+    --card: rgba(255, 255, 255, 0.96);
+    --border: rgba(15, 51, 95, 0.12);
+    --text: #10233b;
+    --muted: #5b6b80;
+    --accent: #1f6fd1;
+    --accent-dark: #1759ab;
+    --accent-soft: rgba(31, 111, 209, 0.1);
+    --ok: #1a7f37;
+    --bad: #b42318;
+    --discord: #5865f2;
+    --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    font-family: var(--font);
+    color: var(--text);
+    background-color: #0d3f6e;
+    /* The arcade's wallpaper (windows7.css body::before) */
+    background:
+      radial-gradient(ellipse 90% 70% at 30% 20%, rgba(93, 200, 210, 0.55) 0%, rgba(93, 200, 210, 0) 55%),
+      radial-gradient(ellipse 80% 60% at 75% 85%, rgba(56, 150, 210, 0.5) 0%, rgba(56, 150, 210, 0) 55%),
+      linear-gradient(160deg, #0d3f6e 0%, #12578f 35%, #0a3f75 65%, #041c3d 100%);
+    background-attachment: fixed;
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: max(24px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+  }
+  /* Hidden until we know they aren't signed in (no flash on the way through). */
+  body.checking main { visibility: hidden; }
+
+  main {
+    width: 100%;
+    max-width: 460px;
+    margin: auto 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #fff;
+    padding: 0 4px;
+  }
+  .brand img { width: 56px; height: 56px; filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3)); }
+  .brand h1 {
+    margin: 0;
+    font: 800 30px/1.1 var(--font);
+    letter-spacing: -0.01em;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  }
+  .brand p { margin: 2px 0 0; font-size: 14px; color: rgba(255, 255, 255, 0.82); }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: 0 10px 30px rgba(4, 20, 45, 0.28);
+    padding: 22px;
+  }
+  .card h2 { margin: 0 0 6px; font-size: 18px; }
+  .lead { margin: 0 0 18px; color: var(--muted); font-size: 14.5px; line-height: 1.5; }
+
+  .features { list-style: none; margin: 0 0 20px; padding: 0; display: grid; gap: 8px; }
+  .features li { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; line-height: 1.4; }
+  .features li::before {
+    content: "";
+    flex: 0 0 8px;
+    height: 8px;
+    margin-top: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  .actions { display: grid; gap: 10px; }
+  .btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 46px;
+    padding: 10px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--text);
+    font: 600 15px var(--font);
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  }
+  .btn:hover { border-color: rgba(31, 111, 209, 0.45); background: #f6f9fe; }
+  .btn:active { transform: translateY(1px); }
+  .btn:focus-visible, input:focus-visible, textarea:focus-visible {
+    outline: 3px solid rgba(31, 111, 209, 0.45);
+    outline-offset: 2px;
+  }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+  .btn:disabled { opacity: 0.6; cursor: default; }
+
+  form { display: grid; gap: 14px; }
+  label { display: grid; gap: 6px; font-size: 13.5px; font-weight: 600; }
+  label .opt { font-weight: 400; color: var(--muted); }
+  input, textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 9px;
+    border: 1px solid rgba(15, 51, 95, 0.22);
+    background: #fff;
+    color: var(--text);
+    font: 15px var(--font);
+  }
+  textarea { min-height: 96px; resize: vertical; line-height: 1.4; }
+  .count { justify-self: end; font-size: 12px; font-weight: 400; color: var(--muted); }
+  .row { display: flex; gap: 10px; }
+  .row .btn { flex: 1; }
+
+  .status { margin: 0; font-size: 14px; line-height: 1.45; }
+  .status.ok { color: var(--ok); }
+  .status.bad { color: var(--bad); }
+  .done {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 14px;
+    border-radius: 10px;
+    background: rgba(26, 127, 55, 0.08);
+    border: 1px solid rgba(26, 127, 55, 0.25);
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  .done strong { display: block; margin-bottom: 2px; }
+  .done-icon { flex: 0 0 auto; font-size: 20px; line-height: 1; }
+
+  .contact {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    font-size: 14px;
+  }
+  .discord-mark {
+    flex: 0 0 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: var(--discord);
+  }
+  .discord-mark img { width: 20px; height: 20px; }
+  .contact p { margin: 0; line-height: 1.4; }
+  .contact .handle {
+    font-weight: 700;
+    border: 0;
+    padding: 0;
+    background: none;
+    color: var(--discord);
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .contact .handle:hover { text-decoration: underline; }
+  .muted { color: var(--muted); }
+
+  .now { padding: 12px 18px; }
+  .now ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .now li { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+  .now li::before {
+    content: "";
+    flex: 0 0 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #2da44e;
+    box-shadow: 0 0 0 3px rgba(45, 164, 78, 0.18);
+  }
+
+  [hidden] { display: none !important; }
+
+  @media (max-width: 420px) {
+    .card { padding: 18px; }
+    .brand h1 { font-size: 26px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .btn { transition: none; }
+  }
+</style>
+</head>
+<body class="checking">
+<main>
+  <header class="brand">
+    <img src="/stream/resources/luma-star-192.png" alt="">
+    <div>
+      <h1>Luma Arcade</h1>
+      <p>Play games from Luma's PC, right in your browser.</p>
+    </div>
+  </header>
+
+  <section class="card now" id="now" aria-label="Now playing" aria-live="polite" hidden>
+    <ul id="now-list"></ul>
+  </section>
+
+  <section class="card" id="intro" aria-labelledby="intro-title">
+    <h2 id="intro-title">Welcome</h2>
+    <p class="lead">Consoles, emulators and PC games streamed straight to your phone, tablet or computer. Nothing to install.</p>
+    <ul class="features">
+      <li>Bring a controller, or use the on-screen touch controls</li>
+      <li>Play together: join someone's game as player 2, or just watch</li>
+      <li>Your saves are kept separate from everyone else's</li>
+    </ul>
+    <div class="actions">
+      <a class="btn primary" href="/stream/">Sign in</a>
+      <button class="btn" type="button" id="open-request">Request an account</button>
+    </div>
+  </section>
+
+  <section class="card" id="request" aria-labelledby="request-title" hidden>
+    <h2 id="request-title">Request an account</h2>
+    <p class="lead">Luma gets your request on Discord and sets you up. You can only send one, so say who you are.</p>
+    <form id="request-form" novalidate>
+      <label><span>Your name</span>
+        <input id="name" name="name" maxlength="40" autocomplete="name" required>
+      </label>
+      <label><span>Your Discord <span class="opt">(so Luma can reach you)</span></span>
+        <input id="contact" name="contact" maxlength="40" autocomplete="off" placeholder="Your Discord username">
+      </label>
+      <label><span>Message <span class="opt">(optional)</span></span>
+        <textarea id="message" name="message" maxlength="500" placeholder="Who you are, what you'd like to play..."></textarea>
+        <span class="count" id="count" aria-live="polite">0 / 500</span>
+      </label>
+      <p class="status bad" id="form-error" role="alert" hidden></p>
+      <div class="row">
+        <button class="btn" type="button" id="cancel-request">Back</button>
+        <button class="btn primary" type="submit" id="send-request">Send request</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card" id="requested" aria-live="polite" hidden>
+    <div class="done">
+      <span class="done-icon" aria-hidden="true">✓</span>
+      <div>
+        <strong id="requested-title">Request sent</strong>
+        <span id="requested-text">Luma will get back to you. Once you have an account, come back here and sign in.</span>
+      </div>
+    </div>
+    <div class="actions" style="margin-top:14px">
+      <a class="btn" href="/stream/">Sign in</a>
+    </div>
+  </section>
+
+  <section class="card" id="reset" aria-labelledby="reset-title" hidden>
+    <h2 id="reset-title">Forgot your password?</h2>
+    <p class="lead">Luma gets your request on Discord and sets a new password for you.</p>
+    <form id="reset-form" novalidate>
+      <label><span>The name you sign in with</span>
+        <input id="reset-name" name="name" maxlength="40" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+      </label>
+      <label><span>Your Discord <span class="opt">(so Luma can send you the new one)</span></span>
+        <input id="reset-contact" name="contact" maxlength="40" autocomplete="off" placeholder="Your Discord username">
+      </label>
+      <label><span>Message <span class="opt">(optional)</span></span>
+        <textarea id="reset-message" name="message" maxlength="500" placeholder="Anything Luma should know..."></textarea>
+        <span class="count" id="reset-count" aria-live="polite">0 / 500</span>
+      </label>
+      <p class="status bad" id="reset-error" role="alert" hidden></p>
+      <div class="row">
+        <button class="btn" type="button" id="cancel-reset">Back</button>
+        <button class="btn primary" type="submit" id="send-reset">Send request</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card" id="reset-sent" aria-live="polite" hidden>
+    <div class="done">
+      <span class="done-icon" aria-hidden="true">✓</span>
+      <div>
+        <strong id="reset-sent-title">Request sent</strong>
+        <span id="reset-sent-text">Luma will send you a new password. Then sign in with it here.</span>
+      </div>
+    </div>
+    <div class="actions" style="margin-top:14px">
+      <a class="btn" href="/stream/">Sign in</a>
+    </div>
+  </section>
+
+  <section class="card contact" aria-label="Contact">
+    <span class="discord-mark" aria-hidden="true"><img src="/stream/resources/discord.svg" alt=""></span>
+    <p>Questions? Message <button class="handle" type="button" id="copy-handle" title="Copy">luma_exe</button> on Discord.
+      <span class="muted" id="copied" aria-live="polite"></span></p>
+  </section>
+</main>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const SENT_KEY = "lumaAccountRequested";
+  const show = (id) => ["intro", "request", "requested", "reset", "reset-sent"].forEach((s) => ($(s).hidden = s !== id));
+
+  const remembered = () => { try { return localStorage.getItem(SENT_KEY); } catch { return null; } };
+  const remember = (name) => { try { localStorage.setItem(SENT_KEY, name || "1"); } catch {} };
+
+  function showRequested(already) {
+    $("requested-title").textContent = already ? "You've already asked" : "Request sent";
+    $("requested-text").textContent = already
+      ? "Luma has your request and will get back to you. Once you have an account, sign in here."
+      : "Luma will get back to you. Once you have an account, come back here and sign in.";
+    $("open-request").textContent = "Account requested ✓";
+    show("requested");
+  }
+
+  // Signed in already? Then this page is only in the way.
+  const signedIn = fetch("/stream/luma-api/me", { credentials: "same-origin", cache: "no-store" })
+    .then((r) => r.ok).catch(() => false);
+  const timeout = new Promise((r) => setTimeout(() => r(false), 2500));
+  Promise.race([signedIn, timeout]).then((yes) => {
+    if (yes) { location.replace("/stream/"); return; }
+    document.body.classList.remove("checking");
+  });
+
+  // Asked before (this browser, or this address)?
+  if (remembered()) $("open-request").textContent = "Account requested ✓";
+  fetch("/api/account-request", { cache: "no-store" }).then((r) => r.json()).then((d) => {
+    if (d && d.requested) { remember(d.name); $("open-request").textContent = "Account requested ✓"; }
+  }).catch(() => {});
+
+  $("open-request").addEventListener("click", () => {
+    if (remembered()) { showRequested(true); return; }
+    show("request");
+    $("name").focus();
+  });
+  $("cancel-request").addEventListener("click", () => { show("intro"); $("open-request").focus(); });
+  $("message").addEventListener("input", () => { $("count").textContent = `${$("message").value.length} / 500`; });
+
+  $("request-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const err = $("form-error");
+    err.hidden = true;
+    const name = $("name").value.trim();
+    if (!name) { err.textContent = "Write your name first."; err.hidden = false; $("name").focus(); return; }
+    const button = $("send-request");
+    button.disabled = true;
+    button.textContent = "Sending…";
+    try {
+      const res = await fetch("/api/account-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, contact: $("contact").value.trim(), message: $("message").value }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (res.ok) { remember(name); showRequested(false); return; }
+      if (res.status === 409) { remember(name); showRequested(true); return; }
+      err.textContent = body.error || "Couldn't send it. Try again, or message luma_exe on Discord.";
+      err.hidden = false;
+    } catch {
+      err.textContent = "Couldn't reach the arcade. Check your connection and try again.";
+      err.hidden = false;
+    } finally {
+      button.disabled = false;
+      button.textContent = "Send request";
+    }
+  });
+
+  // --- forgotten password (opened only by the sign-in box's link: /#reset-password)
+  function showResetSent(already) {
+    $("reset-sent-title").textContent = already ? "You've already asked today" : "Request sent";
+    $("reset-sent-text").textContent = already
+      ? "Luma has your request and will send you a new password. Then sign in with it here."
+      : "Luma will send you a new password. Then sign in with it here.";
+    show("reset-sent");
+  }
+  function openReset() {
+    show("reset");
+    $("reset-name").focus();
+  }
+  $("cancel-reset").addEventListener("click", () => { history.replaceState(null, "", location.pathname); show("intro"); });
+  $("reset-message").addEventListener("input", () => { $("reset-count").textContent = `${$("reset-message").value.length} / 500`; });
+  if (location.hash === "#reset-password") openReset();
+  window.addEventListener("hashchange", () => { if (location.hash === "#reset-password") openReset(); });
+
+  $("reset-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const err = $("reset-error");
+    err.hidden = true;
+    const name = $("reset-name").value.trim();
+    if (!name) { err.textContent = "Write the name you sign in with."; err.hidden = false; $("reset-name").focus(); return; }
+    const button = $("send-reset");
+    button.disabled = true;
+    button.textContent = "Sending…";
+    try {
+      const res = await fetch("/api/password-reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, contact: $("reset-contact").value.trim(), message: $("reset-message").value }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (res.ok) { showResetSent(false); return; }
+      if (res.status === 409) { showResetSent(true); return; }
+      err.textContent = body.error || "Couldn't send it. Try again, or message luma_exe on Discord.";
+      err.hidden = false;
+    } catch {
+      err.textContent = "Couldn't reach the arcade. Check your connection and try again.";
+      err.hidden = false;
+    } finally {
+      button.disabled = false;
+      button.textContent = "Send request";
+    }
+  });
+
+  // --- who's playing (only people who turned it on in their settings)
+  function nowText(p) {
+    if (p.role === "spectator") return p.game ? `${p.name} is watching ${p.game}` : `${p.name} is watching`;
+    if (p.role === "player2") return p.game ? `${p.name} is playing along in ${p.game}` : `${p.name} is playing along`;
+    return p.game ? `${p.name} is playing ${p.game}` : `${p.name} is on the arcade`;
+  }
+  async function refreshNow() {
+    try {
+      const data = await (await fetch("/api/public/playing", { cache: "no-store" })).json();
+      const list = (data && data.playing) || [];
+      $("now-list").replaceChildren(...list.map((p) => { const li = document.createElement("li"); li.textContent = nowText(p); return li; }));
+      $("now").hidden = list.length === 0;
+    } catch {}
+  }
+  refreshNow();
+  setInterval(() => { if (!document.hidden) refreshNow(); }, 60000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshNow(); });
+
+  $("copy-handle").addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText("luma_exe");
+      $("copied").textContent = "Copied";
+      setTimeout(() => ($("copied").textContent = ""), 2000);
+    } catch {}
+  });
+})();
+</script>
+</body>
+</html>

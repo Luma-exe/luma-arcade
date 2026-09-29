@@ -52,7 +52,7 @@ export interface HomeGoResult {
 // One request file, so one request at a time.
 let queue: Promise<unknown> = Promise.resolve();
 
-function runHome<T>(request: Record<string, unknown>, timeoutMs: number): Promise<T> {
+export function runHome<T>(request: Record<string, unknown>, timeoutMs: number): Promise<T> {
   const job = queue.then(async () => {
     const id = randomUUID();
     const resultPath = path.join(HOME_DIR, `result-${id}.json`);

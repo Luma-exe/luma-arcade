@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { getDb } from "../db/index.js";
 import type { StreamUser } from "./streamUser.js";
 
 // One Sunshine host means one desktop: everyone who connects sees the same
@@ -42,6 +43,43 @@ const streaming = new Map<object, Streamer>();
 let owner: { user: StreamUser; since: number; lastSeen: number } | null = null;
 let sunshineBusy = false;
 
+// The owner outlives a LumaArcade restart (settings table): otherwise every
+// restart or reboot let whoever connected first walk into a running game.
+const OWNER_SETTING = "pcOwner";
+
+function setOwner(next: typeof owner): void {
+  owner = next;
+  try {
+    const db = getDb();
+    if (next) {
+      db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(
+        OWNER_SETTING,
+        JSON.stringify({ user: next.user, since: next.since })
+      );
+    } else {
+      db.prepare("DELETE FROM settings WHERE key = ?").run(OWNER_SETTING);
+    }
+  } catch {
+    // no database (tests): memory only
+  }
+}
+
+/** At startup: whoever owned the PC before the restart still does, with
+ * the usual time to reconnect. Sunshine's next poll clears it if the game
+ * is gone (after a reboot it always is). */
+export function restoreOwner(now = Date.now()): StreamUser | null {
+  try {
+    const row = getDb().prepare("SELECT value FROM settings WHERE key = ?").get(OWNER_SETTING) as { value: string } | undefined;
+    if (!row) return null;
+    const saved = JSON.parse(row.value) as { user: StreamUser; since: number };
+    owner = { user: saved.user, since: saved.since, lastSeen: now };
+    sunshineBusy = true;
+    return saved.user;
+  } catch {
+    return null;
+  }
+}
+
 /** Latest "ms since my last input" report from each streamer's page. */
 const activity = new Map<number, { idleMs: number; at: number }>();
 
@@ -69,7 +107,7 @@ async function pollSunshine(): Promise<void> {
 export function setSunshineBusy(busy: boolean): void {
   sunshineBusy = busy;
   if (streaming.size > 0 && owner) owner.lastSeen = Date.now();
-  if (!sunshineBusy && streaming.size === 0) owner = null;
+  if (!sunshineBusy && streaming.size === 0 && owner) setOwner(null);
   advanceQueue();
 }
 
@@ -218,24 +256,39 @@ export function streamStarted(socket: object, user: StreamUser): "owner" | "gues
   // Someone else has the PC now: the old player's co-op is over.
   if (owner && owner.user.id !== user.id) endInvitesFrom(owner.user.id, `${user.name} took over the PC`);
   streaming.set(socket, { user, since: Date.now() });
-  owner = { user, since: Date.now(), lastSeen: Date.now() };
+  setOwner({ user, since: Date.now(), lastSeen: Date.now() });
   // Sunshine starts (or resumes) an app for every stream; the next poll
   // confirms it, but until then the PC is already busy.
   sunshineBusy = true;
   return "owner";
 }
 
+/** When someone (player or guest) last had a stream open. */
+let lastStreamingAt = Date.now();
+
 export function streamEnded(socket: object): void {
-  if (guests.delete(socket)) return;
-  const s = streaming.get(socket);
+  const wasGuest = guests.delete(socket);
+  const s = wasGuest ? undefined : streaming.get(socket);
   streaming.delete(socket);
+  if (streaming.size + guests.size === 0) lastStreamingAt = Date.now();
+  if (wasGuest) return;
   if (s && owner?.user.id === s.user.id) owner.lastSeen = Date.now();
   advanceQueue();
+}
+
+/** How long nobody at all has been streaming (0 while someone is). */
+export function nobodyStreamingFor(now = Date.now()): number {
+  return streaming.size + guests.size > 0 ? 0 : now - lastStreamingAt;
 }
 
 /** Whose game it is, if it's still theirs. */
 function currentHolder(): StreamUser | null {
   return [...streaming.values()][0]?.user ?? (ownerHolds() ? owner!.user : null);
+}
+
+/** They're the one playing on the PC right now (streaming it as its owner). */
+export function isPlayingNow(userId: number): boolean {
+  return owner?.user.id === userId && isStreaming(userId);
 }
 
 /** Who the game about to start on the PC is for: whoever most recently got
@@ -572,7 +625,7 @@ function giveTo(to: StreamUser, fromId: number, reason: string): void {
   const fromName = owner?.user.id === fromId ? owner.user.name : "The player";
   endInvitesFrom(fromId, `${fromName} handed the PC over`);
   reserved = { user: to, until: Date.now() + HANDOVER_GRACE_MS, via: "handover" };
-  owner = { user: to, since: Date.now(), lastSeen: Date.now() };
+  setOwner({ user: to, since: Date.now(), lastSeen: Date.now() });
   queue = queue.filter((q) => q.user.id !== to.id);
   // Any other request for this PC is moot now.
   for (const other of requests.values()) {
@@ -796,6 +849,27 @@ export function joinableStream(userId: number): CoopStream | null {
   return latestStreams.get(userId) ?? null;
 }
 
+/** Who's streaming and how: the player, player 2+ or watching (the welcome page). */
+export function nowStreaming(): { user: StreamUser; role: "player" | "player2" | "spectator" }[] {
+  const out = new Map<number, { user: StreamUser; role: "player" | "player2" | "spectator" }>();
+  for (const s of streaming.values()) out.set(s.user.id, { user: s.user, role: "player" });
+  for (const g of guests.values()) if (!out.has(g.user.id)) out.set(g.user.id, { user: g.user, role: guestRole(g) });
+  return [...out.values()];
+}
+
+/** Everyone with a stream open now: the player and any co-op guests (lockdown.ts). */
+export function connectedUsers(): StreamUser[] {
+  const seen = new Map<number, StreamUser>();
+  for (const s of streaming.values()) seen.set(s.user.id, s.user);
+  for (const g of guests.values()) seen.set(g.user.id, g.user);
+  return [...seen.values()];
+}
+
+/** The size and frame rate the player is streaming at now, if anyone is. */
+export function playerStream(): CoopStream | null {
+  return owner && isStreaming(owner.user.id) ? latestStreams.get(owner.user.id) ?? null : null;
+}
+
 /** Everyone streaming right now, as the player or as a co-op guest. */
 export function playingUserIds(): Set<number> {
   return new Set([...[...streaming.values()].map((s) => s.user.id), ...[...guests.values()].map((g) => g.user.id)]);
@@ -954,6 +1028,45 @@ export interface Person {
   /** In the game: the player numbers their controllers are (empty until
    * they press a button on one). */
   players?: number[];
+  /** How their stream is doing, from their page's last report. */
+  connection?: ConnectionGrade;
+  connectionDetail?: string;
+}
+
+// --- each streamer's connection, for the people panel
+
+export type ConnectionGrade = "good" | "fair" | "poor";
+/** Pages report every 30 s; older than this, the grade isn't shown. */
+const CONNECTION_FRESH_MS = 75_000;
+const connections = new Map<number, { grade: ConnectionGrade; detail: string; at: number }>();
+
+/** A stream-quality report (routes/coop.ts /api/sessions/activity):
+ * lost packets and dropped frames over the last 30 s. */
+export function recordConnection(
+  user: StreamUser,
+  sample: { packets?: number; lost?: number; frames?: number; dropped?: number; kbps?: number; relay?: boolean },
+  now = Date.now()
+): ConnectionGrade | null {
+  const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : 0);
+  const sent = n(sample.packets) + n(sample.lost);
+  const shown = n(sample.frames) + n(sample.dropped);
+  if (sent < 200 && shown < 30) return null; // nothing to judge by (paused, still connecting)
+  const loss = sent >= 200 ? n(sample.lost) / sent : 0;
+  const drops = shown >= 30 ? n(sample.dropped) / shown : 0;
+  const grade: ConnectionGrade = loss > 0.02 || drops > 0.1 ? "poor" : loss > 0.005 || drops > 0.03 ? "fair" : "good";
+  const parts = [
+    `${(loss * 100).toFixed(loss > 0 && loss < 0.01 ? 1 : 0)}% packets lost`,
+    ...(drops > 0 ? [`${(drops * 100).toFixed(0)}% frames dropped`] : []),
+    ...(n(sample.kbps) > 0 ? [`${(n(sample.kbps) / 1000).toFixed(1)} Mbps`] : []),
+    ...(sample.relay ? ["relayed"] : []),
+  ];
+  connections.set(user.id, { grade, detail: parts.join(" · "), at: now });
+  return grade;
+}
+
+function connectionOf(userId: number, now: number): { connection: ConnectionGrade; connectionDetail: string } | null {
+  const c = connections.get(userId);
+  return c && now - c.at < CONNECTION_FRESH_MS ? { connection: c.grade, connectionDetail: c.detail } : null;
 }
 
 export interface PeopleView {
@@ -983,7 +1096,10 @@ function roster(now = Date.now()): { person: Omit<Person, "you">; user: StreamUs
     if (seen.has(user.id)) return;
     seen.add(user.id);
     const idle = idleFor(user.id, now);
-    out.push({ user, person: { id: user.id, name: user.name, ...person, ...(idle !== null ? { idleMs: idle } : {}) } });
+    out.push({
+      user,
+      person: { id: user.id, name: user.name, ...person, ...(idle !== null ? { idleMs: idle } : {}), ...connectionOf(user.id, now) },
+    });
   };
   const offered = new Set(liveOffers(now).map((o) => o.to.id));
   const holder = currentHolder();
@@ -1134,7 +1250,7 @@ function kick(by: StreamUser, target: StreamUser, status: PersonStatus): { ok: t
       socketClose(socket, 4014, reason);
     }
     // Their game stays open, but it isn't theirs any more.
-    if (owner?.user.id === target.id) owner = null;
+    if (owner?.user.id === target.id) setOwner(null);
     advanceQueue();
   }
   return { ok: true };
@@ -1158,7 +1274,9 @@ export function resetSessions(): void {
   padCounts.clear();
   guests.clear();
   streaming.clear();
-  owner = null;
+  lastStreamingAt = Date.now();
+  connections.clear();
+  setOwner(null);
   sunshineBusy = false;
   activity.clear();
   queue = [];

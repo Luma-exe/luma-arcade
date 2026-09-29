@@ -44,7 +44,7 @@ export class LineFilter {
 export const MOONLIGHT_LOG_RULES = {
   drop: [
     // A page asking its API without being signed in (answered 401 anyway).
-    /SessionTokenNotFound/,
+    /Error encountered while processing the incoming HTTP request: (SessionTokenNotFound|Unauthorized)\s*$/,
     // Browsers offer DTLS extensions webrtc-rs doesn't know; harmless.
     /Unsupported Extension Type/,
     // Tail ends of a stream closing.

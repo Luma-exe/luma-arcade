@@ -14,6 +14,10 @@ cpSync(
   { recursive: true }
 );
 
+// Pages LumaArcade serves itself (the welcome page at "/").
+rmSync(path.join(root, "dist", "web", "pages"), { recursive: true, force: true });
+cpSync(path.join(root, "src", "web", "pages"), path.join(root, "dist", "web", "pages"), { recursive: true });
+
 // Stamps the build with the exact commit it was built from, so the running
 // app can tell it's out of date against origin/main (see remote/updateCheck.ts)
 // without needing a .git checkout at runtime — the packaged installer only

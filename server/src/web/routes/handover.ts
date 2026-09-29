@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { notify } from "../notify.js";
 import { requireAuth } from "../session.js";
 import { streamUser, type StreamUser } from "../streamUser.js";
 import { toStream } from "./coop.js";
@@ -43,7 +44,12 @@ export async function registerHandoverRoutes(app: FastifyInstance) {
   app.post<{ Body: { kind?: string } }>("/api/sessions/handover", { preHandler: requireAuth }, (request, reply) =>
     withUser(request, reply, (user) => {
       const kind = KINDS.find((k) => k === request.body?.kind) ?? "handover";
-      return requestHandover(user, kind);
+      const result = requestHandover(user, kind);
+      if (!("error" in result)) {
+        const what = kind === "player2" ? "to join the game" : kind === "spectate" ? "to watch" : "for the PC";
+        void notify(`🙋 ${user.name} asked ${what}`, `ask:${user.id}`, 5 * 60_000);
+      }
+      return result;
     })
   );
 
@@ -58,7 +64,7 @@ export async function registerHandoverRoutes(app: FastifyInstance) {
     })
   );
 
-  app.get("/api/sessions/handover-inbox", { preHandler: requireAuth }, (request, reply) =>
+  app.get("/api/sessions/handover-inbox", { preHandler: requireAuth, logLevel: "warn" }, (request, reply) =>
     withUser(request, reply, (user) => inbox(user))
   );
 
@@ -77,7 +83,7 @@ export async function registerHandoverRoutes(app: FastifyInstance) {
   // The stream page's people panel: everyone connected and what they're
   // doing, and the player's (or an admin's) say over each of them.
   /** pads: how many controllers the asking page has joined to the game. */
-  app.get<{ Querystring: { pads?: string } }>("/api/sessions/people", { preHandler: requireAuth }, (request, reply) =>
+  app.get<{ Querystring: { pads?: string } }>("/api/sessions/people", { preHandler: requireAuth, logLevel: "warn" }, (request, reply) =>
     withUser(request, reply, (user) => {
       const pads = request.query.pads;
       return people(user, pads === undefined ? undefined : Number(pads));
@@ -103,10 +109,14 @@ export async function registerHandoverRoutes(app: FastifyInstance) {
   );
 
   app.post("/api/sessions/queue", { preHandler: requireAuth }, (request, reply) =>
-    withUser(request, reply, (user) => joinQueue(user))
+    withUser(request, reply, (user) => {
+      const result = joinQueue(user);
+      if (!("error" in result)) void notify(`⏳ ${user.name} is waiting for the PC`, `queue:${user.id}`, 10 * 60_000);
+      return result;
+    })
   );
 
-  app.get("/api/sessions/queue", { preHandler: requireAuth }, (request, reply) =>
+  app.get("/api/sessions/queue", { preHandler: requireAuth, logLevel: "warn" }, (request, reply) =>
     withUser(request, reply, (user) => checkQueue(user))
   );
 

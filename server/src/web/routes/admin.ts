@@ -6,6 +6,8 @@ import { requireAuth } from "../session.js";
 import { clearStreamUserCache, requireAdmin, streamUser } from "../streamUser.js";
 import { decide, guestStream, status as sessionStatus } from "../sessions.js";
 import { playSummary, usage } from "../playLog.js";
+import { gamesByApp } from "../games.js";
+import { weeklySummary } from "../watchdog.js";
 import { getAllLimits, setLimits, timeLeft } from "../limits.js";
 import { activeAnnouncements, postAnnouncement, removeAnnouncement } from "../announcements.js";
 import {
@@ -72,7 +74,7 @@ export async function registerAdminRoutes(app: FastifyInstance) {
 
   // Who has the PC right now, and whether this person may connect
   // (sessions.ts): the PC card and the stream page ask before connecting.
-  app.get("/api/sessions/status", { preHandler: requireAuth }, async (request) => {
+  app.get("/api/sessions/status", { preHandler: requireAuth, logLevel: "warn" }, async (request) => {
     const user = await streamUser(request);
     let decision = user ? decide(user) : { allowed: false };
     // Out of play time beats everything else (limits.ts).
@@ -117,8 +119,17 @@ export async function registerAdminRoutes(app: FastifyInstance) {
   // Play history: who played what, and for how long (playLog.ts).
   app.get<{ Querystring: { days?: string } }>("/api/admin/playtime", { preHandler: requireAdmin }, async (req) => {
     const days = Math.min(365, Math.max(1, Number(req.query.days) || 30));
-    return playSummary(days);
+    const summary = playSummary(days);
+    // Which games inside each app (ES-DE), for the By app card's drop-down.
+    let games = new Map<string, unknown[]>();
+    try {
+      games = gamesByApp(summary.since);
+    } catch {}
+    return { ...summary, byApp: summary.byApp.map((a) => ({ ...a, games: games.get(a.app) ?? [] })) };
   });
+
+  // The Monday Discord post, to preview (watchdog.ts).
+  app.get("/api/admin/weekly-summary", { preHandler: requireAdmin }, async () => ({ text: weeklySummary() }));
 
   // Play time limits per person, with what they've used (limits.ts).
   app.get("/api/admin/limits", { preHandler: requireAdmin }, async () => {

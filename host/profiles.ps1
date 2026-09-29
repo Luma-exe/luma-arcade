@@ -18,7 +18,9 @@
 # interrupted switch picks up where it stopped.
 #
 # LumaArcade also runs it for save snapshots (routes/saves.ts):
-#   -Action snapshot -Player "<id>:<name>" [-Label <text>]
+#   -Action snapshot -Player "<id>:<name>" [-Label <text>] [-Auto]
+#     (-Auto: taken by LumaArcade when a game closes; those are pruned on
+#     their own, so they never push out a player's own snapshots)
 #   -Action list     -Player "<id>:<name>"
 #   -Action restore  -Player "<id>:<name>" -Snapshot <name>
 # and to hand a guest link's saves to a new account (routes/guestLinks.ts):
@@ -34,6 +36,7 @@ param(
     [string]$Player,
     [string]$Snapshot,
     [string]$Label,
+    [switch]$Auto,
     # transfer: whose saves (a user id), and who gets them ("<id>:<name>")
     [string]$From,
     [string]$To,
@@ -56,8 +59,10 @@ if ($TestRoot) {
 $LogFile = Join-Path $Root 'profiles.log'
 $StateFile = Join-Path $Root 'state.json'
 $StatFields = 'favorite', 'playcount', 'lastplayed', 'completed'
-# Snapshots kept per player; the oldest go first.
+# Snapshots kept per player; the oldest go first. Automatic ones (-Auto)
+# are counted separately.
 $KeepSnapshots = 10
+$KeepAutoSnapshots = 4
 
 # slot => @(folder, seed). seed: a new player's saves start as a copy of the
 # shared ones (in-game saves and memory cards); save states start empty,
@@ -310,13 +315,14 @@ function List-Snapshots([string]$Id) {
             name   = $_.Name
             time   = $(if ($info) { $info.time } else { $_.CreationTime.ToString('o') })
             label  = $(if ($info) { $info.label } else { '' })
+            auto   = [bool]($info -and $info.auto)
             slots  = $(if ($info) { $info.slots } else { @() })
             sizeKB = [math]::Round(((Get-ChildItem $_.FullName -Recurse -File -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum) / 1KB)
         }
     })
 }
 
-function Take-Snapshot($Who, [string]$Text) {
+function Take-Snapshot($Who, [string]$Text, [bool]$IsAuto = $false) {
     $id = "user-$($Who.id)"
     $name = Get-Date -Format 'yyyyMMdd-HHmmss'
     $dest = Join-Path (Snapshot-Dir $id) $name
@@ -331,10 +337,16 @@ function Take-Snapshot($Who, [string]$Text) {
     $stats = if ($state.current -eq $id) { Read-Stats } else { Read-StatsFile (Stats-File $id) }
     if ($stats) { Write-StatsFile (Join-Path $dest 'esde-stats.json') $stats }
     New-Item -ItemType Directory -Force -Path $dest | Out-Null
-    [ordered]@{ time = (Get-Date).ToString('o'); label = $Text; player = $Who.name; slots = $copied } |
+    [ordered]@{ time = (Get-Date).ToString('o'); label = $Text; player = $Who.name; slots = $copied; auto = $IsAuto } |
         ConvertTo-Json | Set-Content (Join-Path $dest 'snapshot.json') -Encoding utf8
-    Get-ChildItem (Snapshot-Dir $id) -Directory | Sort-Object Name -Descending |
-        Select-Object -Skip $KeepSnapshots | ForEach-Object { Remove-Item $_.FullName -Recurse -Force }
+    # Prune automatic and own snapshots separately (the kind being taken).
+    Get-ChildItem (Snapshot-Dir $id) -Directory | Where-Object {
+        $meta = Join-Path $_.FullName 'snapshot.json'
+        $wasAuto = (Test-Path $meta) -and [bool]((Get-Content $meta -Raw | ConvertFrom-Json).auto)
+        $wasAuto -eq $IsAuto
+    } | Sort-Object Name -Descending |
+        Select-Object -Skip $(if ($IsAuto) { $KeepAutoSnapshots } else { $KeepSnapshots }) |
+        ForEach-Object { Remove-Item $_.FullName -Recurse -Force }
     Log "Snapshot $name of $($Who.name)'s saves ($($copied.Count) folders)$(if ($Text) { ": $Text" })"
     return $name
 }
@@ -405,7 +417,7 @@ if ($Action -ne 'switch') {
     try {
         switch ($Action) {
             'list' { Reply @{ snapshots = @(List-Snapshots $id) } }
-            'snapshot' { Reply @{ snapshot = (Take-Snapshot $who $Label) } }
+            'snapshot' { Reply @{ snapshot = (Take-Snapshot $who $Label $Auto.IsPresent) } }
             'restore' {
                 $src = Join-Path (Snapshot-Dir $id) $Snapshot
                 if (-not $Snapshot -or $Snapshot -match '[\\/.]' -or -not (Test-Path $src)) { Reply @{ error = 'No such snapshot' }; exit 1 }

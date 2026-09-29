@@ -1,23 +1,21 @@
 import type { FastifyInstance } from "fastify";
 import { execFile } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statfsSync } from "node:fs";
-import { request as httpsRequest } from "node:https";
 import path from "node:path";
 import { promisify } from "node:util";
 import { getSetting } from "../../config/settings.js";
 import { moonlightProcess } from "../../remote/moonlightWebStream.js";
-import { readData } from "../../remote/moonlightData.js";
-import { status as sessionStatus } from "../sessions.js";
+import { playerStream, status as sessionStatus } from "../sessions.js";
 import { requireAdmin } from "../streamUser.js";
 import { HOME_SCRIPT, HOME_TASK } from "./home.js";
+import { SUNSHINE_HTTPS_PORT, sunshineHttps } from "../sunshine.js";
+import { getActiveInput } from "./input.js";
 
 const run = promisify(execFile);
 
 // Sunshine's default install location; its config and log live here.
 const SUNSHINE_CONFIG_DIR = "C:\\Program Files\\Sunshine\\config";
 const SUNSHINE_HTTP_PORT = 47989;
-// Paired clients (moonlight-web-stream) talk to Sunshine over HTTPS here.
-const SUNSHINE_HTTPS_PORT = 47984;
 // The Xbox 360 controller driver: xusb22.sys ships with Windows 10/11 client,
 // xusb21.sys comes from Microsoft's standalone package (what Windows Server
 // needs, since it ships neither).
@@ -65,7 +63,7 @@ function readSunshineConf(): Record<string, string> {
   }
 }
 
-async function checkSunshine(): Promise<HealthCheck[]> {
+export async function checkSunshine(): Promise<HealthCheck[]> {
   const svc = await output("sc.exe", ["query", "SunshineService"]);
   const running = /STATE\s*:\s*\d+\s+RUNNING/.test(svc);
 
@@ -116,49 +114,6 @@ async function checkSunshine(): Promise<HealthCheck[]> {
 
 /** A paired client's certificate and key from moonlight-web-stream, which
  * Sunshine wants before it answers on HTTPS. */
-function pairedClient(): { key: string; cert: string } | null {
-  try {
-    for (const host of Object.values(readData().hosts ?? {})) {
-      const pair = host.pair_info as { client_private_key?: string; client_certificate?: string } | undefined;
-      if (pair?.client_private_key && pair.client_certificate && /^(localhost|127\.0\.0\.1|::1)$/.test(host.address)) {
-        return { key: pair.client_private_key, cert: pair.client_certificate };
-      }
-    }
-  } catch {}
-  return null;
-}
-
-/** Does Sunshine's HTTPS port finish a request? "hung" when the handshake
- * or reply never comes, like Moonlight sees it. */
-function sunshineHttps(): Promise<"ok" | "hung" | "unpaired"> {
-  const client = pairedClient();
-  if (!client) return Promise.resolve("unpaired");
-  return new Promise((resolve) => {
-    const req = httpsRequest(
-      {
-        host: "127.0.0.1",
-        port: SUNSHINE_HTTPS_PORT,
-        path: "/serverinfo",
-        key: client.key,
-        cert: client.cert,
-        // Sunshine's certificate is self-signed; this only checks it answers.
-        rejectUnauthorized: false,
-        timeout: 5000,
-      },
-      (res) => {
-        res.resume();
-        resolve("ok");
-      }
-    );
-    req.on("timeout", () => {
-      req.destroy();
-      resolve("hung");
-    });
-    req.on("error", () => resolve("hung"));
-    req.end();
-  });
-}
-
 /** A freshly installed driver sits in the driver store until the first
  * matching device appears; only then is its .sys copied into drivers\. */
 function xusbInDriverStore(): boolean {
@@ -395,6 +350,43 @@ function checkStream(): HealthCheck {
   return { id: "stream", label: "Stream", status: "ok", detail };
 }
 
+/** Sunshine sizes the virtual screen to the stream, but a game in exclusive
+ * fullscreen can switch it to another size mid-stream (FIFA 23 went to 4K
+ * under a 1080p stream, 2026-09-29): every frame is then rendered at the
+ * game's size and scaled down by the encoder, which costs the GPU dearly. */
+export function screenSizeCheck(streamSize: string | null, screenSize: string | null, game: string | null): HealthCheck {
+  const label = "Game screen size";
+  if (!streamSize) return { id: "screen-size", label, status: "ok", detail: "Nobody is streaming" };
+  if (!screenSize || screenSize === streamSize) {
+    return { id: "screen-size", label, status: "ok", detail: `The PC's screen matches the stream (${streamSize})` };
+  }
+  const who = game ?? "The game";
+  return {
+    id: "screen-size",
+    label,
+    status: "warn",
+    detail: `${who} switched the PC's screen to ${screenSize} under a ${streamSize} stream - set it to borderless window (or ${streamSize}) in its settings`,
+  };
+}
+
+async function checkScreenSize(): Promise<HealthCheck> {
+  const stream = playerStream();
+  const streamSize = stream ? `${stream.width}x${stream.height}` : null;
+  let screenSize: string | null = null;
+  let game: string | null = null;
+  if (streamSize) {
+    try {
+      const log = readFileSync(path.join(SUNSHINE_CONFIG_DIR, "sunshine.log"), "utf8");
+      screenSize = [...log.matchAll(/Info: Desktop resolution \[(\d+x\d+)\]/g)].at(-1)?.[1] ?? null;
+    } catch {}
+    if (screenSize && screenSize !== streamSize) {
+      const active = await getActiveInput().catch(() => null);
+      game = active?.title ?? active?.process?.replace(/\.exe$/i, "") ?? null;
+    }
+  }
+  return screenSizeCheck(streamSize, screenSize, game);
+}
+
 const GB = 1024 ** 3;
 // The system drive, the drive with ES-DE's ROMs/emulators/BIOS, and the
 // separate disk the nightly save backup (below) writes to.
@@ -404,7 +396,7 @@ const DISKS = [
   { root: "E:\\", use: "save backups" },
 ];
 
-function checkDiskSpace(): HealthCheck {
+export function checkDiskSpace(): HealthCheck {
   const parts: string[] = [];
   let status: Status = "ok";
   for (const { root, use } of DISKS) {
@@ -492,7 +484,7 @@ async function backupTaskResult(): Promise<{ exists: boolean; code: number | nul
   return { exists: true, code: m ? Number(m[1]) : null };
 }
 
-async function checkSaveBackup(): Promise<HealthCheck> {
+export async function checkSaveBackup(): Promise<HealthCheck> {
   const [task, base] = [await backupTaskResult(), readBackupStatus()];
   if (!task.exists) {
     return { ...base, status: "warn", detail: `The scheduled task "${BACKUP_TASK}" is missing, so saves aren't being backed up. ${base.detail}` };
@@ -603,7 +595,7 @@ export async function registerHealthRoutes(app: FastifyInstance) {
     return reply.code(stream ? 200 : 503).send({ ok: stream });
   });
 
-  app.get("/api/health/host",{ preHandler: requireAdmin }, async () => {
+  app.get("/api/health/host", { preHandler: requireAdmin }, async () => {
     const results = await Promise.all([
       checkSunshine(),
       checkMoonlight(),
@@ -613,14 +605,16 @@ export async function registerHealthRoutes(app: FastifyInstance) {
       checkVirtualDisplay(),
       checkHomeHelper(),
       checkSaveBackup(),
+      checkScreenSize(),
     ]);
-    const [sunshine, moonlight, consoleSession, esde, turn, virtualDisplay, home, backup] = results;
+    const [sunshine, moonlight, consoleSession, esde, turn, virtualDisplay, home, backup, screenSize] = results;
     return {
       checks: [
         checkStream(),
         ...sunshine,
         moonlight,
         virtualDisplay,
+        screenSize,
         checkControllers(),
         consoleSession,
         esde,
@@ -641,14 +635,23 @@ export async function registerHealthRoutes(app: FastifyInstance) {
       return reply.code(409).send({ error: "Someone is streaming right now; restarting Sunshine would drop them. Try again when they're done." });
     }
     try {
-      await run("powershell.exe", ["-NoProfile", "-Command", "Restart-Service SunshineService -Force -ErrorAction Stop"], {
-        windowsHide: true,
-        timeout: 60_000,
-      });
+      await restartSunshine();
       return { ok: true, message: "Sunshine restarted" };
     } catch (err) {
-      const e = err as { stderr?: string; message: string };
-      return reply.code(500).send({ error: `Couldn't restart Sunshine: ${(e.stderr || e.message).trim().split(/\r?\n/)[0]}` });
+      return reply.code(500).send({ error: `Couldn't restart Sunshine: ${(err as Error).message}` });
     }
   });
+}
+
+/** Restarts SunshineService (anything open on the PC stays open). */
+export async function restartSunshine(): Promise<void> {
+  try {
+    await run("powershell.exe", ["-NoProfile", "-Command", "Restart-Service SunshineService -Force -ErrorAction Stop"], {
+      windowsHide: true,
+      timeout: 60_000,
+    });
+  } catch (err) {
+    const e = err as { stderr?: string; message: string };
+    throw new Error((e.stderr || e.message).trim().split(/\r?\n/)[0]);
+  }
 }

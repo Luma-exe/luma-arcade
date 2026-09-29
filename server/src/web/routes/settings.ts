@@ -4,6 +4,7 @@ import { getAllSettings, setSettings, type AppSettings } from "../../config/sett
 import { syncMoonlightWithSettings } from "../../remote/moonlightWebStream.js";
 import { isLocalRequest } from "../requestOrigin.js";
 import { requireAdmin } from "../streamUser.js";
+import { isDiscordWebhook, notify } from "../notify.js";
 
 /** Settings that make the host execute a file or rebind the server. Anyone
  * with the password could otherwise turn a leaked password into running
@@ -49,9 +50,23 @@ export async function registerSettingsRoutes(app: FastifyInstance) {
         }
       }
 
+      if (typeof body.discordWebhookUrl === "string") {
+        body.discordWebhookUrl = body.discordWebhookUrl.trim();
+        if (body.discordWebhookUrl && !isDiscordWebhook(body.discordWebhookUrl)) {
+          reply.code(400).send({ error: "That isn't a Discord webhook link (https://discord.com/api/webhooks/...)" });
+          return;
+        }
+      }
+
       setSettings(body);
       syncMoonlightWithSettings();
       return getAllSettings();
     }
   );
+
+  /** The settings screen's "Send a test" button. */
+  app.post("/api/settings/discord-test", { preHandler: requireAdmin }, async (_request, reply) => {
+    const sent = await notify("👋 Luma Arcade will post here.");
+    return sent ? { ok: true } : reply.code(409).send({ error: "Couldn't post: check the webhook link" });
+  });
 }

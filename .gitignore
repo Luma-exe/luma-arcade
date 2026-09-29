@@ -9,3 +9,6 @@ installer/staging/
 installer/output/
 *.log
 .env
+
+# Dated backups made before changes (e.g. luma-arcade.db.bak-20260928-tester2)
+*.bak-*

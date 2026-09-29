@@ -270,7 +270,7 @@ export async function registerGuestLinkRoutes(app: FastifyInstance) {
     adminAction(request, reply, (admin) => sendMessage(toId(request.body?.userId), admin, request.body?.text))
   );
 
-  app.get("/api/messages", { preHandler: requireAuth }, async (request) => {
+  app.get("/api/messages", { preHandler: requireAuth, logLevel: "warn" }, async (request) => {
     const user = await streamUser(request);
     return { messages: user ? takeMessages(user.id) : [] };
   });

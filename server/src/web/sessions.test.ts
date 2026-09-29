@@ -15,12 +15,14 @@ import {
   recordActivity,
   requestHandover,
   resetSessions,
+  restoreOwner,
   setSunshineBusy,
   status,
   streamEnded,
   streamStarted,
 } from "./sessions.js";
 import type { StreamUser } from "./streamUser.js";
+import { getDb, initDb } from "../db/index.js";
 
 const alice: StreamUser = { id: 1, name: "Alice", roleId: 2, admin: false };
 const bob: StreamUser = { id: 2, name: "Bob", roleId: 2, admin: false };
@@ -77,6 +79,34 @@ describe("the PC lock", () => {
     setSunshineBusy(false);
     assert.equal(decide(bob).allowed, true);
     assert.equal(status(bob).owner, null);
+  });
+});
+
+describe("a LumaArcade restart", () => {
+  it("keeps the game with its player, who gets the usual time to reconnect", () => {
+    initDb(":memory:");
+    streamStarted(socket(), alice);
+    // (restart: memory is gone, the database isn't)
+    const saved = getDb().prepare("SELECT value FROM settings WHERE key = 'pcOwner'").get();
+    resetSessions();
+    getDb().prepare("INSERT INTO settings (key, value) VALUES ('pcOwner', ?)").run((saved as { value: string }).value);
+    assert.equal(restoreOwner()?.name, "Alice");
+    assert.equal(decide(bob).allowed, false);
+    assert.equal(decide(alice).allowed, true);
+    mock.timers.tick(ABANDON_MS + 1);
+    assert.equal(decide(bob).allowed, true);
+  });
+
+  it("forgets the owner once Sunshine says the game is closed", () => {
+    initDb(":memory:");
+    streamStarted(socket(), alice);
+    resetSessions();
+    assert.equal(restoreOwner(), null);
+    const s = socket();
+    streamStarted(s, alice);
+    streamEnded(s);
+    setSunshineBusy(false);
+    assert.equal(getDb().prepare("SELECT value FROM settings WHERE key = 'pcOwner'").get(), undefined);
   });
 });
 

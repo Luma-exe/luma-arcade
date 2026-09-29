@@ -19,6 +19,12 @@ export interface AppSettings {
    * install without a configured dev tree only gets a "there's an update,
    * here's the repo" prompt. */
   devTreePath: string;
+
+  /** A Discord webhook (channel settings -> Integrations -> Webhooks) that
+   * gets the arcade's news: who started playing, people waiting, games
+   * closed for nobody, Sunshine restarts, failed backups, the weekly play
+   * summary. Empty: none of that is sent. */
+  discordWebhookUrl: string;
 }
 
 const DEFAULTS: AppSettings = {
@@ -30,6 +36,8 @@ const DEFAULTS: AppSettings = {
   moonlightAutoStart: false,
 
   devTreePath: "",
+
+  discordWebhookUrl: "",
 };
 
 export function getSetting<K extends keyof AppSettings>(key: K): AppSettings[K] {

@@ -9,6 +9,8 @@ import { requireAuth } from "../session.js";
 import { mayStopSession } from "../sessions.js";
 import { streamUser } from "../streamUser.js";
 import { moonlightProcess, MOONLIGHT_PATH_PREFIX } from "../../remote/moonlightWebStream.js";
+import { notify } from "../notify.js";
+import { GUEST_SESSION_ENDED, checkGuestSession } from "../guestSessions.js";
 
 const PROXY_PREFIX = MOONLIGHT_PATH_PREFIX;
 
@@ -52,6 +54,15 @@ export async function registerMoonlightRoutes(app: FastifyInstance) {
         }
         loginIps.set(request, ip);
       }
+      // Its API (not its files): a guest's session that should be over ends
+      // (guestSessions.ts); moonlight-web-stream then shows the sign-in.
+      const path = (request.url ?? "").split("?")[0];
+      if (path.startsWith(`${PROXY_PREFIX}/api/`) && !isLoginRequest(request)) {
+        if ((await checkGuestSession(request.headers.cookie)) === "ended") {
+          reply.code(401).send({ error: GUEST_SESSION_ENDED });
+          return;
+        }
+      }
       if (isStopSessionRequest(request)) {
         const user = await streamUser(request);
         if (user && !mayStopSession(user)) {
@@ -75,7 +86,10 @@ export async function registerMoonlightRoutes(app: FastifyInstance) {
         if (request?.method !== "GET" || path.startsWith(`${PROXY_PREFIX}/api/`) || !headers.etag) return headers;
         const longLived = /\/(libopus|libopenh264|resources)\//.test(path);
         const { pragma: _pragma, ...rest } = headers;
-        return { ...rest, "cache-control": longLived ? "public, max-age=604800" : "no-cache" };
+        // "private": Cloudflare replaces a bare "no-cache" with its own 4-hour
+        // browser cache time, so updates took hours to reach people; it
+        // leaves private answers alone.
+        return { ...rest, "cache-control": longLived ? "public, max-age=604800" : "private, no-cache" };
       },
       rewriteRequestHeaders: (request, headers) =>
         isAppListRequest(request as unknown as FastifyRequest, PROXY_PREFIX)
@@ -101,7 +115,11 @@ export async function registerMoonlightRoutes(app: FastifyInstance) {
         const before = streamOwnerName(source as never);
         checkStreamInit(source as never, target as never, message.data, message.binary);
         const who = streamOwnerName(source as never);
-        if (who && !before) context.log.info({ player: who }, "stream started");
+        if (who && !before) {
+          context.log.info({ player: who }, "stream started");
+          // (Quality switches and reconnects start new streams: once per half hour.)
+          void notify(`🎮 ${who} started playing`, `start:${who}`, 30 * 60_000);
+        }
       },
       onDisconnect: (context, source) => {
         const who = streamOwnerName(source as never);

@@ -9,6 +9,7 @@ import {
   joinQueue,
   manage,
   people,
+  recordConnection,
   recordStream,
   requestHandover,
   resetSessions,
@@ -286,5 +287,25 @@ describe("switching streams (Automatic quality)", () => {
     streamEnded(first);
     assert.equal(people(bob).you.role, "player2");
     assert.equal(people(bob).you.slotBase, seat);
+  });
+});
+
+describe("connection grades", () => {
+  it("shows each streamer's connection from their last report, until it's stale", () => {
+    streamStarted(socket(), alice);
+    assert.equal(recordConnection(alice, { packets: 30000, lost: 0, frames: 1800, dropped: 0, kbps: 12000 }), "good");
+    let me = people(alice).people.find((p) => p.id === alice.id)!;
+    assert.equal(me.connection, "good");
+    assert.equal(me.connectionDetail, "0% packets lost · 12.0 Mbps");
+    // Ben's bursts: 20k of ~37k packets lost in 30 s
+    assert.equal(recordConnection(alice, { packets: 17000, lost: 20000, frames: 1000, dropped: 0 }), "poor");
+    assert.equal(recordConnection(alice, { packets: 30000, lost: 300, frames: 1800, dropped: 0 }), "fair");
+    mock.timers.tick(80_000);
+    me = people(alice).people.find((p) => p.id === alice.id)!;
+    assert.equal(me.connection, undefined);
+  });
+
+  it("doesn't judge a paused stream", () => {
+    assert.equal(recordConnection(alice, { packets: 50, lost: 10, frames: 5, dropped: 0 }), null);
   });
 });
