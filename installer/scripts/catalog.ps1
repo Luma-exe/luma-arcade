@@ -50,6 +50,10 @@ $OtherDownloads = [ordered]@{
     cloudflared       = @{ Name = 'cloudflared (Cloudflare Tunnel)'; Check = 'exe'; Repo = 'cloudflare/cloudflared'; Pattern = '^cloudflared-windows-amd64\.exe$' }
     # "x86" in the name, but it holds the 64-bit (NTamd64) driver.
     vdd               = @{ Name = 'Virtual Display Driver'; Check = 'MttVDD.inf'; Repo = 'VirtualDrivers/Virtual-Display-Driver'; Pattern = '^VirtualDisplayDriver-x86\.Driver\.Only\.zip$' }
+    # The virtual controller bus Sunshine plugs players' controllers into,
+    # as Xbox 360 or PlayStation 4 pads. (Its last release; the project is
+    # finished, not abandoned-and-broken.)
+    vigembus          = @{ Name = 'ViGEmBus (virtual controllers)'; Check = 'exe'; Repo = 'nefarius/ViGEmBus'; Pattern = '^ViGEmBus_.*_x64_x86_arm64\.exe$' }
     # Microsoft's Xbox 360 controller driver (Windows Server doesn't ship it),
     # from the Microsoft Update Catalog. It hasn't changed since 2009.
     xusb              = @{ Name = 'Xbox 360 controller driver'; Check = 'cab'

@@ -64,9 +64,13 @@ Download `LumaArcadeSetup.exe` and run it. It asks:
    NVIDIA, AMD or Intel graphics for Sunshine to encode with, offers the
    [Virtual Display Driver](https://github.com/VirtualDrivers/Virtual-Display-Driver)
    when no monitor is plugged in (with the screen sizes the stream page can
-   ask for), and installs Microsoft's Xbox 360 controller driver where it's
-   missing (Windows Server) - or has Sunshine emulate PS4 controllers instead.
-4. **Which account runs it** (streaming installs only). A separate account
+   ask for).
+4. **Controllers**: whether players' controllers reach games as Xbox 360
+   pads (recommended) or PlayStation 4 (DualShock 4) pads, and the drivers
+   for them: [ViGEmBus](https://github.com/nefarius/ViGEmBus), the virtual
+   controller driver either kind needs, and Microsoft's Xbox 360 controller
+   driver (Windows Server lacks it; PlayStation 4 pads work without it).
+5. **Which account runs it** (streaming installs only). A separate account
    (default name `Arcade`) is recommended: people who stream see and control
    that account's desktop - open windows, files, browser sessions, saved
    passwords - so a games-only standard account keeps your own account
@@ -74,14 +78,14 @@ Download `LumaArcadeSetup.exe` and run it. It asks:
    (Sunshine can only stream a signed-in desktop; the password is stored as
    an LSA secret like Sysinternals Autologon, not in plain text), and starts
    Luma Arcade when it signs in.
-5. **Your admin account**: the first Luma Arcade account, and Sunshine's
+6. **Your admin account**: the first Luma Arcade account, and Sunshine's
    sign-in if it has none. Setup then pairs the two, so there's nothing to
    set up by hand afterwards.
-6. **Playing from other devices**: HTTPS on the home network
+7. **Playing from other devices**: HTTPS on the home network
    (`https://<this PC>:7778`, a certificate made for this PC - browsers only
    allow controllers and full screen on HTTPS pages), and optionally a
    Cloudflare Tunnel token for playing away from home.
-7. **Folders**: Luma Arcade (`Program Files\LumaArcade`) and a games folder
+8. **Folders**: Luma Arcade (`Program Files\LumaArcade`) and a games folder
    (`C:\Games`: `ES-DE\`, `ES-DE\Emulators\<name>` in the folder names
    ES-DE's portable find rules expect, `ES-DE\ROMs\`). Every account on the
    PC can use the games folder.
@@ -109,7 +113,7 @@ emulators unticked, and starts it again.
     LumaArcadeSetup.exe /S /TYPE=everything|esde|emulators /EMULATORS=all|none|retroarch,dolphin,...
         /GAMESDIR=D:\Games /ACCOUNT=Arcade|current /PASSWORDFILE=<file> /NOAUTOLOGON /NOAUTOSTART
         /ADMINFILE=<file: name and password on two lines> /NOHTTPS /TUNNELTOKENFILE=<file>
-        /SERVER /CLIENT /VDD /NOVDD /XUSB /NOXUSB /DS4 /LATEST /D=C:\Program Files\LumaArcade
+        /SERVER /CLIENT /VDD /NOVDD /VIGEM /NOVIGEM /XUSB /NOXUSB /DS4 /LATEST /D=C:\Program Files\LumaArcade
 
 Secrets go in files (copied, never changed); `/D=` must come last. A new
 games account needs `/PASSWORDFILE`: without one Setup stops with exit code

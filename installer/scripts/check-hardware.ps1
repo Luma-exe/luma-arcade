@@ -7,8 +7,10 @@
 #              screen that's switched on; with none, a virtual display
 #              driver gives it one)
 #   vdd      = 1 if the virtual display driver is already installed
+#   vigem    = 1 if ViGEmBus is installed: Sunshine turns players'
+#              controllers into virtual Xbox 360 or PlayStation 4 pads on it
 #   xusb     = 1 if the Xbox 360 controller driver is installed (Windows
-#              Server doesn't ship it; Sunshine's virtual pads need it)
+#              Server doesn't ship it; virtual Xbox 360 pads need it)
 param([Parameter(Mandatory)] [string]$Out)
 $ErrorActionPreference = 'SilentlyContinue'
 
@@ -27,6 +29,7 @@ $monitors = @(Get-CimInstance -Namespace root\wmi -ClassName WmiMonitorConnectio
 }).Count
 
 $vdd = [bool](Get-CimInstance Win32_PnPEntity -Filter "PNPDeviceID LIKE 'ROOT\\DISPLAY\\%'" | Where-Object { $_.HardwareID -contains 'Root\MttVDD' })
+$vigem = [bool](Get-CimInstance Win32_PnPEntity -Filter "PNPDeviceID LIKE 'ROOT\\SYSTEM\\%'" | Where-Object { $_.HardwareID -contains 'Nefarius\ViGEmBus\Gen1' })
 $xusb = (Test-Path "$env:SystemRoot\System32\drivers\xusb22.sys") -or (Test-Path "$env:SystemRoot\System32\drivers\xusb21.sys")
 
 @(
@@ -34,5 +37,6 @@ $xusb = (Test-Path "$env:SystemRoot\System32\drivers\xusb22.sys") -or (Test-Path
     "encoder=$encoder"
     "monitors=$monitors"
     "vdd=$([int]$vdd)"
+    "vigem=$([int]$vigem)"
     "xusb=$([int]$xusb)"
 ) | Set-Content -Path $Out -Encoding Unicode

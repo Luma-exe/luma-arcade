@@ -43,8 +43,10 @@ Var HwEncoder        ; the graphics card Sunshine can encode with ("" = none)
 Var HwMonitors       ; physical monitors plugged in
 Var HwVdd            ; 1 = virtual display driver installed
 Var HwXusb           ; 1 = Xbox 360 controller driver installed
+Var HwVigem          ; 1 = ViGEmBus (virtual controllers) installed
 Var WantVdd
 Var WantXusb
+Var WantVigem
 Var SeparateAccount  ; 1 = run under its own Windows account
 Var AccountName
 Var AccountPass
@@ -70,8 +72,10 @@ Var hType1
 Var hType2
 Var hClient
 Var hServer
-Var hDs4
+Var hPadX360
+Var hPadDs4
 Var hVdd
+Var hVigem
 Var hXusb
 Var hCurrent
 Var hSeparate
@@ -103,6 +107,7 @@ Page custom SetupTypePage SetupTypeLeave
 !insertmacro MUI_PAGE_COMPONENTS
 Page custom WindowsPage WindowsLeave
 Page custom HardwarePage HardwareLeave
+Page custom ControllersPage ControllersLeave
 Page custom AccountPage AccountLeave
 Page custom AdminPage AdminLeave
 Page custom NetworkPage NetworkLeave
@@ -354,8 +359,11 @@ SectionEnd
 
 Section "-Drivers"
   StrCpy $1 ""
+  ${If} $WantVigem == 1
+    StrCpy $1 "-ViGEm"
+  ${EndIf}
   ${If} $WantXusb == 1
-    StrCpy $1 "-Xusb"
+    StrCpy $1 "$1 -Xusb"
   ${EndIf}
   ${If} $WantVdd == 1
     SetOutPath "$PLUGINSDIR"
@@ -584,11 +592,17 @@ Function .onInit
   ReadINIStr $HwMonitors "$PLUGINSDIR\hardware.ini" "hw" "monitors"
   ReadINIStr $HwVdd "$PLUGINSDIR\hardware.ini" "hw" "vdd"
   ReadINIStr $HwXusb "$PLUGINSDIR\hardware.ini" "hw" "xusb"
+  ReadINIStr $HwVigem "$PLUGINSDIR\hardware.ini" "hw" "vigem"
   ${If} $HwMonitors == ""
     ; The check couldn't run: assume a normal PC.
     StrCpy $HwMonitors 1
     StrCpy $HwVdd 0
     StrCpy $HwXusb 1
+    StrCpy $HwVigem 0
+  ${EndIf}
+  StrCpy $WantVigem 0
+  ${If} $HwVigem != 1
+    StrCpy $WantVigem 1
   ${EndIf}
   StrCpy $WantVdd 0
   ${If} $HwMonitors == 0
@@ -622,7 +636,8 @@ FunctionEnd
 ;   /GAMESDIR=<folder>                 /D=<Luma Arcade folder> (last, no quotes)
 ;   /ACCOUNT=<name>|current            /PASSWORDFILE=<file with its password>
 ;   /NOAUTOLOGON  /NOAUTOSTART         /SERVER  /CLIENT  /DS4
-;   /VDD  /NOVDD  /XUSB  /NOXUSB       /ADMINFILE=<file: admin name, password on two lines>
+;   /VDD  /NOVDD  /XUSB  /NOXUSB  /VIGEM  /NOVIGEM   (/DS4: PlayStation 4 pads, no Xbox 360 driver)
+;   /ADMINFILE=<file: admin name, password on two lines>
 ;   /NOHTTPS  /TUNNELTOKENFILE=<file>  /LATEST (newest downloads, not the tested ones)
 ; Files given are copied, never changed or deleted.
 Function ReadOptions
@@ -705,6 +720,16 @@ Function ReadOptions
     StrCpy $WantVdd 0
   ${EndIf}
   ClearErrors
+  ${GetOptions} $Opts "/VIGEM" $0
+  ${IfNot} ${Errors}
+    StrCpy $WantVigem 1
+  ${EndIf}
+  ClearErrors
+  ${GetOptions} $Opts "/NOVIGEM" $0
+  ${IfNot} ${Errors}
+    StrCpy $WantVigem 0
+  ${EndIf}
+  ClearErrors
   ${GetOptions} $Opts "/XUSB" $0
   ${IfNot} ${Errors}
     StrCpy $WantXusb 1
@@ -751,6 +776,7 @@ Function SilentSetup
   ${EndIf}
   ${IfNot} ${SectionIsSelected} ${SEC_SUNSHINE}
     StrCpy $WantVdd 0
+    StrCpy $WantVigem 0
     StrCpy $WantXusb 0
     StrCpy $Ds4 0
   ${EndIf}
@@ -887,7 +913,7 @@ Function WindowsPage
     ${NSD_Check} $hClient
   ${EndIf}
 
-  ${NSD_CreateLabel} 0 30u 100% 90u "Most people should use normal Windows 10 or 11. Windows Server is worth it for a PC that does nothing but host games, 24/7: it doesn't force feature updates or restart on its own, has no ads or consumer apps running in the background, lets several people be signed in at once over Remote Desktop, and can give virtual machines a slice of the graphics card (GPU partitioning) for more players at once.$\r$\n$\r$\nThe catch: it has no Xbox 360 controller driver and its sound is switched off, some games' anti-cheat and Microsoft Store / Game Pass games won't run, and it costs more to license. On Server, Setup turns the sound on and installs the controller driver for you."
+  ${NSD_CreateLabel} 0 30u 100% 108u "Most people should use normal Windows 10 or 11. Windows Server is worth it for a PC that does nothing but host games, 24/7: it doesn't force feature updates or restart on its own, has no ads or consumer apps running in the background, lets several people be signed in at once over Remote Desktop, and can give virtual machines a slice of the graphics card (GPU partitioning) for more players at once.$\r$\n$\r$\nThe catch: its sound is switched off, it has no Xbox 360 controller driver (so players' controllers can't reach games as Xbox pads), some games' anti-cheat and Microsoft Store / Game Pass games won't run, and it costs more to license. On Server, Setup turns the sound on, and a later page offers the controller drivers: Xbox 360, or PlayStation 4 controllers, which work without it."
   Pop $0
   nsDialogs::Show
 FunctionEnd
@@ -902,12 +928,9 @@ FunctionEnd
 
 ; ---------------------------------------------------------------- hardware
 Function HardwarePage
-  ; Without Sunshine none of this matters (the controller driver is for
-  ; the virtual pads players' controllers become).
+  ; Without Sunshine none of this matters.
   ${IfNot} ${SectionIsSelected} ${SEC_SUNSHINE}
     StrCpy $WantVdd 0
-    StrCpy $WantXusb 0
-    StrCpy $Ds4 0
     Abort
   ${EndIf}
   !insertmacro MUI_HEADER_TEXT "This PC's hardware" "What streaming needs, and the drivers Setup can add."
@@ -936,37 +959,7 @@ Function HardwarePage
   ${EndIf}
   ${NSD_CreateLabel} 12u 47u -12u 26u "$1Sunshine can only stream a screen that's switched on. The virtual display (Virtual Display Driver) gives it one, and switches to each player's own size and frame rate."
   Pop $0
-
-  ${NSD_CreateCheckbox} 0 78u 100% 12u "Install the Xbox 360 controller driver (from Microsoft)"
-  Pop $hXusb
-  ${If} $HwXusb == 1
-    ${NSD_SetText} $hXusb "Xbox 360 controller driver: already installed"
-    EnableWindow $hXusb 0
-  ${ElseIf} $WantXusb == 1
-    ${NSD_Check} $hXusb
-  ${EndIf}
-  ${NSD_CreateLabel} 12u 91u -12u 18u "Players' controllers reach games as Xbox 360 pads, which need it. Windows 10 and 11 have it; Windows Server doesn't."
-  Pop $0
-
-  ${NSD_CreateCheckbox} 0 112u 100% 20u "Without that driver: have Sunshine emulate PlayStation 4 controllers instead (Xbox-only PC games won't see them)"
-  Pop $hDs4
-  ${If} $Ds4 == 1
-    ${NSD_Check} $hDs4
-  ${EndIf}
-  ${NSD_OnClick} $hXusb HardwareToggle
-  Call HardwareToggle
   nsDialogs::Show
-FunctionEnd
-
-Function HardwareToggle
-  ${NSD_GetState} $hXusb $0
-  ${If} $HwXusb == 1
-  ${OrIf} $0 == ${BST_CHECKED}
-    ${NSD_Uncheck} $hDs4
-    EnableWindow $hDs4 0
-  ${Else}
-    EnableWindow $hDs4 1
-  ${EndIf}
 FunctionEnd
 
 Function HardwareLeave
@@ -976,16 +969,91 @@ Function HardwareLeave
   ${AndIf} $HwVdd != 1
     StrCpy $WantVdd 1
   ${EndIf}
+FunctionEnd
+
+; ---------------------------------------------------------------- controllers
+Function ControllersPage
+  ${IfNot} ${SectionIsSelected} ${SEC_SUNSHINE}
+    StrCpy $WantVigem 0
+    StrCpy $WantXusb 0
+    StrCpy $Ds4 0
+    Abort
+  ${EndIf}
+  !insertmacro MUI_HEADER_TEXT "Controllers" "How players' controllers reach this PC's games."
+  nsDialogs::Create 1018
+  Pop $0
+
+  ${NSD_CreateLabel} 0 0 100% 20u "Each player's controller (on their phone, laptop or TV) becomes a virtual controller on this PC, which games see as if it were plugged in. Which kind:"
+  Pop $0
+  ${NSD_CreateRadioButton} 0 22u 100% 12u "Xbox 360 controllers (recommended)"
+  Pop $hPadX360
+  ${NSD_CreateLabel} 12u 34u -12u 10u "Work in nearly every PC game and emulator. They need the Xbox 360 driver below."
+  Pop $0
+  ${NSD_CreateRadioButton} 0 46u 100% 12u "PlayStation 4 controllers (DualShock 4)"
+  Pop $hPadDs4
+  ${NSD_CreateLabel} 12u 58u -12u 18u "PlayStation button prompts, touchpad and motion where games support them, and no Xbox 360 driver needed. Xbox-only PC games won't see them."
+  Pop $0
+  ${If} $Ds4 == 1
+    ${NSD_Check} $hPadDs4
+  ${Else}
+    ${NSD_Check} $hPadX360
+  ${EndIf}
+
+  ${NSD_CreateLabel} 0 82u 100% 10u "Controller drivers:"
+  Pop $0
+  ${NSD_CreateCheckbox} 0 93u 100% 18u "Install ViGEmBus, the virtual controller driver (needed for either kind; Sunshine may already have added it)"
+  Pop $hVigem
+  ${If} $HwVigem == 1
+    ${NSD_SetText} $hVigem "ViGEmBus (virtual controllers): already installed"
+    EnableWindow $hVigem 0
+  ${ElseIf} $WantVigem == 1
+    ${NSD_Check} $hVigem
+  ${EndIf}
+  ${NSD_CreateCheckbox} 0 113u 100% 18u "Install the Xbox 360 controller driver, from Microsoft (Windows 10 and 11 have it; Windows Server doesn't)"
+  Pop $hXusb
+  ${If} $HwXusb == 1
+    ${NSD_SetText} $hXusb "Xbox 360 controller driver: already installed"
+    EnableWindow $hXusb 0
+  ${ElseIf} $WantXusb == 1
+    ${NSD_Check} $hXusb
+  ${EndIf}
+  ${NSD_OnClick} $hPadX360 ControllersToggle
+  ${NSD_OnClick} $hPadDs4 ControllersToggle
+  nsDialogs::Show
+FunctionEnd
+
+; Xbox 360 pads need the Xbox 360 driver: tick it when they're picked.
+Function ControllersToggle
+  ${NSD_GetState} $hPadX360 $0
+  ${If} $0 == ${BST_CHECKED}
+  ${AndIf} $HwXusb != 1
+    ${NSD_Check} $hXusb
+  ${EndIf}
+FunctionEnd
+
+Function ControllersLeave
+  StrCpy $Ds4 0
+  ${NSD_GetState} $hPadDs4 $0
+  ${If} $0 == ${BST_CHECKED}
+    StrCpy $Ds4 1
+  ${EndIf}
+  StrCpy $WantVigem 0
+  ${NSD_GetState} $hVigem $0
+  ${If} $0 == ${BST_CHECKED}
+  ${AndIf} $HwVigem != 1
+    StrCpy $WantVigem 1
+  ${EndIf}
   StrCpy $WantXusb 0
   ${NSD_GetState} $hXusb $0
   ${If} $0 == ${BST_CHECKED}
   ${AndIf} $HwXusb != 1
     StrCpy $WantXusb 1
   ${EndIf}
-  StrCpy $Ds4 0
-  ${NSD_GetState} $hDs4 $0
-  ${If} $0 == ${BST_CHECKED}
-    StrCpy $Ds4 1
+  ${If} $Ds4 == 0
+  ${AndIf} $HwXusb != 1
+  ${AndIf} $WantXusb == 0
+    MessageBox MB_YESNO|MB_ICONQUESTION "Xbox 360 controllers won't work in games without the Xbox 360 controller driver. Continue without it?" IDYES +2
+    Abort
   ${EndIf}
 FunctionEnd
 

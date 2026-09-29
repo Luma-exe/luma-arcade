@@ -1,7 +1,11 @@
 # Drivers a streaming PC may be missing (runs elevated):
+#  -ViGEm           ViGEmBus, the virtual controller bus: Sunshine plugs each
+#                   player's controller into this PC through it, as an Xbox
+#                   360 or a PlayStation 4 (DualShock 4) pad.
 #  -Xusb            Microsoft's Xbox 360 controller driver. Windows Server
-#                   doesn't ship it, and without it Sunshine's virtual
-#                   controllers (and real Xbox pads) don't reach games.
+#                   doesn't ship it, and without it virtual Xbox 360 pads
+#                   (and real Xbox pads) don't reach games. PlayStation 4
+#                   pads don't need it.
 #  -VirtualDisplay  the Virtual Display Driver (MttVDD): a monitor that
 #                   isn't there, for a PC with no screen plugged in. Sunshine
 #                   switches it to each player's size and frame rate.
@@ -10,6 +14,7 @@
 #                   is kept.
 #  -Latest          newest downloads instead of the tested versions
 param(
+    [switch]$ViGEm,
     [switch]$Xusb,
     [switch]$VirtualDisplay,
     [string]$VddSettings = '',
@@ -31,6 +36,29 @@ function Install-Inf([string]$Inf) {
     # 0 = done, 259 = nothing to do (already there), 3010 = done, restart needed.
     if ($LASTEXITCODE -notin 0, 259, 3010) { throw "pnputil failed ($LASTEXITCODE): $($out -join ' ')" }
     if ($LASTEXITCODE -eq 3010) { Write-Note 'Windows needs a restart to finish this driver' }
+}
+
+if ($ViGEm) {
+    Write-Step 'ViGEmBus (virtual Xbox 360 / PlayStation 4 controllers for players)'
+    try {
+        $present = Get-CimInstance Win32_PnPEntity -Filter "PNPDeviceID LIKE 'ROOT\\SYSTEM\\%'" | Where-Object { $_.HardwareID -contains 'Nefarius\ViGEmBus\Gen1' }
+        if ($present) {
+            Write-Note 'already installed'
+        } else {
+            $src = Get-CatalogDownload 'vigembus' -Latest:$Latest
+            $exe = Save-CatalogDownload 'vigembus' $src
+            # Its installer (Advanced Installer): no window, no restart.
+            $p = Start-Process -FilePath $exe -ArgumentList '/exenoui', '/qn', '/norestart' -Wait -PassThru
+            Remove-Item -Force $exe
+            # 3010 = done, restart needed; 1638 = a newer version is already there.
+            if ($p.ExitCode -notin 0, 1638, 3010) { throw "its installer failed (exit code $($p.ExitCode))" }
+            if ($p.ExitCode -eq 3010) { Write-Note 'Windows needs a restart to finish this driver' }
+            Write-Note "installed ($($src.Version))"
+        }
+    } catch {
+        Write-Note "FAILED: $($_.Exception.Message). Get it from github.com/nefarius/ViGEmBus/releases."
+        $failed = $true
+    }
 }
 
 if ($Xusb) {

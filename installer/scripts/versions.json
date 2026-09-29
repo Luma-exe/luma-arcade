@@ -117,6 +117,12 @@
       "assetUrl": "https://api.github.com/repos/VirtualDrivers/Virtual-Display-Driver/releases/assets/275640574",
       "sha256": "E24210692B442B39AF763536330CE78B423F19342B7A7792C26DE3944E418B3A"
     },
+    "vigembus": {
+      "version": "v1.22.0",
+      "name": "ViGEmBus_1.22.0_x64_x86_arm64.exe",
+      "url": "https://github.com/nefarius/ViGEmBus/releases/download/v1.22.0/ViGEmBus_1.22.0_x64_x86_arm64.exe",
+      "sha256": "89220A7865076B342892F98865F3499FB7C4CFD673159E89D352C360FD014C6A"
+    },
     "vita3k": {
       "version": "continuous 2026-09-28",
       "name": "windows-latest.zip",
