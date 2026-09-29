@@ -48,8 +48,10 @@ Download `LumaArcadeSetup.exe` and run it. It asks:
 
    The next page lists every emulator, so you can untick the ones you don't
    want. ES-DE, the emulators and Sunshine are downloaded from their official
-   releases at install time (`installer/scripts`), so the PC must be online.
-   BIOS/firmware files are never included.
+   releases at install time, so the PC must be online - the versions tested
+   with Luma Arcade, listed with their checksums in
+   `installer/scripts/versions.json` (a download that doesn't match its
+   checksum isn't installed). BIOS/firmware files are never included.
 2. **Which Windows** (detected for you). Normal Windows 10/11 is right for
    most people. Windows Server suits a PC that only hosts games, 24/7: no
    forced feature updates or surprise restarts, no consumer apps in the
@@ -57,8 +59,14 @@ Download `LumaArcadeSetup.exe` and run it. It asks:
    GPU partitioning for virtual machines. The downsides: no Xbox 360
    controller driver, sound switched off, some anti-cheat and Store/Game
    Pass games won't run, and it costs more. On Server the installer turns
-   sound on and can make Sunshine emulate PS4 controllers instead.
-3. **Which account runs it** (streaming installs only). A separate account
+   sound on.
+3. **This PC's hardware** (streaming installs). Warns when there's no
+   NVIDIA, AMD or Intel graphics for Sunshine to encode with, offers the
+   [Virtual Display Driver](https://github.com/VirtualDrivers/Virtual-Display-Driver)
+   when no monitor is plugged in (with the screen sizes the stream page can
+   ask for), and installs Microsoft's Xbox 360 controller driver where it's
+   missing (Windows Server) - or has Sunshine emulate PS4 controllers instead.
+4. **Which account runs it** (streaming installs only). A separate account
    (default name `Arcade`) is recommended: people who stream see and control
    that account's desktop - open windows, files, browser sessions, saved
    passwords - so a games-only standard account keeps your own account
@@ -66,15 +74,48 @@ Download `LumaArcadeSetup.exe` and run it. It asks:
    (Sunshine can only stream a signed-in desktop; the password is stored as
    an LSA secret like Sysinternals Autologon, not in plain text), and starts
    Luma Arcade when it signs in.
-4. **Folders**: Luma Arcade (`Program Files\LumaArcade`) and a games folder
+5. **Your admin account**: the first Luma Arcade account, and Sunshine's
+   sign-in if it has none. Setup then pairs the two, so there's nothing to
+   set up by hand afterwards.
+6. **Playing from other devices**: HTTPS on the home network
+   (`https://<this PC>:7778`, a certificate made for this PC - browsers only
+   allow controllers and full screen on HTTPS pages), and optionally a
+   Cloudflare Tunnel token for playing away from home.
+7. **Folders**: Luma Arcade (`Program Files\LumaArcade`) and a games folder
    (`C:\Games`: `ES-DE\`, `ES-DE\Emulators\<name>` in the folder names
    ES-DE's portable find rules expect, `ES-DE\ROMs\`). Every account on the
    PC can use the games folder.
 
-Afterwards, `NEXT-STEPS.txt` (Sunshine password, first sign-in, pairing) and
+It also installs the PC-side half of Luma Arcade into
+`C:\ProgramData\LumaArcade`: the scripts and scheduled tasks behind lockdown,
+the Home button, the window picker, per-player saves, game tracking and the
+focus fix, Sunshine's prep-cmd for ES-DE and Big Picture, and ES-DE's event
+scripts (`installer/scripts/install-host.ps1`; `host.json` there says where
+ES-DE, the emulators and the saves are).
+
+Afterwards, `NEXT-STEPS.txt` (signing in, other devices) and
 `READ ME - games setup.txt` (where games and BIOS files go) open. To add or
 update emulators later, run `<games folder>\setup\install-games.ps1` as
-administrator (`-Emulators retroarch,dolphin,...`, `-ListOnly` to check).
+administrator (`-Emulators retroarch,dolphin,...`, `-ListOnly` to check, `-Latest`
+for the newest releases instead of the tested ones).
+
+**Upgrading**: run the new `LumaArcadeSetup.exe`. It finds the installed copy,
+stops it, replaces its files (keeping the database, moonlight's `data.json`
+and `config.json`, and the HTTPS certificate), leaves already-installed
+emulators unticked, and starts it again.
+
+**Silent installs** (`/S`, for scripted setups), all options optional:
+
+    LumaArcadeSetup.exe /S /TYPE=everything|esde|emulators /EMULATORS=all|none|retroarch,dolphin,...
+        /GAMESDIR=D:\Games /ACCOUNT=Arcade|current /PASSWORDFILE=<file> /NOAUTOLOGON /NOAUTOSTART
+        /ADMINFILE=<file: name and password on two lines> /NOHTTPS /TUNNELTOKENFILE=<file>
+        /SERVER /CLIENT /VDD /NOVDD /XUSB /NOXUSB /DS4 /LATEST /D=C:\Program Files\LumaArcade
+
+Secrets go in files (copied, never changed); `/D=` must come last. A new
+games account needs `/PASSWORDFILE`: without one Setup stops with exit code
+2 before changing anything. `Uninstall.exe /S` removes Luma Arcade
+and keeps its data; add `/REMOVEAUTOLOGON` and/or `/REMOVEACCOUNT` to stop the
+games account signing in / delete it (the uninstaller asks, otherwise).
 
 ## Host setup by hand (without the installer)
 
@@ -127,14 +168,23 @@ Produces `installer/output/LumaArcadeSetup.exe`, an admin install (Sunshine,
 Windows accounts and the Server fixes need it). It bundles the built server,
 a copied `node.exe`, production-only `node_modules`, and the customized
 moonlight-web-stream from `../moonlight-web-stream-bin/package` (override
-with `MOONLIGHT_PACKAGE_DIR`) - only its executables, `static\`, `config.json`
-(with `session_cookie_secure` off for a first sign-in over plain http) and
-the TURN script; never `data.json` (users and pairing key),
-`cloudflare_turn.json` or backups. On first start LumaArcade uses that
-bundled copy if no moonlight path is set (`server/src/config/bundled.ts`).
-`installer/LumaArcade.nsi` is the installer; `installer/scripts/*.ps1` are
-the steps it runs (`install-games.ps1`, `install-sunshine.ps1`,
-`setup-windows.ps1`).
+with `MOONLIGHT_PACKAGE_DIR`) - only its executables, `static\`, its config
+(as `config.default.json`, with `session_cookie_secure` off for a first sign-in
+over plain http), the TURN script and the PC-side helper scripts from its
+`host\`; never `data.json` (users and pairing key), `cloudflare_turn.json` or
+backups. On first start LumaArcade uses that bundled copy if no moonlight
+path is set (`server/src/config/bundled.ts`).
+`installer/LumaArcade.nsi` is the installer; `installer/scripts` holds the steps it
+runs: `install-games.ps1`, `install-sunshine.ps1`, `install-drivers.ps1`,
+`setup-windows.ps1`, `install-host.ps1`, `setup-network.ps1`, `first-run.mjs`
+(admin account + pairing), `stop-luma.ps1` (upgrades), `uninstall-host.ps1`.
+
+The download versions are pinned in `installer/scripts/versions.json`
+(`catalog.ps1` says where each comes from). `update-versions.ps1` finds newer
+releases, downloads and checks each one, and pins the good ones; the
+"Tested versions" GitHub workflow runs it every Monday and opens a pull
+request (it needs "Allow GitHub Actions to create and approve pull requests"
+in the repository's Actions settings).
 
 ## Architecture notes
 

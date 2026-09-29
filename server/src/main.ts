@@ -21,7 +21,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function main() {
   timestampStderr();
-  const dbPath = path.join(__dirname, "..", "luma-arcade.db");
+  const serverDir = path.join(__dirname, "..");
+  const dbPath = path.join(serverDir, "luma-arcade.db");
   initDb(dbPath);
   // Installed with the Windows installer: server\dist\main.js -> the install folder.
   const bundled = useBundledMoonlight(path.join(__dirname, "..", ".."));
@@ -36,10 +37,12 @@ async function main() {
     .catch(() => {});
   const { port } = getAllSettings();
 
+  let httpsPort: number | null = null;
   try {
-    const app = await createServer({ port });
-    startWatchdog(app.log);
-    startLockdown(app.log);
+    const server = await createServer({ port, serverDir });
+    httpsPort = server.httpsPort;
+    startWatchdog(server.app.log);
+    startLockdown(server.app.log);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "EADDRINUSE") {
       console.error(await explainPortInUse(port));
@@ -49,6 +52,7 @@ async function main() {
 
   const portalUrl = `http://localhost:${port}`;
   console.log(`LumaArcade listening at ${portalUrl}`);
+  if (httpsPort) console.log(`HTTPS for the home network at https://localhost:${httpsPort}`);
 
   syncMoonlightWithSettings();
 

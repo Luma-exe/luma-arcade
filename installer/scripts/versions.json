@@ -1,0 +1,149 @@
+{
+  "comment": "Download versions the installer uses, checked by installer/scripts/update-versions.ps1. Change them with that script, not by hand.",
+  "updated": "2026-09-30",
+  "downloads": {
+    "7zr": {
+      "version": "26.03",
+      "name": "7zr.exe",
+      "url": "https://www.7-zip.org/a/7zr.exe",
+      "sha256": "AD4C82FADCBDF93C03B4FC440F300509C7D60C5C2F4D183E35D9D70D6957037D"
+    },
+    "azahar": {
+      "version": "2126.1.2",
+      "name": "azahar-windows-msvc-2126.1.2.zip",
+      "url": "https://github.com/azahar-emu/azahar/releases/download/2126.1.2/azahar-windows-msvc-2126.1.2.zip",
+      "assetUrl": "https://api.github.com/repos/azahar-emu/azahar/releases/assets/577735539",
+      "sha256": "BBFF556D1736301DEBDEC2872A5E9F3678C52E84261AABAA4F708E55DB9AE139"
+    },
+    "cemu": {
+      "version": "v2.6",
+      "name": "cemu-2.6-windows-x64.zip",
+      "url": "https://github.com/cemu-project/Cemu/releases/download/v2.6/cemu-2.6-windows-x64.zip",
+      "assetUrl": "https://api.github.com/repos/cemu-project/Cemu/releases/assets/226842899",
+      "sha256": "A6BCC2BC42A362D10213819948F3152FAE7D47F70067F25939B51D3DDCFB0896"
+    },
+    "cloudflared": {
+      "version": "2026.9.3",
+      "name": "cloudflared-windows-amd64.exe",
+      "url": "https://github.com/cloudflare/cloudflared/releases/download/2026.9.3/cloudflared-windows-amd64.exe",
+      "assetUrl": "https://api.github.com/repos/cloudflare/cloudflared/releases/assets/586327964",
+      "sha256": "F096265EC2FCBE9BB6E2D64268DB167CED3FCBB83D894BDB9E2FCDB26F2EA7E2"
+    },
+    "dolphin": {
+      "version": "2609",
+      "name": "dolphin-2609-x64.7z",
+      "url": "https://dl.dolphin-emu.org/releases/2609/dolphin-2609-x64.7z",
+      "sha256": "1AA25785B7D4CB76259754C5FBCDD8856857B8E7BB4E523C57A8AC56665FBA75"
+    },
+    "duckstation": {
+      "version": "latest 2026-09-12",
+      "name": "duckstation-windows-x64-release.zip",
+      "url": "https://github.com/stenzek/duckstation/releases/download/latest/duckstation-windows-x64-release.zip",
+      "assetUrl": "https://api.github.com/repos/stenzek/duckstation/releases/assets/559221312",
+      "rolling": "true",
+      "sha256": "5BA3B9624B3073D3398C2CB8185BA3A014FF9E84F9C486627E0E8AA56371D352"
+    },
+    "esde": {
+      "version": "v3.4.1",
+      "name": "ES-DE-portable.zip",
+      "url": "https://gitlab.com/es-de/emulationstation-de/-/package_files/288156909/download",
+      "sha256": "B082110241A5A672353729E3787609F406C4C149DDDBD791993BDA0A3185D4B5"
+    },
+    "flycast": {
+      "version": "v2.7",
+      "name": "flycast-win64-2.7.zip",
+      "url": "https://github.com/flyinghead/flycast/releases/download/v2.7/flycast-win64-2.7.zip",
+      "assetUrl": "https://api.github.com/repos/flyinghead/flycast/releases/assets/520813551",
+      "sha256": "7EDF489BA6B3053703A18CE8233767EB71A2D89E4BDA0421B312C2167A739161"
+    },
+    "melonds": {
+      "version": "1.1",
+      "name": "melonDS-1.1-windows-x86_64.zip",
+      "url": "https://github.com/melonDS-emu/melonDS/releases/download/1.1/melonDS-1.1-windows-x86_64.zip",
+      "assetUrl": "https://api.github.com/repos/melonDS-emu/melonDS/releases/assets/317872508",
+      "sha256": "9F3F8A244103BE20B5B657AF5B0ED1B2A66BB20A7181476A6D294C9A53D4F8C8"
+    },
+    "pcsx2": {
+      "version": "v2.8.2",
+      "name": "pcsx2-v2.8.2-windows-x64-Qt.7z",
+      "url": "https://github.com/PCSX2/pcsx2/releases/download/v2.8.2/pcsx2-v2.8.2-windows-x64-Qt.7z",
+      "assetUrl": "https://api.github.com/repos/PCSX2/pcsx2/releases/assets/544610696",
+      "sha256": "7DFC829CA1994CC1045AC49F05E39B6CF968B72E6A374C40E05C2A2B4AC200B4"
+    },
+    "ppsspp": {
+      "version": "v1.20.4",
+      "name": "PPSSPP-v1.20.4-Windows-x64.zip",
+      "url": "https://github.com/hrydgard/ppsspp/releases/download/v1.20.4/PPSSPP-v1.20.4-Windows-x64.zip",
+      "assetUrl": "https://api.github.com/repos/hrydgard/ppsspp/releases/assets/421816268",
+      "sha256": "FBC9CD2F5131B159A92424E5C458C35CE43BA603CDDED64DFC98E4BD4F17FF93"
+    },
+    "retroarch": {
+      "version": "1.22.2",
+      "name": "RetroArch.7z",
+      "url": "https://buildbot.libretro.com/stable/1.22.2/windows/x86_64/RetroArch.7z",
+      "sha256": "B2139B1D0F9D4526DC6B5CE23CBB3EFDC766096FA6F2C3DF016818B486AC6372"
+    },
+    "retroarch-cores": {
+      "version": "1.22.2",
+      "name": "RetroArch_cores.7z",
+      "url": "https://buildbot.libretro.com/stable/1.22.2/windows/x86_64/RetroArch_cores.7z",
+      "sha256": "86B871E11B9B4772AC644B40A38F2C8E9449DA1F355EAE7DA08AA061148547B0"
+    },
+    "rpcs3": {
+      "version": "build-3e9d881aa681f4ade80f86e9ff7fba73d5098a9b",
+      "name": "rpcs3-v0.0.42-20083-3e9d881a_win64_msvc.7z",
+      "url": "https://github.com/RPCS3/rpcs3-binaries-win/releases/download/build-3e9d881aa681f4ade80f86e9ff7fba73d5098a9b/rpcs3-v0.0.42-20083-3e9d881a_win64_msvc.7z",
+      "assetUrl": "https://api.github.com/repos/RPCS3/rpcs3-binaries-win/releases/assets/598520241",
+      "sha256": "A03B955B5B738AD02465F55A45BEEF171414E0C7177348B95CCC3A5D20D2D0E1"
+    },
+    "shadps4": {
+      "version": "v.0.18.0",
+      "name": "shadps4-win64-sdl-0.18.0.zip",
+      "url": "https://github.com/shadps4-emu/shadPS4/releases/download/v.0.18.0/shadps4-win64-sdl-0.18.0.zip",
+      "assetUrl": "https://api.github.com/repos/shadps4-emu/shadPS4/releases/assets/519167613",
+      "sha256": "EA273C6A2B296D4CEE2E3DC45414FA9077F5FB43679784D1C43EEE97A484FCC8"
+    },
+    "sunshine": {
+      "version": "v2026.914.233613",
+      "name": "Sunshine-Windows-AMD64-installer.msi",
+      "url": "https://github.com/LizardByte/Sunshine/releases/download/v2026.914.233613/Sunshine-Windows-AMD64-installer.msi",
+      "assetUrl": "https://api.github.com/repos/LizardByte/Sunshine/releases/assets/564601268",
+      "sha256": "1D7FED8BEECD5889DC7FF14CF9F42D6D38F37C3066C13C6C2A5F4E91847E0CCF"
+    },
+    "vdd": {
+      "version": "25.7.23",
+      "name": "VirtualDisplayDriver-x86.Driver.Only.zip",
+      "url": "https://github.com/VirtualDrivers/Virtual-Display-Driver/releases/download/25.7.23/VirtualDisplayDriver-x86.Driver.Only.zip",
+      "assetUrl": "https://api.github.com/repos/VirtualDrivers/Virtual-Display-Driver/releases/assets/275640574",
+      "sha256": "E24210692B442B39AF763536330CE78B423F19342B7A7792C26DE3944E418B3A"
+    },
+    "vita3k": {
+      "version": "continuous 2026-09-28",
+      "name": "windows-latest.zip",
+      "url": "https://github.com/Vita3K/Vita3K/releases/download/continuous/windows-latest.zip",
+      "assetUrl": "https://api.github.com/repos/Vita3K/Vita3K/releases/assets/593123368",
+      "rolling": "true",
+      "sha256": "F9302631F1557C7B14E5A2B63FDF13F7A7F2B1D336D6FEDAB453C5F4D09B8D31"
+    },
+    "xemu": {
+      "version": "v0.8.136",
+      "name": "xemu-0.8.136-windows-x86_64.zip",
+      "url": "https://github.com/xemu-project/xemu/releases/download/v0.8.136/xemu-0.8.136-windows-x86_64.zip",
+      "assetUrl": "https://api.github.com/repos/xemu-project/xemu/releases/assets/441463408",
+      "sha256": "B25A6C24A2C2C36A0843A153CD9EE59CA6833EF87BDCD855BA0824930E4DDD1D"
+    },
+    "xenia": {
+      "version": "02d2cb5",
+      "name": "xenia_canary_windows_.zip",
+      "url": "https://github.com/xenia-canary/xenia-canary-releases/releases/download/02d2cb5/xenia_canary_windows_.zip",
+      "assetUrl": "https://api.github.com/repos/xenia-canary/xenia-canary-releases/releases/assets/380260837",
+      "sha256": "1ADBB2C1C69CBD5FABADB43D03B4C407DB3B245DE922E11ABA699867C68D0796"
+    },
+    "xusb": {
+      "version": "2.1.0.1349",
+      "name": "xusb21.cab",
+      "url": "https://catalog.s.download.windowsupdate.com/msdownload/update/driver/drvs/2013/01/20289581_7385d6be1b053a35955a910f11436729a1d4cb56.cab",
+      "sha256": "49BD427E53F5C63A1A03B791CF6DEEEFE3A2AC5700DC4DB5E39FAD98F3070FA6"
+    }
+  }
+}

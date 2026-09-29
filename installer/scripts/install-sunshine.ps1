@@ -1,13 +1,20 @@
-# Installs Sunshine (the streaming host) from its latest official release,
-# unless it's already installed, and lists ES-DE as a Sunshine app.
+# Installs Sunshine (the streaming host), unless it's already installed, and
+# lists ES-DE as a Sunshine app.
 #  -EsDeExe   ES-DE.exe to add as an app (skipped if Sunshine already has one)
 #  -Ds4       make Sunshine's virtual controllers PS4 pads instead of Xbox 360
 #             ones (for Windows Server without the Xbox 360 driver)
+#  -AdminFile the admin's name and password (two lines): Sunshine's web page
+#             sign-in, set when Sunshine doesn't have one yet (the file is
+#             left for the pairing step, first-run.mjs)
+#  -Latest    the newest Sunshine instead of the tested version
 param(
     [string]$EsDeExe = '',
-    [switch]$Ds4
+    [switch]$Ds4,
+    [string]$AdminFile = '',
+    [switch]$Latest
 )
 . (Join-Path $PSScriptRoot 'common.ps1')
+. (Join-Path $PSScriptRoot 'catalog.ps1')
 
 $sunshineDir = Join-Path $env:ProgramFiles 'Sunshine'
 $configDir = Join-Path $sunshineDir 'config'
@@ -16,9 +23,9 @@ if (Get-Service -Name SunshineService -ErrorAction SilentlyContinue) {
     Write-Step 'Sunshine is already installed: keeping it'
 } else {
     Write-Step 'Sunshine (streams this PC''s screen, sound and controllers)'
-    $asset = Get-GitHubAsset 'LizardByte/Sunshine' 'Windows-AMD64-installer\.msi$'
-    Write-Note "$($asset.Name) ($($asset.Version))"
-    $msi = Save-Download $asset.Url $asset.Name
+    $src = Get-CatalogDownload 'sunshine' -Latest:$Latest
+    Write-Note "$($src.Name) ($($src.Version)$(if (-not $src.Pinned) { ', newest' }))"
+    $msi = Save-CatalogDownload 'sunshine' $src
     $p = Start-Process msiexec.exe -ArgumentList '/i', "`"$msi`"", '/qn', '/norestart' -Wait -PassThru
     Remove-Item -Force $msi
     # 3010 = installed, restart needed later.
@@ -60,7 +67,27 @@ if ($Ds4) {
     $changed = $true
 }
 
+$signIn = $false
+$admin = $null
+$lines = @(Read-SecretFile $AdminFile -Keep) -split "`r?`n"
+if ($lines.Count -ge 2 -and $lines[0] -and $lines[1]) { $admin = [pscustomobject]@{ name = $lines[0]; password = $lines[1] } }
+$lines = $null
+if ($admin) {
+    $state = Join-Path $configDir 'sunshine_state.json'
+    $hasUser = (Test-Path $state) -and [bool](Get-Content -Raw $state | ConvertFrom-Json).username
+    if ($hasUser) {
+        Write-Note 'Sunshine already has a sign-in: keeping it'
+    } else {
+        Write-Step "Sunshine's web page sign-in: $($admin.name)"
+        $p = Start-Process -FilePath (Join-Path $sunshineDir 'sunshine.exe') -ArgumentList '--creds', (ConvertTo-Argument $admin.name), (ConvertTo-Argument $admin.password) `
+            -WorkingDirectory $sunshineDir -WindowStyle Hidden -Wait -PassThru
+        if ($p.ExitCode) { Write-Note "FAILED (exit code $($p.ExitCode)): set it at https://localhost:47990" } else { $changed = $true; $signIn = $true }
+    }
+}
+$admin = $null
+
 # Sunshine only rereads its config when its service restarts.
 if ($changed) { Restart-Service SunshineService -Force -ErrorAction SilentlyContinue }
 
-Write-Step 'Sunshine done. Open https://localhost:47990 once to set its admin name and password.'
+if ($signIn -or $hasUser) { Write-Step 'Sunshine done.' }
+else { Write-Step 'Sunshine done. Open https://localhost:47990 once to set its admin name and password.' }

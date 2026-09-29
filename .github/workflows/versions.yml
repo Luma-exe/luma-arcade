@@ -1,0 +1,48 @@
+# Keeps installer/scripts/versions.json - the download versions the
+# installer uses, with checksums - up to date. Every Monday it looks for new
+# releases of Sunshine, ES-DE, the emulators and the drivers, downloads
+# each one and checks it (the emulator's .exe is in the archive, the .msi is
+# an installer...), then opens a pull request with the new pins. Nothing
+# reaches installs until that pull request is merged; a download that fails
+# its check keeps its old pin and is listed in the pull request.
+#
+# Needs Settings > Actions > General > "Allow GitHub Actions to create and
+# approve pull requests".
+name: Tested versions
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  update:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for new releases
+        shell: powershell
+        env:
+          # Higher GitHub API rate limit for the release lookups.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: installer/scripts/update-versions.ps1 -SummaryFile "$env:RUNNER_TEMP\versions.md"
+      - name: Summary
+        shell: powershell
+        run: Get-Content "$env:RUNNER_TEMP\versions.md" | Add-Content $env:GITHUB_STEP_SUMMARY
+      - name: Read the summary
+        id: summary
+        shell: powershell
+        run: |
+          $body = Get-Content -Raw "$env:RUNNER_TEMP\versions.md"
+          "body<<LUMA_EOF`n$body`nLUMA_EOF" | Add-Content $env:GITHUB_OUTPUT
+      - uses: peter-evans/create-pull-request@v7
+        with:
+          branch: tested-versions
+          commit-message: "Installer: new tested download versions"
+          title: "Installer: new tested download versions"
+          body: |
+            ${{ steps.summary.outputs.body }}
+
+            Found and checked by the "Tested versions" workflow (installer/scripts/update-versions.ps1). Each new download was fetched and checked, and its SHA-256 recorded; installs use these versions once this is merged. Worth a quick try of the installer (or `install-games.ps1 -ListOnly`) before merging.
+          add-paths: installer/scripts/versions.json

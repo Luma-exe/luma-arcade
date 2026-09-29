@@ -18,8 +18,10 @@ import { registerGameRoutes } from "./routes/games.js";
 import { registerWelcomeRoutes } from "./routes/welcome.js";
 import { MOONLIGHT_PATH_PREFIX } from "../remote/moonlightWebStream.js";
 import { TRUSTED_PROXIES } from "./requestOrigin.js";
+import { registerHttpsRoutes, startHttps } from "./https.js";
 
-export async function createServer(opts: { port: number }) {
+/** serverDir: the server folder (luma-arcade.db, https.json). */
+export async function createServer(opts: { port: number; serverDir: string }) {
   const app = Fastify({
     logger: { level: process.env.LUMA_LOG_LEVEL || "info" },
     // cloudflared (and the Vite dev proxy) connect from loopback; trusting
@@ -56,8 +58,14 @@ export async function createServer(opts: { port: number }) {
   await registerPollRoutes(app);
   await registerGameRoutes(app);
   await registerWelcomeRoutes(app);
+  await registerHttpsRoutes(app, opts.serverDir);
 
   await app.listen({ port: opts.port, host: "0.0.0.0" });
+  const httpsPort = await startHttps(app, opts.serverDir).catch((err) => {
+    // The site still works over plain HTTP.
+    app.log.error({ err }, "couldn't start HTTPS for the home network");
+    return null;
+  });
 
-  return app;
+  return { app, httpsPort };
 }

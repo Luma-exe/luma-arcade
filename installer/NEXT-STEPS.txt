@@ -1,35 +1,50 @@
 Luma Arcade - next steps
 ========================
 
-1. Sunshine's admin password
-   Open https://localhost:47990 on this PC (accept the certificate warning)
-   and choose a name and password. Only you need these.
+1. Sign in
+   Open http://localhost:7777 on this PC and sign in with the admin account
+   you chose in Setup. Setup already paired Luma Arcade with Sunshine, so
+   the PC's games (ES-DE, Desktop, Steam Big Picture) are ready.
 
-2. Your Luma Arcade account
-   Open http://localhost:7777 on this PC. The first account you create
-   becomes the admin.
+   Skipped the admin account in Setup, or it said pairing didn't work?
+   a. Open https://localhost:47990 on this PC (accept the certificate
+      warning) and choose Sunshine's admin name and password.
+   b. Open http://localhost:7777 and create an account: the first one
+      becomes the admin.
+   c. In Luma Arcade, add a PC with the address "localhost". It shows a PIN:
+      type it into Sunshine's page (https://localhost:47990 > PIN).
 
-3. Pair Luma Arcade with this PC
-   In Luma Arcade, add a PC with the address "localhost". It shows a PIN:
-   type it into Sunshine's page (https://localhost:47990 > PIN) and the PC
-   appears in Luma Arcade with ES-DE, Desktop and Steam Big Picture.
+2. Play from other devices
+   Browsers only allow game controllers and full screen on HTTPS pages (or
+   localhost).
+   - At home: open https://<this PC's name or IP>:7778 in any browser. The
+     certificate is made for this PC, so each device warns about it once:
+     continue anyway (Advanced > Proceed). To stop the warning for good,
+     open http://<this PC>:7777/luma-arcade.cer on that device and install
+     it as a trusted certificate.
+     (Plain http://<this PC>:7777 works too, but without controllers.)
+   - Away from home: if you gave Setup a Cloudflare Tunnel token, give the
+     tunnel a public hostname in the Cloudflare dashboard (Zero Trust >
+     Networks > Tunnels > your tunnel > Public hostname) pointing at
+     http://localhost:7777. Then turn "session_cookie_secure" on in
+     moonlight-web-stream\server\config.json if everyone plays through the
+     tunnel (it stops sign-in working over plain http).
 
-4. Play from other devices
-   - At home: open http://<this PC's name or IP>:7777 in any browser.
-   - Away from home: put Luma Arcade behind HTTPS, e.g. a Cloudflare Tunnel
-     to http://127.0.0.1:7777 (then turn "session_cookie_secure" back on in
-     moonlight-web-stream\server\config.json). Browsers only allow game
-     controllers and full screen on HTTPS pages (or localhost).
-
-5. If you chose a separate games account
+3. If you chose a separate games account
    Sign in to it once (or restart the PC if it signs in by itself): Luma
    Arcade starts with it, and Sunshine streams its desktop. Keep your own
    account signed out while people play.
 
-6. Windows Server
-   Install "Xbox 360 Controller for Windows" from the Microsoft Update
-   Catalog if you want Xbox controllers in games (or keep Sunshine's PS4
-   controller emulation, if you picked it).
+4. On this PC
+   Setup also installed Luma Arcade's helper scripts in
+   C:\ProgramData\LumaArcade: lockdown while guests play, the stream page's
+   Home button and window picker, per-player saves, game tracking and
+   keeping ES-DE out of the way during games. Luma Arcade's Host Health
+   (Settings, as the admin) checks them, Sunshine, the drivers and the
+   virtual display.
+
+Upgrading later: run the new LumaArcadeSetup.exe - it keeps your accounts,
+settings and games.
 
 Your games, BIOS files and emulator settings: see "READ ME - games setup.txt"
 in your games folder.

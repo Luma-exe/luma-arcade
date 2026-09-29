@@ -79,7 +79,29 @@ const config = JSON.parse(readFileSync(path.join(MOONLIGHT_DIR, "server", "confi
 // network), where secure-only cookies would make signing in impossible.
 config.web_server.session_cookie_secure = false;
 config.moonlight.pair_device_name = "LumaArcade";
-writeFileSync(path.join(moonlightStage, "server", "config.json"), JSON.stringify(config, null, 4));
+// Setup's first-run.mjs creates the admin by signing in first, then makes
+// the paired PC everyone's.
+config.web_server.first_login_create_admin = true;
+config.web_server.first_login_assign_global_hosts = true;
+// Installed as config.json only when there's none: an upgrade keeps the
+// user's own changes.
+writeFileSync(path.join(moonlightStage, "server", "config.default.json"), JSON.stringify(config, null, 4));
+
+console.log("=== 4b. Staging the PC-side helper scripts ===");
+// Installed into C:\ProgramData\LumaArcade by installer/scripts/install-host.ps1.
+// sync-steam*.ps1 aren't included: they're for one PC's Steam library.
+const hostStage = path.join(stagingDir, "host");
+mkdirSync(hostStage, { recursive: true });
+const hostFiles = [
+  [MOONLIGHT_DIR, ["home.ps1", "lockdown.ps1", "lockdown-shells.ps1", "focus-app.ps1", "stream-start.ps1", "esde-game-events.ps1", "vdd_settings.xml"]],
+  [repoRoot, ["profiles.ps1", "esde-game-started.ps1"]],
+];
+for (const [root, files] of hostFiles) {
+  for (const file of files) cpSync(path.join(root, "host", file), path.join(hostStage, file));
+}
+if (!existsSync(path.join(__dirname, "scripts", "versions.json"))) {
+  throw new Error("installer/scripts/versions.json is missing — run installer/scripts/update-versions.ps1");
+}
 
 console.log("=== 5. Copying portable node.exe ===");
 if (!existsSync(NODE_EXE)) {

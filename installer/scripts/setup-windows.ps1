@@ -1,9 +1,11 @@
 # Windows-side setup for the installer (runs elevated):
 #  -Server           Windows Server fixes: turns on the audio service (off by
-#                    default there) and reports the missing Xbox 360 driver.
+#                    default there). The Xbox 360 driver it lacks is
+#                    install-drivers.ps1's job.
 #  -Account          the account LumaArcade and the games run under. Created
 #                    if it doesn't exist (password read from -PasswordFile,
-#                    which is deleted straight after).
+#                    which is deleted straight after unless -KeepPasswordFile:
+#                    a file someone gave a silent install is theirs).
 #  -AutoLogon        signs that account in when the PC starts (Sunshine can
 #                    only stream a signed-in desktop). The password is kept
 #                    as an LSA secret like Sysinternals Autologon does, not
@@ -13,33 +15,26 @@
 #                    firewall lets the home network reach the web page and
 #                    browsers reach the stream's video directly.
 #  -Autostart        start LumaArcade whenever the account signs in.
+#  -Port             LumaArcade's port, for the firewall.
 param(
     [switch]$Server,
     [string]$Account = '',
     [string]$PasswordFile = '',
+    [switch]$KeepPasswordFile,
     [switch]$AutoLogon,
     [string]$LumaDir = '',
-    [switch]$Autostart
+    [switch]$Autostart,
+    [int]$Port = 7777
 )
 . (Join-Path $PSScriptRoot 'common.ps1')
 
-$password = $null
-if ($PasswordFile -and (Test-Path $PasswordFile)) {
-    $password = (Get-Content -Raw -LiteralPath $PasswordFile).TrimEnd("`r", "`n")
-    Remove-Item -Force -LiteralPath $PasswordFile
-}
+$password = Read-SecretFile $PasswordFile -Keep:$KeepPasswordFile
 
 if ($Server) {
     Write-Step 'Windows Server: turning on sound'
     foreach ($svc in 'AudioEndpointBuilder', 'Audiosrv') {
         Set-Service -Name $svc -StartupType Automatic
         Start-Service -Name $svc -ErrorAction SilentlyContinue
-    }
-    $xusb = & pnputil.exe /enum-drivers 2>$null | Select-String -Pattern 'xusb2\d\.inf' -Quiet
-    if (-not $xusb) {
-        Write-Note 'The Xbox 360 controller driver (xusb) is not installed. Windows Server does not ship it:'
-        Write-Note 'controllers (and Sunshine''s virtual ones) won''t work in games until you install'
-        Write-Note '"Xbox 360 Controller for Windows" from the Microsoft Update Catalog.'
     }
 }
 
@@ -64,7 +59,12 @@ if ($AutoLogon) {
     Write-Step "Signing $Account in automatically when the PC starts"
     Add-Type -AssemblyName System.DirectoryServices.AccountManagement
     $ctx = New-Object System.DirectoryServices.AccountManagement.PrincipalContext('Machine')
-    if (-not $password -or -not $ctx.ValidateCredentials($Account, $password)) {
+    $winlogon = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
+    $current = Get-ItemProperty $winlogon
+    if (-not $password -and $current.AutoAdminLogon -eq '1' -and $current.DefaultUserName -ieq $Account) {
+        # An upgrade: already set up, and Setup wasn't given the password again.
+        Write-Note 'already set up'
+    } elseif (-not $password -or -not $ctx.ValidateCredentials($Account, $password)) {
         Write-Note "SKIPPED: that isn't $Account's password. Set it up later with Sysinternals Autologon."
     } else {
         Add-Type -Namespace LumaSetup -Name Lsa -MemberDefinition @'
@@ -97,7 +97,6 @@ public static void StoreSecret(string name, string value) {
 }
 '@
         [LumaSetup.Lsa]::StoreSecret('DefaultPassword', $password)
-        $winlogon = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
         Set-ItemProperty $winlogon -Name AutoAdminLogon -Value '1'
         Set-ItemProperty $winlogon -Name DefaultUserName -Value $Account
         Set-ItemProperty $winlogon -Name DefaultDomainName -Value $env:COMPUTERNAME
@@ -111,9 +110,10 @@ if ($LumaDir) {
     & icacls.exe $LumaDir /grant "${Account}:(OI)(CI)M" /T /C /Q | Out-Null
 
     Write-Step 'Firewall: the Luma Arcade page (home network) and stream video'
-    Remove-NetFirewallRule -DisplayName 'Luma Arcade*' -ErrorAction SilentlyContinue
-    # 7777 = LumaArcade's default port (Settings > General can change it).
-    New-NetFirewallRule -DisplayName 'Luma Arcade web page' -Direction Inbound -Protocol TCP -LocalPort 7777 -Profile Domain, Private -Action Allow | Out-Null
+    Remove-NetFirewallRule -DisplayName 'Luma Arcade web page' -ErrorAction SilentlyContinue
+    Remove-NetFirewallRule -DisplayName 'Luma Arcade stream video' -ErrorAction SilentlyContinue
+    # Settings > General can change the port later (then change this rule too).
+    New-NetFirewallRule -DisplayName 'Luma Arcade web page' -Direction Inbound -Protocol TCP -LocalPort $Port -Profile Domain, Private -Action Allow | Out-Null
     # Without this, WebRTC video can't come straight in and goes through a
     # relay (slower) or falls back to the WebSocket.
     New-NetFirewallRule -DisplayName 'Luma Arcade stream video' -Direction Inbound -Protocol UDP -Program (Join-Path $LumaDir 'moonlight-web-stream\streamer.exe') -Action Allow | Out-Null

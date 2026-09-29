@@ -81,3 +81,24 @@ folder out of the way).
 (`Emulators\`, `Roaming\`, `gamelists\`, `profiles\`, `snapshots\`) instead
 of the real paths; `-Player "<id>:<name>"` skips asking LumaArcade;
 `-DryRun` only logs.
+
+### On a PC set up by the installer
+
+The installer (`installer/scripts/install-host.ps1`) copies these scripts,
+and moonlight-web-stream's `host\` ones, to `C:\ProgramData\LumaArcade`,
+sets up the prep-cmd and the scheduled tasks, and writes
+`C:\ProgramData\LumaArcade\host.json` with where things are on that PC
+(`esDe`, `esDeDir`, `gamelists`, `emulators`, `roaming`, `snapshots`).
+`profiles.ps1` and `home.ps1` use it instead of the original gaming PC's
+paths above (without it, nothing changes). Dolphin and Cemu saves are taken
+from their own folder when they're portable (`portable.txt` / `portable\`),
+as the installer sets them up.
+
+## Minimizing ES-DE during games (`esde-game-started.ps1`)
+
+An ES-DE game-start event script (`<ES-DE data>\scripts\game-start\01-minimize-es-de.bat`
+runs it): once a game has held the foreground for 3 seconds it minimizes
+ES-DE, which otherwise catches a held stick direction during a focus bounce
+and scrolls sideways forever behind the game; when only the desktop is left
+it brings ES-DE back. Needs ES-DE's `CustomEventScripts` setting. Deployed
+copy: `C:\ProgramData\LumaArcade\esde-game-started.ps1`.

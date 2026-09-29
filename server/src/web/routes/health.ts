@@ -535,7 +535,9 @@ function checkPlayerSaves(): HealthCheck {
   try {
     apps = readFileSync(path.join(SUNSHINE_CONFIG_DIR, "apps.json"), "utf8");
   } catch {}
-  if (!/profiles\.ps1/i.test(apps)) {
+  // Sunshine runs profiles.ps1 itself, or through stream-start.ps1 -Port
+  // (which runs it first).
+  if (!/profiles\.ps1|stream-start\.ps1[^"]*-Port/i.test(apps)) {
     return { id: "profiles", label, status: "ok", detail: "Off: everyone shares one set of saves (host/README.md explains how to give each player their own)" };
   }
   if (!existsSync(PROFILES_SCRIPT)) {

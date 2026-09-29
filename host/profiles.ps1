@@ -52,6 +52,18 @@ $R = 'C:\Users\Arcade\AppData\Roaming'
 $Gamelists = 'C:\Users\Arcade\ES-DE\gamelists'
 $EsDeDir = 'G:\ES-DE'
 $SnapshotRoot = 'E:\GameSaveBackups\snapshots'
+# A PC set up by the Luma Arcade installer says where things are in
+# host.json (installer/scripts/install-host.ps1); the paths above are the
+# original gaming PC's.
+$HostFile = 'C:\ProgramData\LumaArcade\host.json'
+if (-not $TestRoot -and (Test-Path $HostFile)) {
+    $hostConfig = Get-Content -Raw $HostFile | ConvertFrom-Json
+    if ($hostConfig.emulators) { $E = $hostConfig.emulators }
+    if ($hostConfig.roaming) { $R = $hostConfig.roaming }
+    if ($hostConfig.gamelists) { $Gamelists = $hostConfig.gamelists }
+    if ($hostConfig.esDeDir) { $EsDeDir = $hostConfig.esDeDir }
+    if ($hostConfig.snapshots) { $SnapshotRoot = $hostConfig.snapshots }
+}
 if ($TestRoot) {
     $Root = "$TestRoot\profiles"; $EsDeDir = $TestRoot; $SnapshotRoot = "$TestRoot\snapshots"
     $E = "$TestRoot\Emulators"; $R = "$TestRoot\Roaming"; $Gamelists = "$TestRoot\gamelists"
@@ -69,12 +81,16 @@ $KeepAutoSnapshots = 4
 # they're tied to one person's moment in a game.
 # Left shared on purpose: Azahar's sdmc/nand and Xenia's content hold
 # installed games/DLC next to the saves, xemu's hdd is one disk image.
+# Dolphin and Cemu keep their saves in their own folder when they're
+# portable (the installer sets them up that way), else in the profile.
+$DolphinUser = if (Test-Path "$E\Dolphin-x64\portable.txt") { "$E\Dolphin-x64\User" } else { "$R\Dolphin Emulator" }
+$CemuUser = if (Test-Path "$E\cemu\portable") { "$E\cemu\portable" } else { "$R\Cemu" }
 $Slots = [ordered]@{
     'RetroArch-saves'      = @("$E\RetroArch-Win64\saves", $true)
     'RetroArch-states'     = @("$E\RetroArch-Win64\states", $false)
-    'Dolphin-GC'           = @("$R\Dolphin Emulator\GC", $true)
-    'Dolphin-Wii-title'    = @("$R\Dolphin Emulator\Wii\title", $true)
-    'Dolphin-StateSaves'   = @("$R\Dolphin Emulator\StateSaves", $false)
+    'Dolphin-GC'           = @("$DolphinUser\GC", $true)
+    'Dolphin-Wii-title'    = @("$DolphinUser\Wii\title", $true)
+    'Dolphin-StateSaves'   = @("$DolphinUser\StateSaves", $false)
     'PCSX2-memcards'       = @("$E\PCSX2-Qt\memcards", $true)
     'PCSX2-sstates'        = @("$E\PCSX2-Qt\sstates", $false)
     'DuckStation-memcards' = @("$E\duckstation\memcards", $true)
@@ -82,7 +98,7 @@ $Slots = [ordered]@{
     'PPSSPP-SAVEDATA'      = @("$E\PPSSPP\memstick\PSP\SAVEDATA", $true)
     'PPSSPP-STATE'         = @("$E\PPSSPP\memstick\PSP\PPSSPP_STATE", $false)
     'RPCS3-savedata'       = @("$E\RPCS3\dev_hdd0\home\00000001\savedata", $true)
-    'Cemu-save'            = @("$R\Cemu\mlc01\usr\save", $true)
+    'Cemu-save'            = @("$CemuUser\mlc01\usr\save", $true)
     'Eden-save'            = @("$E\eden\user\nand\user\save", $true)
     'Vita3K-user'          = @("$E\Vita3K\ux0\user", $true)
     'Supermodel-NVRAM'     = @("$E\Supermodel\NVRAM", $true)

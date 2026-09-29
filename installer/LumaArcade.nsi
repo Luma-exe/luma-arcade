@@ -4,15 +4,20 @@ Unicode true
 !define APP_TITLE "Luma Arcade"
 !define APP_PUBLISHER "LumaArcade"
 !define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"
+; What was picked, so an upgrade (or the uninstaller) knows.
+!define SETTINGS_KEY "Software\${APP_NAME}"
 ; 64-bit PowerShell from this 32-bit installer (plain $SYSDIR would give the
 ; 32-bit one: Program Files (x86), redirected registry).
 !define POWERSHELL "$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe"
+; LumaArcade's port (web/config/settings.ts) and the HTTPS one next to it.
+!define LUMA_PORT 7777
+!define HTTPS_PORT 7778
 
 Name "${APP_TITLE}"
 OutFile "output\LumaArcadeSetup.exe"
 InstallDir "$PROGRAMFILES64\${APP_NAME}"
-; Admin: Sunshine, Windows accounts, the Server fixes and the shared games
-; folder all need it.
+; Admin: Sunshine, Windows accounts, drivers, the Server fixes and the
+; shared games folder all need it.
 RequestExecutionLevel admin
 ShowInstDetails show
 ShowUninstDetails show
@@ -22,24 +27,42 @@ ShowUninstDetails show
 !include "LogicLib.nsh"
 !include "Sections.nsh"
 !include "x64.nsh"
+!include "FileFunc.nsh"
 
 !define MUI_ABORTWARNING
 
 ; ---------------------------------------------------------------- state
 Var SetupType        ; 0 = everything (streaming), 1 = ES-DE + emulators, 2 = emulators only
 Var SetupTypeApplied ; the type the component selection was last set up for
+Var IsUpgrade        ; 1 = Luma Arcade is already installed in $INSTDIR
+Var LumaWasRunning   ; stop-luma.ps1's answer: 0 no, 2 yes, 3 yes and streaming
 Var IsServer         ; 1 = Windows Server
 Var DetectedServer
-Var Ds4              ; 1 = Sunshine emulates PS4 pads (Server without the Xbox 360 driver)
-Var HasXusb
+Var Ds4              ; 1 = Sunshine emulates PS4 pads (no Xbox 360 driver)
+Var HwEncoder        ; the graphics card Sunshine can encode with ("" = none)
+Var HwMonitors       ; physical monitors plugged in
+Var HwVdd            ; 1 = virtual display driver installed
+Var HwXusb           ; 1 = Xbox 360 controller driver installed
+Var WantVdd
+Var WantXusb
 Var SeparateAccount  ; 1 = run under its own Windows account
 Var AccountName
 Var AccountPass
 Var AutoLogon
 Var StartAtLogon
+Var AdminName        ; the first Luma Arcade account (admin) and Sunshine's sign-in
+Var AdminPass
+Var HttpsOn
+Var TunnelToken
+Var Latest           ; 1 = newest downloads instead of the tested versions (/LATEST)
 Var GamesDir
+Var EsDeExe
 Var EmuList
 Var CurrentUser
+Var Opts             ; the command line
+Var Str1             ; StrHas: haystack, needle, answer
+Var Str2
+Var Str3
 
 ; page controls
 Var hType0
@@ -48,6 +71,8 @@ Var hType2
 Var hClient
 Var hServer
 Var hDs4
+Var hVdd
+Var hXusb
 Var hCurrent
 Var hSeparate
 Var hName
@@ -55,16 +80,32 @@ Var hPass
 Var hPass2
 Var hAutoLogon
 Var hStartAtLogon
+Var hAdminName
+Var hAdminPass
+Var hAdminPass2
+Var hHttps
+Var hToken
+
+; uninstaller
+Var UnAccount
+Var UnSeparate
+Var UnAutoLogon
+Var UnRemoveAccount
+Var hUnAutoLogon
+Var hUnRemoveAccount
 
 ; ---------------------------------------------------------------- pages
 !define MUI_WELCOMEPAGE_TITLE "Welcome to ${APP_TITLE} Setup"
-!define MUI_WELCOMEPAGE_TEXT "Luma Arcade turns this PC into a game console you can play from any web browser - on your TV, laptop or phone, at home or away.$\r$\n$\r$\nYou don't have to install all of it. The next page lets you pick:$\r$\n  - everything, for streaming games to a browser,$\r$\n  - just ES-DE and emulators, to play on this PC, or$\r$\n  - just the emulators.$\r$\n$\r$\nEmulators and ES-DE are downloaded from their official releases, so this PC needs to be online.$\r$\n$\r$\nClick Next to continue."
+!define MUI_WELCOMEPAGE_TEXT "Luma Arcade turns this PC into a game console you can play from any web browser - on your TV, laptop or phone, at home or away.$\r$\n$\r$\nYou don't have to install all of it. The next page lets you pick:$\r$\n  - everything, for streaming games to a browser,$\r$\n  - just ES-DE and emulators, to play on this PC, or$\r$\n  - just the emulators.$\r$\n$\r$\nEmulators and ES-DE are downloaded from their official releases (versions tested with Luma Arcade), so this PC needs to be online.$\r$\n$\r$\nAlready installed? Setup upgrades it and keeps your accounts, settings and games.$\r$\n$\r$\nClick Next to continue."
 !insertmacro MUI_PAGE_WELCOME
 Page custom SetupTypePage SetupTypeLeave
 !define MUI_PAGE_CUSTOMFUNCTION_PRE ComponentsPre
 !insertmacro MUI_PAGE_COMPONENTS
 Page custom WindowsPage WindowsLeave
+Page custom HardwarePage HardwareLeave
 Page custom AccountPage AccountLeave
+Page custom AdminPage AdminLeave
+Page custom NetworkPage NetworkLeave
 
 !define MUI_PAGE_HEADER_TEXT "Luma Arcade folder"
 !define MUI_PAGE_HEADER_SUBTEXT "Where the Luma Arcade website and streaming server go."
@@ -81,7 +122,7 @@ Page custom AccountPage AccountLeave
 
 !insertmacro MUI_PAGE_INSTFILES
 
-!define MUI_FINISHPAGE_TEXT "Setup is done. The next steps (first sign-in, pairing, where games and BIOS files go) are in the file below."
+!define MUI_FINISHPAGE_TEXT "Setup is done. The next steps (signing in, playing from other devices, where games and BIOS files go) are in the file below."
 !define MUI_FINISHPAGE_SHOWREADME ""
 !define MUI_FINISHPAGE_SHOWREADME_TEXT "Show the next steps"
 !define MUI_FINISHPAGE_SHOWREADME_FUNCTION ShowNextSteps
@@ -92,6 +133,7 @@ Page custom AccountPage AccountLeave
 !insertmacro MUI_PAGE_FINISH
 
 !insertmacro MUI_UNPAGE_CONFIRM
+UninstPage custom un.OptionsPage un.OptionsLeave
 !insertmacro MUI_UNPAGE_INSTFILES
 
 !insertmacro MUI_LANGUAGE "English"
@@ -111,11 +153,81 @@ Page custom AccountPage AccountLeave
   ${EndIf}
 !macroend
 
+; A secret for a script, in a file (deleted by the script) - never on a
+; command line other programs can read. UTF-16 with a byte order mark.
+!macro WriteSecret FILE LINE1 LINE2
+  FileOpen $9 "${FILE}" w
+  FileWriteWord $9 0xFEFF
+  FileWriteUTF16LE $9 "${LINE1}"
+  ${If} "${LINE2}" != ""
+    FileWriteUTF16LE $9 "$\r$\n${LINE2}"
+  ${EndIf}
+  FileClose $9
+!macroend
+
+; $Str3 = 1 if $Str1 contains $Str2 (not case sensitive), else 0.
+Function StrHas
+  Push $R0
+  Push $R1
+  Push $R2
+  StrLen $R0 $Str2
+  StrCpy $R1 0
+  StrCpy $Str3 0
+  ${Do}
+    StrCpy $R2 $Str1 $R0 $R1
+    ${If} $R2 == ""
+      ${Break}
+    ${EndIf}
+    ${If} $R2 == $Str2
+      StrCpy $Str3 1
+      ${Break}
+    ${EndIf}
+    IntOp $R1 $R1 + 1
+  ${Loop}
+  Pop $R2
+  Pop $R1
+  Pop $R0
+FunctionEnd
+
 ; ---------------------------------------------------------------- sections
+; Secrets for the steps below, written before anything runs.
+Section "-Prepare"
+  ${If} $AdminName != ""
+  ${AndIf} $AdminPass != ""
+  ${AndIfNot} ${FileExists} "$PLUGINSDIR\admin.txt"
+    !insertmacro WriteSecret "$PLUGINSDIR\admin.txt" $AdminName $AdminPass
+  ${EndIf}
+  StrCpy $AdminPass ""
+  Call FindEsDe
+SectionEnd
+
 Section "Luma Arcade" SEC_LUMA
+  ; An upgrade: stop the running copy (its files are in use), keeping its
+  ; database, accounts, paired PCs and settings.
+  ${If} ${FileExists} "$INSTDIR\server\dist\main.js"
+    StrCpy $IsUpgrade 1
+    !insertmacro QuotablePath $2 $INSTDIR
+    !insertmacro RunPs "stop-luma.ps1" '-LumaDir "$2"'
+    StrCpy $LumaWasRunning $0
+    ; The old build's files, so nothing stale is left behind.
+    RMDir /r "$INSTDIR\server\dist"
+    RMDir /r "$INSTDIR\server\node_modules"
+    RMDir /r "$INSTDIR\moonlight-web-stream\static"
+    RMDir /r "$INSTDIR\host"
+  ${EndIf}
+
   SetOutPath "$INSTDIR"
   File /r "staging\*.*"
   File "NEXT-STEPS.txt"
+  ; moonlight-web-stream's settings: the shipped defaults only on a fresh
+  ; install (an upgrade keeps any changes, like session_cookie_secure).
+  ${IfNot} ${FileExists} "$INSTDIR\moonlight-web-stream\server\config.json"
+    CopyFiles /SILENT "$INSTDIR\moonlight-web-stream\server\config.default.json" "$INSTDIR\moonlight-web-stream\server\config.json"
+  ${EndIf}
+  ; For the uninstaller.
+  SetOutPath "$INSTDIR\setup"
+  File "scripts\common.ps1"
+  File "scripts\uninstall-host.ps1"
 
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 
@@ -128,6 +240,7 @@ Section "Luma Arcade" SEC_LUMA
   SetRegView 64
   WriteRegStr HKLM "${UNINST_KEY}" "DisplayName" "${APP_TITLE}"
   WriteRegStr HKLM "${UNINST_KEY}" "UninstallString" '"$INSTDIR\Uninstall.exe"'
+  WriteRegStr HKLM "${UNINST_KEY}" "QuietUninstallString" '"$INSTDIR\Uninstall.exe" /S'
   WriteRegStr HKLM "${UNINST_KEY}" "InstallLocation" "$INSTDIR"
   WriteRegStr HKLM "${UNINST_KEY}" "Publisher" "${APP_PUBLISHER}"
   WriteRegDWORD HKLM "${UNINST_KEY}" "NoModify" 1
@@ -176,22 +289,30 @@ SectionGroupEnd
   ${EndIf}
 !macroend
 
+!macro AllEmus MACRO
+  !insertmacro ${MACRO} ${SEC_RETROARCH} "retroarch" "RetroArch-Win64"
+  !insertmacro ${MACRO} ${SEC_DOLPHIN} "dolphin" "Dolphin-x64"
+  !insertmacro ${MACRO} ${SEC_PCSX2} "pcsx2" "PCSX2-Qt"
+  !insertmacro ${MACRO} ${SEC_DUCKSTATION} "duckstation" "duckstation"
+  !insertmacro ${MACRO} ${SEC_PPSSPP} "ppsspp" "PPSSPP"
+  !insertmacro ${MACRO} ${SEC_RPCS3} "rpcs3" "RPCS3"
+  !insertmacro ${MACRO} ${SEC_XENIA} "xenia" "xenia_canary"
+  !insertmacro ${MACRO} ${SEC_XEMU} "xemu" "xemu"
+  !insertmacro ${MACRO} ${SEC_CEMU} "cemu" "cemu"
+  !insertmacro ${MACRO} ${SEC_AZAHAR} "azahar" "azahar"
+  !insertmacro ${MACRO} ${SEC_MELONDS} "melonds" "melonDS"
+  !insertmacro ${MACRO} ${SEC_VITA3K} "vita3k" "Vita3K"
+  !insertmacro ${MACRO} ${SEC_FLYCAST} "flycast" "flycast"
+  !insertmacro ${MACRO} ${SEC_SHADPS4} "shadps4" "shadPS4"
+!macroend
+
+!macro EmuArg3 SEC KEY FOLDER
+  !insertmacro EmuArg ${SEC} ${KEY}
+!macroend
+
 Section "-Games"
   StrCpy $EmuList ""
-  !insertmacro EmuArg ${SEC_RETROARCH} "retroarch"
-  !insertmacro EmuArg ${SEC_DOLPHIN} "dolphin"
-  !insertmacro EmuArg ${SEC_PCSX2} "pcsx2"
-  !insertmacro EmuArg ${SEC_DUCKSTATION} "duckstation"
-  !insertmacro EmuArg ${SEC_PPSSPP} "ppsspp"
-  !insertmacro EmuArg ${SEC_RPCS3} "rpcs3"
-  !insertmacro EmuArg ${SEC_XENIA} "xenia"
-  !insertmacro EmuArg ${SEC_XEMU} "xemu"
-  !insertmacro EmuArg ${SEC_CEMU} "cemu"
-  !insertmacro EmuArg ${SEC_AZAHAR} "azahar"
-  !insertmacro EmuArg ${SEC_MELONDS} "melonds"
-  !insertmacro EmuArg ${SEC_VITA3K} "vita3k"
-  !insertmacro EmuArg ${SEC_FLYCAST} "flycast"
-  !insertmacro EmuArg ${SEC_SHADPS4} "shadps4"
+  !insertmacro AllEmus EmuArg3
   ${IfNot} ${SectionIsSelected} ${SEC_ESDE}
   ${AndIf} $EmuList == ""
     Return
@@ -201,24 +322,55 @@ Section "-Games"
   ${If} ${SectionIsSelected} ${SEC_ESDE}
     StrCpy $1 "-WithEsDe"
   ${EndIf}
+  ${If} $Latest == 1
+    StrCpy $1 "$1 -Latest"
+  ${EndIf}
   !insertmacro QuotablePath $2 $GamesDir
   !insertmacro RunPs "install-games.ps1" '-GamesDir "$2" $1 -Emulators "$EmuList"'
   ${If} $0 != 0
-    MessageBox MB_ICONEXCLAMATION|MB_OK "Some of ES-DE or the emulators couldn't be installed - see the details list. You can run $GamesDir\setup\install-games.ps1 again later."
+    MessageBox MB_ICONEXCLAMATION|MB_OK "Some of ES-DE or the emulators couldn't be installed - see the details list. You can run $GamesDir\setup\install-games.ps1 again later." /SD IDOK
   ${EndIf}
 SectionEnd
 
 Section "Sunshine (streaming host)" SEC_SUNSHINE
   StrCpy $1 ""
-  ${If} ${SectionIsSelected} ${SEC_ESDE}
-    StrCpy $1 '-EsDeExe "$GamesDir\ES-DE\ES-DE.exe"'
+  ${If} $EsDeExe != ""
+    StrCpy $1 '-EsDeExe "$EsDeExe"'
   ${EndIf}
   ${If} $Ds4 == 1
     StrCpy $1 "$1 -Ds4"
   ${EndIf}
+  ${If} ${FileExists} "$PLUGINSDIR\admin.txt"
+    StrCpy $1 '$1 -AdminFile "$PLUGINSDIR\admin.txt"'
+  ${EndIf}
+  ${If} $Latest == 1
+    StrCpy $1 "$1 -Latest"
+  ${EndIf}
   !insertmacro RunPs "install-sunshine.ps1" $1
   ${If} $0 != 0
-    MessageBox MB_ICONEXCLAMATION|MB_OK "Sunshine couldn't be installed - see the details list. You can install it by hand from github.com/LizardByte/Sunshine."
+    MessageBox MB_ICONEXCLAMATION|MB_OK "Sunshine couldn't be installed - see the details list. You can install it by hand from github.com/LizardByte/Sunshine." /SD IDOK
+  ${EndIf}
+SectionEnd
+
+Section "-Drivers"
+  StrCpy $1 ""
+  ${If} $WantXusb == 1
+    StrCpy $1 "-Xusb"
+  ${EndIf}
+  ${If} $WantVdd == 1
+    SetOutPath "$PLUGINSDIR"
+    File "staging\host\vdd_settings.xml"
+    StrCpy $1 '$1 -VirtualDisplay -VddSettings "$PLUGINSDIR\vdd_settings.xml"'
+  ${EndIf}
+  ${If} $1 == ""
+    Return
+  ${EndIf}
+  ${If} $Latest == 1
+    StrCpy $1 "$1 -Latest"
+  ${EndIf}
+  !insertmacro RunPs "install-drivers.ps1" $1
+  ${If} $0 != 0
+    MessageBox MB_ICONEXCLAMATION|MB_OK "A driver couldn't be installed - see the details list." /SD IDOK
   ${EndIf}
 SectionEnd
 
@@ -228,7 +380,7 @@ Section "-Windows setup"
     StrCpy $1 "-Server"
   ${EndIf}
   ${If} ${SectionIsSelected} ${SEC_LUMA}
-    StrCpy $1 '$1 -LumaDir "$INSTDIR"'
+    StrCpy $1 '$1 -LumaDir "$INSTDIR" -Port ${LUMA_PORT}'
     ${If} $StartAtLogon == 1
       StrCpy $1 "$1 -Autostart"
     ${EndIf}
@@ -238,12 +390,9 @@ Section "-Windows setup"
         StrCpy $1 "$1 -AutoLogon"
       ${EndIf}
       ${If} $AccountPass != ""
-        ; The password goes through a file (deleted by the script), never
-        ; on a command line other programs can read.
-        FileOpen $3 "$PLUGINSDIR\account.txt" w
-        FileWriteWord $3 0xFEFF
-        FileWriteUTF16LE $3 $AccountPass
-        FileClose $3
+        !insertmacro WriteSecret "$PLUGINSDIR\account.txt" $AccountPass ""
+      ${EndIf}
+      ${If} ${FileExists} "$PLUGINSDIR\account.txt"
         StrCpy $1 '$1 -PasswordFile "$PLUGINSDIR\account.txt"'
       ${EndIf}
     ${EndIf}
@@ -255,12 +404,119 @@ Section "-Windows setup"
   Delete "$PLUGINSDIR\account.txt"
   StrCpy $AccountPass ""
   ${If} $0 != 0
-    MessageBox MB_ICONEXCLAMATION|MB_OK "Part of the Windows setup failed - see the details list."
+    MessageBox MB_ICONEXCLAMATION|MB_OK "Part of the Windows setup failed - see the details list." /SD IDOK
   ${EndIf}
 SectionEnd
 
+; The PC-side scripts behind lockdown, the Home button, the window picker,
+; per-player saves, game tracking and the focus fix.
+Section "-PC helpers"
+  ${IfNot} ${SectionIsSelected} ${SEC_LUMA}
+    Return
+  ${EndIf}
+  !insertmacro QuotablePath $2 $INSTDIR
+  StrCpy $1 '-LumaDir "$2" -Port ${LUMA_PORT}'
+  ${If} $SeparateAccount == 1
+    StrCpy $1 '$1 -Account "$AccountName"'
+  ${EndIf}
+  ${If} $GamesDir != ""
+  ${AndIf} ${FileExists} "$GamesDir\*.*"
+    !insertmacro QuotablePath $3 $GamesDir
+    StrCpy $1 '$1 -GamesDir "$3"'
+  ${EndIf}
+  ${If} $EsDeExe != ""
+    StrCpy $1 '$1 -EsDeExe "$EsDeExe"'
+  ${EndIf}
+  !insertmacro RunPs "install-host.ps1" $1
+  ${If} $0 != 0
+    MessageBox MB_ICONEXCLAMATION|MB_OK "Luma Arcade's helper scripts couldn't all be set up - see the details list. Lockdown, the Home button and per-player saves need them." /SD IDOK
+  ${EndIf}
+SectionEnd
+
+Section "-Network"
+  ${IfNot} ${SectionIsSelected} ${SEC_LUMA}
+    Return
+  ${EndIf}
+  ${If} $TunnelToken != ""
+    !insertmacro WriteSecret "$PLUGINSDIR\tunnel.txt" $TunnelToken ""
+    StrCpy $TunnelToken ""
+  ${EndIf}
+  StrCpy $1 ""
+  ${If} $HttpsOn == 1
+    StrCpy $1 "-HttpsPort ${HTTPS_PORT}"
+  ${EndIf}
+  ${If} ${FileExists} "$PLUGINSDIR\tunnel.txt"
+    StrCpy $1 '$1 -TunnelTokenFile "$PLUGINSDIR\tunnel.txt"'
+  ${EndIf}
+  ${If} $1 == ""
+    Return
+  ${EndIf}
+  ${If} $SeparateAccount == 1
+    StrCpy $1 '$1 -Account "$AccountName"'
+  ${EndIf}
+  ${If} $Latest == 1
+    StrCpy $1 "$1 -Latest"
+  ${EndIf}
+  !insertmacro QuotablePath $2 $INSTDIR
+  !insertmacro RunPs "setup-network.ps1" '-LumaDir "$2" $1'
+  Delete "$PLUGINSDIR\tunnel.txt"
+  ${If} $0 != 0
+    MessageBox MB_ICONEXCLAMATION|MB_OK "Setting up access from other devices partly failed - see the details list." /SD IDOK
+  ${EndIf}
+SectionEnd
+
+; The first account and pairing with Sunshine: no manual steps after Setup.
+Section "-First run"
+  ${If} ${SectionIsSelected} ${SEC_LUMA}
+  ${AndIf} ${FileExists} "$PLUGINSDIR\admin.txt"
+    DetailPrint "Creating the admin account and pairing with Sunshine..."
+    nsExec::ExecToLog '"$INSTDIR\node.exe" "$PLUGINSDIR\scripts\first-run.mjs" "$INSTDIR" "$PLUGINSDIR\admin.txt"'
+    Pop $0
+    ${If} $0 != 0
+      MessageBox MB_ICONEXCLAMATION|MB_OK "The admin account or pairing with Sunshine didn't work - see the details list. The next steps file says how to do it by hand." /SD IDOK
+    ${EndIf}
+  ${EndIf}
+  Delete "$PLUGINSDIR\admin.txt"
+SectionEnd
+
+Section "-Finish"
+  SetRegView 64
+  ${If} ${SectionIsSelected} ${SEC_LUMA}
+    WriteRegDWORD HKLM "${SETTINGS_KEY}" "SetupType" $SetupType
+    WriteRegStr HKLM "${SETTINGS_KEY}" "GamesDir" $GamesDir
+    WriteRegDWORD HKLM "${SETTINGS_KEY}" "SeparateAccount" $SeparateAccount
+    WriteRegStr HKLM "${SETTINGS_KEY}" "Account" $AccountName
+    WriteRegDWORD HKLM "${SETTINGS_KEY}" "AutoLogon" $AutoLogon
+    WriteRegDWORD HKLM "${SETTINGS_KEY}" "StartAtLogon" $StartAtLogon
+    WriteRegDWORD HKLM "${SETTINGS_KEY}" "Https" $HttpsOn
+  ${EndIf}
+
+  ; Start Luma Arcade again after an upgrade (or now, for a games account
+  ; that's already signed in). The task only runs while its account is.
+  ${If} ${SectionIsSelected} ${SEC_LUMA}
+  ${AndIf} $StartAtLogon == 1
+    nsExec::Exec 'schtasks.exe /run /tn "\LumaArcade\LumaArcade"'
+    Pop $0
+  ${ElseIf} ${SectionIsSelected} ${SEC_LUMA}
+  ${AndIf} $LumaWasRunning != 0
+  ${AndIf} ${Silent}
+    ; Through Explorer, so it runs as the signed-in user, not elevated.
+    Exec '"$WINDIR\explorer.exe" "$INSTDIR\LumaArcade.vbs"'
+  ${EndIf}
+SectionEnd
+
+; ES-DE: the one being installed, or one Setup installed before. (A
+; function, after the sections: -Prepare runs first but can't name them.)
+Function FindEsDe
+  StrCpy $EsDeExe ""
+  ${If} ${SectionIsSelected} ${SEC_ESDE}
+  ${OrIf} ${FileExists} "$GamesDir\ES-DE\ES-DE.exe"
+    StrCpy $EsDeExe "$GamesDir\ES-DE\ES-DE.exe"
+  ${EndIf}
+FunctionEnd
+
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
-  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_LUMA} "The Luma Arcade website: sign-in, the browser game streaming client (moonlight-web-stream), and who may play when."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_LUMA} "The Luma Arcade website: sign-in, the browser game streaming client (moonlight-web-stream), who may play when, and its helper scripts on this PC."
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_SUNSHINE} "Sunshine captures this PC's screen, sound and controllers for streaming. Skipped if it's already installed."
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_ESDE} "ES-DE: a game library you browse with a controller. Finds and starts the emulators below."
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_EMUS} "Emulators, downloaded from their official releases. BIOS and firmware files are not included."
@@ -271,13 +527,16 @@ SectionEnd
 ; ---------------------------------------------------------------- init
 Function .onInit
   ${IfNot} ${RunningX64}
-    MessageBox MB_ICONSTOP "${APP_TITLE} needs 64-bit Windows."
+    MessageBox MB_ICONSTOP "${APP_TITLE} needs 64-bit Windows." /SD IDOK
+    SetErrorLevel 2
     Abort
   ${EndIf}
   SetRegView 64
   InitPluginsDir
   SetOutPath "$PLUGINSDIR\scripts"
   File "scripts\*.ps1"
+  File "scripts\*.mjs"
+  File "scripts\versions.json"
 
   ReadEnvStr $CurrentUser "USERNAME"
   StrCpy $SetupType 0
@@ -287,6 +546,29 @@ Function .onInit
   StrCpy $AccountName "Arcade"
   StrCpy $AutoLogon 1
   StrCpy $StartAtLogon 1
+  StrCpy $HttpsOn 1
+  StrCpy $Latest 0
+  StrCpy $IsUpgrade 0
+  StrCpy $LumaWasRunning 0
+
+  ; An earlier install: same folder, same choices.
+  ReadRegStr $0 HKLM "${UNINST_KEY}" "InstallLocation"
+  ${If} $0 != ""
+  ${AndIf} ${FileExists} "$0\server\dist\main.js"
+    StrCpy $INSTDIR $0
+    StrCpy $IsUpgrade 1
+    ClearErrors
+    ReadRegDWORD $1 HKLM "${SETTINGS_KEY}" "SetupType"
+    ${IfNot} ${Errors}
+      StrCpy $SetupType $1
+      ReadRegStr $GamesDir HKLM "${SETTINGS_KEY}" "GamesDir"
+      ReadRegDWORD $SeparateAccount HKLM "${SETTINGS_KEY}" "SeparateAccount"
+      ReadRegStr $AccountName HKLM "${SETTINGS_KEY}" "Account"
+      ReadRegDWORD $AutoLogon HKLM "${SETTINGS_KEY}" "AutoLogon"
+      ReadRegDWORD $StartAtLogon HKLM "${SETTINGS_KEY}" "StartAtLogon"
+      ReadRegDWORD $HttpsOn HKLM "${SETTINGS_KEY}" "Https"
+    ${EndIf}
+  ${EndIf}
 
   ReadRegStr $0 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion" "InstallationType"
   StrCpy $DetectedServer 0
@@ -295,17 +577,194 @@ Function .onInit
   ${EndIf}
   StrCpy $IsServer $DetectedServer
 
-  StrCpy $HasXusb 0
-  ${DisableX64FSRedirection}
-  ${If} ${FileExists} "$SYSDIR\drivers\xusb22.sys"
-  ${OrIf} ${FileExists} "$SYSDIR\drivers\xusb21.sys"
-    StrCpy $HasXusb 1
+  ; Graphics card, monitors, drivers.
+  nsExec::Exec '"${POWERSHELL}" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\scripts\check-hardware.ps1" -Out "$PLUGINSDIR\hardware.ini"'
+  Pop $0
+  ReadINIStr $HwEncoder "$PLUGINSDIR\hardware.ini" "hw" "encoder"
+  ReadINIStr $HwMonitors "$PLUGINSDIR\hardware.ini" "hw" "monitors"
+  ReadINIStr $HwVdd "$PLUGINSDIR\hardware.ini" "hw" "vdd"
+  ReadINIStr $HwXusb "$PLUGINSDIR\hardware.ini" "hw" "xusb"
+  ${If} $HwMonitors == ""
+    ; The check couldn't run: assume a normal PC.
+    StrCpy $HwMonitors 1
+    StrCpy $HwVdd 0
+    StrCpy $HwXusb 1
   ${EndIf}
-  ${EnableX64FSRedirection}
+  StrCpy $WantVdd 0
+  ${If} $HwMonitors == 0
+  ${AndIf} $HwVdd != 1
+    StrCpy $WantVdd 1
+  ${EndIf}
+  StrCpy $WantXusb 0
+  ${If} $HwXusb != 1
+    StrCpy $WantXusb 1
+  ${EndIf}
   StrCpy $Ds4 0
-  ${If} $IsServer == 1
-  ${AndIf} $HasXusb == 0
+
+  ${GetParameters} $Opts
+  Call ReadOptions
+  ${If} ${Silent}
+    Call SilentSetup
+  ${ElseIf} $IsUpgrade == 1
+    ; Upgrading stops Luma Arcade, which drops anyone's stream.
+    !insertmacro QuotablePath $2 $INSTDIR
+    nsExec::Exec '"${POWERSHELL}" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\scripts\stop-luma.ps1" -LumaDir "$2" -CheckOnly'
+    Pop $0
+    ${If} $0 == 3
+      MessageBox MB_YESNO|MB_ICONEXCLAMATION "Someone is streaming from this PC right now. Upgrading restarts Luma Arcade, which ends their stream (the game keeps running).$\r$\n$\r$\nUpgrade anyway?" IDYES +2
+      Quit
+    ${EndIf}
+  ${EndIf}
+FunctionEnd
+
+; Command-line options (all optional; mostly for silent installs, /S):
+;   /TYPE=everything|esde|emulators    /EMULATORS=all|none|retroarch,dolphin,...
+;   /GAMESDIR=<folder>                 /D=<Luma Arcade folder> (last, no quotes)
+;   /ACCOUNT=<name>|current            /PASSWORDFILE=<file with its password>
+;   /NOAUTOLOGON  /NOAUTOSTART         /SERVER  /CLIENT  /DS4
+;   /VDD  /NOVDD  /XUSB  /NOXUSB       /ADMINFILE=<file: admin name, password on two lines>
+;   /NOHTTPS  /TUNNELTOKENFILE=<file>  /LATEST (newest downloads, not the tested ones)
+; Files given are copied, never changed or deleted.
+Function ReadOptions
+  ClearErrors
+  ${GetOptions} $Opts "/TYPE=" $0
+  ${IfNot} ${Errors}
+    ${If} $0 == "esde"
+      StrCpy $SetupType 1
+    ${ElseIf} $0 == "emulators"
+      StrCpy $SetupType 2
+    ${Else}
+      StrCpy $SetupType 0
+    ${EndIf}
+  ${EndIf}
+  ClearErrors
+  ${GetOptions} $Opts "/GAMESDIR=" $0
+  ${IfNot} ${Errors}
+    StrCpy $GamesDir $0
+  ${EndIf}
+  ClearErrors
+  ${GetOptions} $Opts "/ACCOUNT=" $0
+  ${IfNot} ${Errors}
+    ${If} $0 == "current"
+    ${OrIf} $0 == $CurrentUser
+      StrCpy $SeparateAccount 0
+    ${Else}
+      StrCpy $SeparateAccount 1
+      StrCpy $AccountName $0
+    ${EndIf}
+  ${EndIf}
+  ClearErrors
+  ${GetOptions} $Opts "/PASSWORDFILE=" $0
+  ${IfNot} ${Errors}
+    CopyFiles /SILENT "$0" "$PLUGINSDIR\account.txt"
+  ${EndIf}
+  ClearErrors
+  ${GetOptions} $Opts "/ADMINFILE=" $0
+  ${IfNot} ${Errors}
+    CopyFiles /SILENT "$0" "$PLUGINSDIR\admin.txt"
+  ${EndIf}
+  ClearErrors
+  ${GetOptions} $Opts "/TUNNELTOKENFILE=" $0
+  ${IfNot} ${Errors}
+    CopyFiles /SILENT "$0" "$PLUGINSDIR\tunnel.txt"
+  ${EndIf}
+  ClearErrors
+  ${GetOptions} $Opts "/NOAUTOLOGON" $0
+  ${IfNot} ${Errors}
+    StrCpy $AutoLogon 0
+  ${EndIf}
+  ClearErrors
+  ${GetOptions} $Opts "/NOAUTOSTART" $0
+  ${IfNot} ${Errors}
+    StrCpy $StartAtLogon 0
+  ${EndIf}
+  ClearErrors
+  ${GetOptions} $Opts "/SERVER" $0
+  ${IfNot} ${Errors}
+    StrCpy $IsServer 1
+  ${EndIf}
+  ClearErrors
+  ${GetOptions} $Opts "/CLIENT" $0
+  ${IfNot} ${Errors}
+    StrCpy $IsServer 0
+  ${EndIf}
+  ClearErrors
+  ${GetOptions} $Opts "/DS4" $0
+  ${IfNot} ${Errors}
     StrCpy $Ds4 1
+    StrCpy $WantXusb 0
+  ${EndIf}
+  ClearErrors
+  ${GetOptions} $Opts "/VDD" $0
+  ${IfNot} ${Errors}
+    StrCpy $WantVdd 1
+  ${EndIf}
+  ClearErrors
+  ${GetOptions} $Opts "/NOVDD" $0
+  ${IfNot} ${Errors}
+    StrCpy $WantVdd 0
+  ${EndIf}
+  ClearErrors
+  ${GetOptions} $Opts "/XUSB" $0
+  ${IfNot} ${Errors}
+    StrCpy $WantXusb 1
+  ${EndIf}
+  ClearErrors
+  ${GetOptions} $Opts "/NOXUSB" $0
+  ${IfNot} ${Errors}
+    StrCpy $WantXusb 0
+  ${EndIf}
+  ClearErrors
+  ${GetOptions} $Opts "/NOHTTPS" $0
+  ${IfNot} ${Errors}
+    StrCpy $HttpsOn 0
+  ${EndIf}
+  ClearErrors
+  ${GetOptions} $Opts "/LATEST" $0
+  ${IfNot} ${Errors}
+    StrCpy $Latest 1
+  ${EndIf}
+FunctionEnd
+
+!macro EmuOption SEC KEY FOLDER
+  StrCpy $Str2 ",${KEY},"
+  Call StrHas
+  ${If} $Str3 == 1
+    !insertmacro SelectSection ${SEC}
+  ${Else}
+    !insertmacro UnselectSection ${SEC}
+  ${EndIf}
+!macroend
+
+; No pages to click through: apply the options and check what the pages would.
+Function SilentSetup
+  Call ComponentsPre
+  ClearErrors
+  ${GetOptions} $Opts "/EMULATORS=" $0
+  ${IfNot} ${Errors}
+    ${If} $0 == "all"
+      StrCpy $Str1 ",retroarch,dolphin,pcsx2,duckstation,ppsspp,rpcs3,xenia,xemu,cemu,azahar,melonds,vita3k,flycast,shadps4,"
+    ${Else}
+      StrCpy $Str1 ",$0,"
+    ${EndIf}
+    !insertmacro AllEmus EmuOption
+  ${EndIf}
+  ${IfNot} ${SectionIsSelected} ${SEC_SUNSHINE}
+    StrCpy $WantVdd 0
+    StrCpy $WantXusb 0
+    StrCpy $Ds4 0
+  ${EndIf}
+  ${If} ${SectionIsSelected} ${SEC_LUMA}
+  ${AndIf} $SeparateAccount == 1
+    ; A new account needs a password.
+    nsExec::Exec 'net.exe user "$AccountName"'
+    Pop $0
+    ${If} $0 != 0
+    ${AndIfNot} ${FileExists} "$PLUGINSDIR\account.txt"
+      MessageBox MB_ICONSTOP "The games account $AccountName doesn't exist: give its password with /PASSWORDFILE=<file>, or use /ACCOUNT=current." /SD IDOK
+      SetErrorLevel 2
+      Quit
+    ${EndIf}
   ${EndIf}
 FunctionEnd
 
@@ -366,6 +825,15 @@ FunctionEnd
   !insertmacro SetSectionFlag ${SEC} ${SF_RO}
 !macroend
 
+; On an upgrade, emulators already in the games folder start unticked
+; (tick one to update it) - no downloading gigabytes again.
+!macro UntickPresent SEC KEY FOLDER
+  ${If} ${FileExists} "$GamesDir\ES-DE\Emulators\${FOLDER}\*.*"
+  ${OrIf} ${FileExists} "$GamesDir\Emulators\${FOLDER}\*.*"
+    !insertmacro UnselectSection ${SEC}
+  ${EndIf}
+!macroend
+
 ; Sets the component list up for the chosen type (only when it changed, so
 ; going Back and Next keeps someone's own ticks).
 Function ComponentsPre
@@ -377,6 +845,10 @@ Function ComponentsPre
     !insertmacro Pick ${SEC_LUMA} 1
     !insertmacro Pick ${SEC_SUNSHINE} 1
     !insertmacro Pick ${SEC_ESDE} 1
+    ${If} $IsUpgrade == 1
+    ${AndIf} ${FileExists} "$GamesDir\ES-DE\ES-DE.exe"
+      !insertmacro UnselectSection ${SEC_ESDE}
+    ${EndIf}
   ${ElseIf} $SetupType == 1
     !insertmacro Lock ${SEC_LUMA}
     !insertmacro Lock ${SEC_SUNSHINE}
@@ -386,6 +858,9 @@ Function ComponentsPre
     !insertmacro Lock ${SEC_LUMA}
     !insertmacro Lock ${SEC_SUNSHINE}
     !insertmacro Lock ${SEC_ESDE}
+  ${EndIf}
+  ${If} $IsUpgrade == 1
+    !insertmacro AllEmus UntickPresent
   ${EndIf}
 FunctionEnd
 
@@ -412,17 +887,8 @@ Function WindowsPage
     ${NSD_Check} $hClient
   ${EndIf}
 
-  ${NSD_CreateLabel} 0 30u 100% 76u "Most people should use normal Windows 10 or 11. Windows Server is worth it for a PC that does nothing but host games, 24/7: it doesn't force feature updates or restart on its own, has no ads or consumer apps running in the background, lets several people be signed in at once over Remote Desktop, and can give virtual machines a slice of the graphics card (GPU partitioning) for more players at once.$\r$\n$\r$\nThe catch: it has no Xbox 360 controller driver and its sound is switched off, some games' anti-cheat and Microsoft Store / Game Pass games won't run, and it costs more to license. On Server, Setup turns the sound on for you."
+  ${NSD_CreateLabel} 0 30u 100% 90u "Most people should use normal Windows 10 or 11. Windows Server is worth it for a PC that does nothing but host games, 24/7: it doesn't force feature updates or restart on its own, has no ads or consumer apps running in the background, lets several people be signed in at once over Remote Desktop, and can give virtual machines a slice of the graphics card (GPU partitioning) for more players at once.$\r$\n$\r$\nThe catch: it has no Xbox 360 controller driver and its sound is switched off, some games' anti-cheat and Microsoft Store / Game Pass games won't run, and it costs more to license. On Server, Setup turns the sound on and installs the controller driver for you."
   Pop $0
-
-  ${NSD_CreateCheckbox} 0 110u 100% 24u "Server only: have Sunshine emulate PlayStation 4 controllers - they work without the Xbox 360 driver (Xbox-only PC games won't see them)"
-  Pop $hDs4
-  ${If} $Ds4 == 1
-    ${NSD_Check} $hDs4
-  ${EndIf}
-  ${IfNot} ${SectionIsSelected} ${SEC_SUNSHINE}
-    EnableWindow $hDs4 0
-  ${EndIf}
   nsDialogs::Show
 FunctionEnd
 
@@ -432,11 +898,93 @@ Function WindowsLeave
   ${If} $0 == ${BST_CHECKED}
     StrCpy $IsServer 1
   ${EndIf}
-  ${NSD_GetState} $hDs4 $0
-  StrCpy $Ds4 0
+FunctionEnd
+
+; ---------------------------------------------------------------- hardware
+Function HardwarePage
+  ; Without Sunshine none of this matters (the controller driver is for
+  ; the virtual pads players' controllers become).
+  ${IfNot} ${SectionIsSelected} ${SEC_SUNSHINE}
+    StrCpy $WantVdd 0
+    StrCpy $WantXusb 0
+    StrCpy $Ds4 0
+    Abort
+  ${EndIf}
+  !insertmacro MUI_HEADER_TEXT "This PC's hardware" "What streaming needs, and the drivers Setup can add."
+  nsDialogs::Create 1018
+  Pop $0
+
+  ${If} $HwEncoder != ""
+    ${NSD_CreateLabel} 0 0 100% 20u "Graphics card: $HwEncoder. Sunshine uses it to encode the video, so streaming barely touches the processor."
+  ${Else}
+    ${NSD_CreateLabel} 0 0 100% 28u "WARNING: no NVIDIA, AMD or Intel graphics found. Sunshine would have to encode the video on the processor: slow, laggy, and not enough for more than one player. A graphics card (or a processor with Intel graphics) is strongly recommended."
+  ${EndIf}
+  Pop $0
+
+  ${NSD_CreateCheckbox} 0 34u 100% 12u "Install a virtual display (for a PC with no monitor plugged in)"
+  Pop $hVdd
+  ${If} $HwVdd == 1
+    ${NSD_SetText} $hVdd "Virtual display: already installed"
+    EnableWindow $hVdd 0
+  ${ElseIf} $WantVdd == 1
+    ${NSD_Check} $hVdd
+  ${EndIf}
+  ${If} $HwMonitors == 0
+    StrCpy $1 "No monitor is plugged in. "
+  ${Else}
+    StrCpy $1 ""
+  ${EndIf}
+  ${NSD_CreateLabel} 12u 47u -12u 26u "$1Sunshine can only stream a screen that's switched on. The virtual display (Virtual Display Driver) gives it one, and switches to each player's own size and frame rate."
+  Pop $0
+
+  ${NSD_CreateCheckbox} 0 78u 100% 12u "Install the Xbox 360 controller driver (from Microsoft)"
+  Pop $hXusb
+  ${If} $HwXusb == 1
+    ${NSD_SetText} $hXusb "Xbox 360 controller driver: already installed"
+    EnableWindow $hXusb 0
+  ${ElseIf} $WantXusb == 1
+    ${NSD_Check} $hXusb
+  ${EndIf}
+  ${NSD_CreateLabel} 12u 91u -12u 18u "Players' controllers reach games as Xbox 360 pads, which need it. Windows 10 and 11 have it; Windows Server doesn't."
+  Pop $0
+
+  ${NSD_CreateCheckbox} 0 112u 100% 20u "Without that driver: have Sunshine emulate PlayStation 4 controllers instead (Xbox-only PC games won't see them)"
+  Pop $hDs4
+  ${If} $Ds4 == 1
+    ${NSD_Check} $hDs4
+  ${EndIf}
+  ${NSD_OnClick} $hXusb HardwareToggle
+  Call HardwareToggle
+  nsDialogs::Show
+FunctionEnd
+
+Function HardwareToggle
+  ${NSD_GetState} $hXusb $0
+  ${If} $HwXusb == 1
+  ${OrIf} $0 == ${BST_CHECKED}
+    ${NSD_Uncheck} $hDs4
+    EnableWindow $hDs4 0
+  ${Else}
+    EnableWindow $hDs4 1
+  ${EndIf}
+FunctionEnd
+
+Function HardwareLeave
+  StrCpy $WantVdd 0
+  ${NSD_GetState} $hVdd $0
   ${If} $0 == ${BST_CHECKED}
-  ${AndIf} $IsServer == 1
-  ${AndIf} ${SectionIsSelected} ${SEC_SUNSHINE}
+  ${AndIf} $HwVdd != 1
+    StrCpy $WantVdd 1
+  ${EndIf}
+  StrCpy $WantXusb 0
+  ${NSD_GetState} $hXusb $0
+  ${If} $0 == ${BST_CHECKED}
+  ${AndIf} $HwXusb != 1
+    StrCpy $WantXusb 1
+  ${EndIf}
+  StrCpy $Ds4 0
+  ${NSD_GetState} $hDs4 $0
+  ${If} $0 == ${BST_CHECKED}
     StrCpy $Ds4 1
   ${EndIf}
 FunctionEnd
@@ -539,43 +1087,129 @@ Function AccountLeave
     Abort
   ${EndIf}
   ; An existing account keeps its password; a new one (or signing in by
-  ; itself) needs one.
+  ; itself, unless that's already set up for it) needs one.
   nsExec::Exec 'net.exe user "$AccountName"'
   Pop $4
+  ReadRegStr $5 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" "AutoAdminLogon"
+  ReadRegStr $6 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" "DefaultUserName"
   ${If} $AccountPass == ""
     ${If} $4 != 0
       MessageBox MB_ICONEXCLAMATION "Choose a password for the new account."
       Abort
     ${ElseIf} $AutoLogon == 1
-      MessageBox MB_ICONEXCLAMATION "To sign $AccountName in automatically, type its password."
-      Abort
+      ${IfNot} $5 == "1"
+      ${OrIfNot} $6 == $AccountName
+        MessageBox MB_ICONEXCLAMATION "To sign $AccountName in automatically, type its password."
+        Abort
+      ${EndIf}
     ${EndIf}
   ${EndIf}
+FunctionEnd
+
+; ---------------------------------------------------------------- admin
+; Only on a fresh install: an upgrade keeps its accounts.
+Function AdminPage
+  ${IfNot} ${SectionIsSelected} ${SEC_LUMA}
+  ${OrIf} ${FileExists} "$INSTDIR\moonlight-web-stream\server\data.json"
+  ${OrIf} ${FileExists} "$PLUGINSDIR\admin.txt"
+    Abort
+  ${EndIf}
+  !insertmacro MUI_HEADER_TEXT "Your admin account" "So nothing needs setting up by hand after Setup."
+  nsDialogs::Create 1018
+  Pop $0
+
+  ${NSD_CreateLabel} 0 0 100% 44u "The name and password you'll sign in to Luma Arcade with, as its admin. Setup also gives Sunshine (the streaming host) the same sign-in, if it doesn't have one yet, and pairs the two - normally three fiddly steps after installing.$\r$\n$\r$\nLeave it empty to do those steps yourself later."
+  Pop $0
+  ${NSD_CreateLabel} 0 52u 60u 10u "Name"
+  Pop $0
+  ${NSD_CreateText} 64u 51u 120u 12u $AdminName
+  Pop $hAdminName
+  ${NSD_CreateLabel} 0 67u 60u 10u "Password"
+  Pop $0
+  ${NSD_CreatePassword} 64u 66u 120u 12u ""
+  Pop $hAdminPass
+  ${NSD_CreateLabel} 0 82u 60u 10u "Again"
+  Pop $0
+  ${NSD_CreatePassword} 64u 81u 120u 12u ""
+  Pop $hAdminPass2
+  nsDialogs::Show
+FunctionEnd
+
+Function AdminLeave
+  ${NSD_GetText} $hAdminName $AdminName
+  ${NSD_GetText} $hAdminPass $AdminPass
+  ${NSD_GetText} $hAdminPass2 $0
+  ${If} $AdminName == ""
+  ${AndIf} $AdminPass == ""
+    Return
+  ${EndIf}
+  ${If} $AdminName == ""
+    MessageBox MB_ICONEXCLAMATION "Type a name for your admin account (or leave both empty)."
+    Abort
+  ${EndIf}
+  ${If} $AdminPass != $0
+    MessageBox MB_ICONEXCLAMATION "The two passwords don't match."
+    Abort
+  ${EndIf}
+  StrLen $1 $AdminPass
+  ${If} $1 < 8
+    MessageBox MB_ICONEXCLAMATION "Use at least 8 characters: people on the internet may be able to reach this sign-in."
+    Abort
+  ${EndIf}
+FunctionEnd
+
+; ---------------------------------------------------------------- network
+Function NetworkPage
+  ${IfNot} ${SectionIsSelected} ${SEC_LUMA}
+    Abort
+  ${EndIf}
+  !insertmacro MUI_HEADER_TEXT "Playing from other devices" "Browsers only allow game controllers and full screen on secure (HTTPS) pages."
+  nsDialogs::Create 1018
+  Pop $0
+
+  ${NSD_CreateCheckbox} 0 0 100% 12u "HTTPS on the home network (https://<this PC>:${HTTPS_PORT})"
+  Pop $hHttps
+  ${If} $HttpsOn == 1
+    ${NSD_Check} $hHttps
+  ${EndIf}
+  ${NSD_CreateLabel} 12u 13u -12u 34u "A TV or laptop at home can then use controllers. The certificate is made for this PC, so each device warns about it once (continue anyway), or installs it from http://<this PC>:${LUMA_PORT}/luma-arcade.cer to trust it for good."
+  Pop $0
+
+  ${NSD_CreateLabel} 0 54u 100% 42u "Away from home: a Cloudflare Tunnel gives Luma Arcade a secure address on your own domain, without opening ports. In the Cloudflare dashboard (Zero Trust > Networks > Tunnels) create a tunnel, copy its token (the long text after --token in its install command) and paste it here. Then give the tunnel a public hostname pointing at http://localhost:${LUMA_PORT}."
+  Pop $0
+  ${NSD_CreateLabel} 0 100u 60u 10u "Tunnel token"
+  Pop $0
+  ${NSD_CreatePassword} 64u 99u -64u 12u $TunnelToken
+  Pop $hToken
+  ${NSD_CreateLabel} 64u 114u -64u 10u "Optional - leave it empty to skip."
+  Pop $0
+  nsDialogs::Show
+FunctionEnd
+
+Function NetworkLeave
+  ${NSD_GetState} $hHttps $0
+  StrCpy $HttpsOn 0
+  ${If} $0 == ${BST_CHECKED}
+    StrCpy $HttpsOn 1
+  ${EndIf}
+  ${NSD_GetText} $hToken $TunnelToken
 FunctionEnd
 
 ; ---------------------------------------------------------------- folders
 Function LumaDirPre
   ${IfNot} ${SectionIsSelected} ${SEC_LUMA}
+  ${OrIf} $IsUpgrade == 1
     Abort
   ${EndIf}
 FunctionEnd
 
+!macro EmuAny SEC KEY FOLDER
+  !insertmacro EmuArg ${SEC} "x"
+!macroend
+
 Function GamesDirPre
   StrCpy $EmuList ""
-  !insertmacro EmuArg ${SEC_RETROARCH} "x"
-  !insertmacro EmuArg ${SEC_DOLPHIN} "x"
-  !insertmacro EmuArg ${SEC_PCSX2} "x"
-  !insertmacro EmuArg ${SEC_DUCKSTATION} "x"
-  !insertmacro EmuArg ${SEC_PPSSPP} "x"
-  !insertmacro EmuArg ${SEC_RPCS3} "x"
-  !insertmacro EmuArg ${SEC_XENIA} "x"
-  !insertmacro EmuArg ${SEC_XEMU} "x"
-  !insertmacro EmuArg ${SEC_CEMU} "x"
-  !insertmacro EmuArg ${SEC_AZAHAR} "x"
-  !insertmacro EmuArg ${SEC_MELONDS} "x"
-  !insertmacro EmuArg ${SEC_VITA3K} "x"
-  !insertmacro EmuArg ${SEC_FLYCAST} "x"
-  !insertmacro EmuArg ${SEC_SHADPS4} "x"
+  !insertmacro AllEmus EmuAny
   ${IfNot} ${SectionIsSelected} ${SEC_ESDE}
   ${AndIf} $EmuList == ""
     Abort
@@ -607,13 +1241,111 @@ Function ShowNextSteps
   ${EndIf}
 FunctionEnd
 
+Function .onGUIEnd
+  ; Secrets never outlive Setup, whatever happened.
+  Delete "$PLUGINSDIR\admin.txt"
+  Delete "$PLUGINSDIR\account.txt"
+  Delete "$PLUGINSDIR\tunnel.txt"
+FunctionEnd
+
+Function .onInstFailed
+  Delete "$PLUGINSDIR\admin.txt"
+  Delete "$PLUGINSDIR\account.txt"
+  Delete "$PLUGINSDIR\tunnel.txt"
+FunctionEnd
+
 ; ---------------------------------------------------------------- uninstall
+; Silent: /REMOVEAUTOLOGON and /REMOVEACCOUNT (neither happens by default).
+Function un.onInit
+  SetRegView 64
+  ReadRegStr $UnAccount HKLM "${SETTINGS_KEY}" "Account"
+  ReadRegDWORD $UnSeparate HKLM "${SETTINGS_KEY}" "SeparateAccount"
+  StrCpy $UnAutoLogon 1
+  StrCpy $UnRemoveAccount 0
+  ${If} ${Silent}
+    StrCpy $UnAutoLogon 0
+    ${GetParameters} $0
+    ClearErrors
+    ${GetOptions} $0 "/REMOVEAUTOLOGON" $1
+    ${IfNot} ${Errors}
+      StrCpy $UnAutoLogon 1
+    ${EndIf}
+    ClearErrors
+    ${GetOptions} $0 "/REMOVEACCOUNT" $1
+    ${IfNot} ${Errors}
+      StrCpy $UnRemoveAccount 1
+    ${EndIf}
+  ${EndIf}
+FunctionEnd
+
+Function un.OptionsPage
+  ${If} $UnSeparate != 1
+  ${OrIf} $UnAccount == ""
+    Abort
+  ${EndIf}
+  !insertmacro MUI_HEADER_TEXT "The games account" "Luma Arcade ran its games under the Windows account $UnAccount."
+  nsDialogs::Create 1018
+  Pop $0
+  ${NSD_CreateCheckbox} 0 0 100% 12u "Stop signing $UnAccount in automatically when the PC starts"
+  Pop $hUnAutoLogon
+  ${If} $UnAutoLogon == 1
+    ${NSD_Check} $hUnAutoLogon
+  ${EndIf}
+  ${NSD_CreateCheckbox} 0 20u 100% 12u "Delete the $UnAccount account and everything in its user folder"
+  Pop $hUnRemoveAccount
+  ${NSD_CreateLabel} 12u 34u -12u 40u "Its desktop, documents and any game settings or saves kept in its profile are deleted for good. Your games folder isn't touched. If it's signed in, it's signed out first."
+  Pop $0
+  nsDialogs::Show
+FunctionEnd
+
+Function un.OptionsLeave
+  ${NSD_GetState} $hUnAutoLogon $0
+  StrCpy $UnAutoLogon 0
+  ${If} $0 == ${BST_CHECKED}
+    StrCpy $UnAutoLogon 1
+  ${EndIf}
+  ${NSD_GetState} $hUnRemoveAccount $0
+  StrCpy $UnRemoveAccount 0
+  ${If} $0 == ${BST_CHECKED}
+    MessageBox MB_YESNO|MB_ICONEXCLAMATION "Delete the $UnAccount account and its files? This can't be undone." IDYES +2
+    Abort
+    StrCpy $UnRemoveAccount 1
+  ${EndIf}
+FunctionEnd
+
 Section "Uninstall"
   SetRegView 64
-  nsExec::Exec 'schtasks.exe /delete /tn "\LumaArcade\LumaArcade" /f'
+  nsExec::Exec 'schtasks.exe /end /tn "\LumaArcade\LumaArcade"'
+  Pop $0
+  ; Everything running from the install folder, so its files can go.
+  nsExec::Exec `"${POWERSHELL}" -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $$_.ExecutablePath -like '$INSTDIR\*' -and $$_.Name -ne 'cloudflared.exe' } | ForEach-Object { Stop-Process -Id $$_.ProcessId -Force }"`
+  Pop $0
+
+  ; The PC-side setup: tasks, helper scripts, Sunshine prep-cmds, ES-DE
+  ; event scripts, the tunnel, and what was ticked on the options page.
+  StrCpy $1 '-LumaDir "$INSTDIR"'
+  ${If} $UnSeparate == 1
+  ${AndIf} $UnAccount != ""
+    StrCpy $1 '$1 -Account "$UnAccount"'
+    ${If} $UnAutoLogon == 1
+      StrCpy $1 "$1 -RemoveAutoLogon"
+    ${EndIf}
+    ${If} $UnRemoveAccount == 1
+      StrCpy $1 "$1 -RemoveAccount"
+    ${EndIf}
+  ${EndIf}
+  ${If} ${FileExists} "$INSTDIR\setup\uninstall-host.ps1"
+    nsExec::ExecToLog '"${POWERSHELL}" -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\setup\uninstall-host.ps1" $1'
+    Pop $0
+  ${Else}
+    nsExec::Exec 'schtasks.exe /delete /tn "\LumaArcade\LumaArcade" /f'
+    Pop $0
+  ${EndIf}
   DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "LumaArcade"
-  nsExec::Exec '"${POWERSHELL}" -NoProfile -Command "Remove-NetFirewallRule -DisplayName ''Luma Arcade*'' -ErrorAction SilentlyContinue"'
+  nsExec::Exec `"${POWERSHELL}" -NoProfile -Command "Remove-NetFirewallRule -DisplayName 'Luma Arcade*' -ErrorAction SilentlyContinue"`
+  Pop $0
   DeleteRegKey HKLM "${UNINST_KEY}"
+  DeleteRegKey HKLM "${SETTINGS_KEY}"
 
   SetShellVarContext all
   Delete "$SMPROGRAMS\${APP_TITLE}\${APP_TITLE}.lnk"
@@ -632,6 +1364,9 @@ Section "Uninstall"
     Delete "$INSTDIR\server\luma-arcade.db-wal"
     Delete "$INSTDIR\server\luma-arcade.db-shm"
     Delete "$INSTDIR\moonlight-web-stream\server\data.json"
+    Delete "$INSTDIR\moonlight-web-stream\server\config.json"
+    Delete "$INSTDIR\server\https.json"
+    RMDir /r "$INSTDIR\server\https"
   keepdata:
 
   RMDir /r "$INSTDIR\server\dist"
@@ -642,10 +1377,13 @@ Section "Uninstall"
   RMDir /r "$INSTDIR\moonlight-web-stream\static"
   Delete "$INSTDIR\moonlight-web-stream\*.exe"
   Delete "$INSTDIR\moonlight-web-stream\*.log"
-  Delete "$INSTDIR\moonlight-web-stream\server\config.json"
+  Delete "$INSTDIR\moonlight-web-stream\server\config.default.json"
   Delete "$INSTDIR\moonlight-web-stream\server\turn_ice_script.*"
   RMDir "$INSTDIR\moonlight-web-stream\server"
   RMDir "$INSTDIR\moonlight-web-stream"
+  RMDir /r "$INSTDIR\host"
+  RMDir /r "$INSTDIR\setup"
+  RMDir /r "$INSTDIR\cloudflared"
   Delete "$INSTDIR\node.exe"
   Delete "$INSTDIR\LumaArcade.vbs"
   Delete "$INSTDIR\NEXT-STEPS.txt"
@@ -653,5 +1391,5 @@ Section "Uninstall"
   RMDir "$INSTDIR\server"
   RMDir "$INSTDIR"
 
-  MessageBox MB_ICONINFORMATION "Luma Arcade is removed. Sunshine, ES-DE, the emulators, your games folder and any games account were left in place - remove them yourself if you don't need them." /SD IDOK
+  MessageBox MB_ICONINFORMATION "Luma Arcade is removed. Sunshine, the drivers, ES-DE, the emulators and your games folder were left in place - remove them yourself if you don't need them." /SD IDOK
 SectionEnd
