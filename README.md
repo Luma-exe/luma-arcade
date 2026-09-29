@@ -1,393 +1,250 @@
-# LumaArcade
+<div align="center">
 
-A thin login shell in front of your own [Sunshine](https://github.com/LizardByte/Sunshine) +
-[ES-DE](https://es-de.org/) + [moonlight-web-stream](https://github.com/MrCreativ3001/moonlight-web-stream)
-setup. LumaArcade itself is a small Node.js/TypeScript process that runs in
-the system tray on your Windows gaming PC: it adds per-user access rules on
-top of moonlight-web-stream's own sign-in, manages
-the moonlight-web-stream process's lifecycle, and reverse-proxies the browser
-to it. All of the actual game streaming - capture, encode, input, the
-in-stream UI - is handled by that stack, not by LumaArcade.
+# Luma Arcade
 
-## How it fits together
+**Turn a Windows gaming PC into a console anyone can play from a web browser.**
 
+Sign-in, fair turns, co-op, play time limits and per-player saves on top of
+[Sunshine](https://github.com/LizardByte/Sunshine), [ES-DE](https://es-de.org/) and
+[moonlight-web-stream](https://github.com/MrCreativ3001/moonlight-web-stream), with a one-click installer.
+
+[![Tests](https://github.com/Luma-exe/luma-arcade/actions/workflows/test.yml/badge.svg)](https://github.com/Luma-exe/luma-arcade/actions/workflows/test.yml)
+![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20%7C%20Server-0078D4)
+![Node](https://img.shields.io/badge/node-24-339933)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6)
+
+[Install](#install) · [Features](#features) · [How it works](#how-it-works) · [Development](#development) · [Troubleshooting](#troubleshooting)
+
+</div>
+
+---
+
+## Features
+
+| | |
+|---|---|
+| **Play anywhere** | Stream the PC's games to any browser - TV, laptop or phone - with controllers, touch controls and automatic quality that adapts to the connection. |
+| **Accounts and fair turns** | One player at a time, with hand-over requests, a waiting line, idle hand-over and admin take-over. |
+| **Co-op** | Invite up to three more players onto the same screen, or let people watch. |
+| **Guest links** | Share a link that gives someone without an account a turn, or a seat in your game, for a set time. |
+| **Per-player saves** | Everyone keeps their own emulator saves and ES-DE favorites, with snapshots they can restore. |
+| **House rules** | Daily and weekly play time limits, announcements, messages, and a lockdown that keeps guests out of the PC's settings. |
+| **Game tracking** | Play history per person and per game, a weekly summary and Discord alerts. |
+| **Host health** | One screen that checks Sunshine, encoders, drivers, the virtual display, saves and backups - with fixes where it can. |
+
+## Install
+
+Download **`LumaArcadeSetup.exe`** and run it. Setup walks you through everything and leaves nothing to configure by hand afterwards.
+
+| Step | What Setup does |
+|---|---|
+| **What to install** | *Everything* (streaming), *ES-DE + emulators* (play on this PC), or *just the emulators* - then pick exactly which emulators. |
+| **Windows edition** | Detects Windows 10/11 or Server, and on Server turns the sound on. |
+| **Hardware** | Warns if there's no NVIDIA, AMD or Intel graphics to encode with, and offers a [virtual display](https://github.com/VirtualDrivers/Virtual-Display-Driver) for PCs with no monitor. |
+| **Controllers** | Xbox 360 or PlayStation 4 virtual controllers, with the drivers they need ([ViGEmBus](https://github.com/nefarius/ViGEmBus), Microsoft's Xbox 360 driver). |
+| **Games account** | Creates a separate standard account that signs in by itself, so players never see your own desktop. |
+| **Admin account** | Creates your admin sign-in, sets Sunshine's sign-in and pairs the two. |
+| **Other devices** | HTTPS on the home network (browsers only allow controllers on secure pages) and an optional Cloudflare Tunnel for playing away from home. |
+| **PC-side helpers** | Installs the scripts and scheduled tasks behind lockdown, the Home button, per-player saves, game tracking and window focus. |
+
+Everything is downloaded from official releases at **versions tested with Luma Arcade**, each checked against its SHA-256 before it's installed ([`versions.json`](installer/scripts/versions.json)). BIOS and firmware files are never included.
+
+> [!TIP]
+> **Upgrading** is the same: run the new `LumaArcadeSetup.exe`. It stops Luma Arcade, keeps your accounts, settings, saves and certificate, skips emulators you already have, and starts it again.
+
+<details>
+<summary><b>Silent install</b> (scripted setups)</summary>
+
+<br>
+
+```text
+LumaArcadeSetup.exe /S [options] [/D=C:\Program Files\LumaArcade]
 ```
-Browser -> LumaArcade (auth + reverse proxy, one port)
-              |
-              v
-     moonlight-web-stream (its own process/port)
-              |
-              v
-   [ Moonlight protocol, LAN or internet ]
-              |
-              v
-         Sunshine (host PC)
-              |
-              v
-            ES-DE
-              |
-              v
-     Emulators & PC games
+
+| Option | Meaning |
+|---|---|
+| `/TYPE=everything\|esde\|emulators` | What to install (default: everything) |
+| `/EMULATORS=all\|none\|retroarch,dolphin,...` | Which emulators |
+| `/GAMESDIR=D:\Games` | Games folder (default `C:\Games`) |
+| `/ACCOUNT=<name>\|current` | Games account (default `Arcade`) |
+| `/PASSWORDFILE=<file>` | Its password - required for a new account |
+| `/ADMINFILE=<file>` | Admin name and password, on two lines |
+| `/TUNNELTOKENFILE=<file>` | Cloudflare Tunnel token |
+| `/NOAUTOLOGON` `/NOAUTOSTART` `/NOHTTPS` | Turn those off |
+| `/SERVER` `/CLIENT` | Override the detected Windows edition |
+| `/VDD` `/NOVDD` `/VIGEM` `/NOVIGEM` `/XUSB` `/NOXUSB` | Force a driver on or off |
+| `/DS4` | PlayStation 4 controllers instead of Xbox 360 |
+| `/LATEST` | Newest releases instead of the tested versions |
+
+Secrets are read from files, which are copied and never changed. `/D=` must come last. Setup exits with code `2`, before changing anything, if the options don't add up.
+
+`Uninstall.exe /S` removes Luma Arcade and keeps its data. Add `/REMOVEAUTOLOGON` and/or `/REMOVEACCOUNT` to stop the games account signing in, or delete it.
+
+</details>
+
+<details>
+<summary><b>Adding or updating emulators later</b></summary>
+
+<br>
+
+Run as administrator:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "C:\Games\setup\install-games.ps1" -GamesDir "C:\Games" -WithEsDe -Emulators retroarch,dolphin
 ```
 
-Opening LumaArcade's `/` redirects to its `/stream` reverse proxy, i.e.
-moonlight-web-stream's browser client. Its sign-in (moonlight-web-stream's
-users and roles) is the only login; LumaArcade reads that session to decide
-who may use which apps and the admin/settings API.
+`-ListOnly` checks every download without installing; `-Latest` takes the newest releases instead of the tested ones.
 
-## Installing (the easy way)
+</details>
 
-Download `LumaArcadeSetup.exe` and run it. It asks:
+<details>
+<summary><b>Setting up a host by hand</b></summary>
 
-1. **What to install**
-   - *Everything* - Luma Arcade (with moonlight-web-stream bundled), Sunshine,
-     ES-DE and emulators: play this PC's games from any browser.
-   - *ES-DE and emulators* - a console-style library for playing on this PC
-     with a TV and controller. No streaming, no Sunshine, no website.
-   - *Just the emulators* - one folder with Start menu shortcuts.
+<br>
 
-   The next page lists every emulator, so you can untick the ones you don't
-   want. ES-DE, the emulators and Sunshine are downloaded from their official
-   releases at install time, so the PC must be online - the versions tested
-   with Luma Arcade, listed with their checksums in
-   `installer/scripts/versions.json` (a download that doesn't match its
-   checksum isn't installed). BIOS/firmware files are never included.
-2. **Which Windows** (detected for you). Normal Windows 10/11 is right for
-   most people. Windows Server suits a PC that only hosts games, 24/7: no
-   forced feature updates or surprise restarts, no consumer apps in the
-   background, several people signed in at once over Remote Desktop, and
-   GPU partitioning for virtual machines. The downsides: no Xbox 360
-   controller driver, sound switched off, some anti-cheat and Store/Game
-   Pass games won't run, and it costs more. On Server the installer turns
-   sound on.
-3. **This PC's hardware** (streaming installs). Warns when there's no
-   NVIDIA, AMD or Intel graphics for Sunshine to encode with, offers the
-   [Virtual Display Driver](https://github.com/VirtualDrivers/Virtual-Display-Driver)
-   when no monitor is plugged in (with the screen sizes the stream page can
-   ask for).
-4. **Controllers**: whether players' controllers reach games as Xbox 360
-   pads (recommended) or PlayStation 4 (DualShock 4) pads, and the drivers
-   for them: [ViGEmBus](https://github.com/nefarius/ViGEmBus), the virtual
-   controller driver either kind needs, and Microsoft's Xbox 360 controller
-   driver (Windows Server lacks it; PlayStation 4 pads work without it).
-5. **Which account runs it** (streaming installs only). A separate account
-   (default name `Arcade`) is recommended: people who stream see and control
-   that account's desktop - open windows, files, browser sessions, saved
-   passwords - so a games-only standard account keeps your own account
-   private. The installer creates it, can sign it in when the PC starts
-   (Sunshine can only stream a signed-in desktop; the password is stored as
-   an LSA secret like Sysinternals Autologon, not in plain text), and starts
-   Luma Arcade when it signs in.
-6. **Your admin account**: the first Luma Arcade account, and Sunshine's
-   sign-in if it has none. Setup then pairs the two, so there's nothing to
-   set up by hand afterwards.
-7. **Playing from other devices**: HTTPS on the home network
-   (`https://<this PC>:7778`, a certificate made for this PC - browsers only
-   allow controllers and full screen on HTTPS pages), and optionally a
-   Cloudflare Tunnel token for playing away from home.
-8. **Folders**: Luma Arcade (`Program Files\LumaArcade`) and a games folder
-   (`C:\Games`: `ES-DE\`, `ES-DE\Emulators\<name>` in the folder names
-   ES-DE's portable find rules expect, `ES-DE\ROMs\`). Every account on the
-   PC can use the games folder.
+1. Install [Sunshine](https://github.com/LizardByte/Sunshine) and [ES-DE](https://es-de.org/), and add ES-DE as a Sunshine application.
+2. Build [moonlight-web-stream](https://github.com/MrCreativ3001/moonlight-web-stream) (Rust + web frontend; it runs as its own process).
+3. In Luma Arcade's settings, point `moonlightWebStreamPath` and its port at that build and let Luma Arcade start it.
+4. For the PC-side features, see [`host/README.md`](host/README.md).
 
-It also installs the PC-side half of Luma Arcade into
-`C:\ProgramData\LumaArcade`: the scripts and scheduled tasks behind lockdown,
-the Home button, the window picker, per-player saves, game tracking and the
-focus fix, Sunshine's prep-cmd for ES-DE and Big Picture, and ES-DE's event
-scripts (`installer/scripts/install-host.ps1`; `host.json` there says where
-ES-DE, the emulators and the saves are).
+> [!IMPORTANT]
+> Stream from an account dedicated to games, never your own. Sunshine shows that account's desktop - files, browser sessions and saved passwords included - to whoever is playing.
 
-Afterwards, `NEXT-STEPS.txt` (signing in, other devices) and
-`READ ME - games setup.txt` (where games and BIOS files go) open. To add or
-update emulators later, run `<games folder>\setup\install-games.ps1` as
-administrator (`-Emulators retroarch,dolphin,...`, `-ListOnly` to check, `-Latest`
-for the newest releases instead of the tested ones).
+</details>
 
-**Upgrading**: run the new `LumaArcadeSetup.exe`. It finds the installed copy,
-stops it, replaces its files (keeping the database, moonlight's `data.json`
-and `config.json`, and the HTTPS certificate), leaves already-installed
-emulators unticked, and starts it again.
+## How it works
 
-**Silent installs** (`/S`, for scripted setups), all options optional:
+```mermaid
+flowchart LR
+    B["Browser<br/>(TV, laptop, phone)"] -->|HTTPS| L["Luma Arcade<br/>sign-in, rules, proxy"]
+    L --> M["moonlight-web-stream<br/>browser client"]
+    M -->|Moonlight protocol| S["Sunshine<br/>capture + encode"]
+    S --> E["ES-DE"] --> G["Emulators &amp; PC games"]
+    L -. "scheduled tasks" .-> H["PC-side helpers<br/>lockdown, Home, saves"]
+```
 
-    LumaArcadeSetup.exe /S /TYPE=everything|esde|emulators /EMULATORS=all|none|retroarch,dolphin,...
-        /GAMESDIR=D:\Games /ACCOUNT=Arcade|current /PASSWORDFILE=<file> /NOAUTOLOGON /NOAUTOSTART
-        /ADMINFILE=<file: name and password on two lines> /NOHTTPS /TUNNELTOKENFILE=<file>
-        /SERVER /CLIENT /VDD /NOVDD /VIGEM /NOVIGEM /XUSB /NOXUSB /DS4 /LATEST /D=C:\Program Files\LumaArcade
+Luma Arcade is a small Node.js/TypeScript server (Fastify) that runs on the gaming PC. It serves the site on one port, reverse-proxies moonlight-web-stream under `/stream`, and manages its process. moonlight-web-stream's sign-in is the only login; Luma Arcade reads that session to decide who may play what, when. All capture, encoding and input is handled by Sunshine and moonlight-web-stream.
 
-Secrets go in files (copied, never changed); `/D=` must come last. A new
-games account needs `/PASSWORDFILE`: without one Setup stops with exit code
-2 before changing anything. `Uninstall.exe /S` removes Luma Arcade
-and keeps its data; add `/REMOVEAUTOLOGON` and/or `/REMOVEACCOUNT` to stop the
-games account signing in / delete it (the uninstaller asks, otherwise).
+Because the server can't reach the games desktop itself, PC-side PowerShell helpers in `C:\ProgramData\LumaArcade` do that work, started through scheduled tasks and Sunshine's prep-commands.
 
-## Host setup by hand (without the installer)
+<details>
+<summary><b>Architecture notes</b></summary>
 
-1. **Install [Sunshine](https://github.com/LizardByte/Sunshine)** and
-   **[ES-DE](https://es-de.org/)** on the gaming PC. In Sunshine's web UI ->
-   Applications, add an entry for ES-DE pointing at its executable, so
-   Moonlight clients can request it by name.
-2. **Build/install [moonlight-web-stream](https://github.com/MrCreativ3001/moonlight-web-stream).**
-   It's not published to npm - clone the repo and follow its own build
-   instructions (Rust + a bundled web frontend). It runs as its own local
-   web server/process, separate from LumaArcade.
-3. In LumaArcade's Settings -> Streaming, point `moonlightWebStreamPath` /
-   port at that build and (optionally) let LumaArcade auto-start it for you.
+<br>
 
-**Use a Windows account dedicated to this**, not your own personal daily
-account. Sunshine renders whatever's on that account's desktop to anyone who
-connects and streams through it - your files, browser sessions, saved
-passwords included. This matters even if you never touch anything else in
-this README.
+| Area | Where | Notes |
+|---|---|---|
+| **Auth** | `web/streamUser.ts` | Pages under `/stream` call `/stream/luma-api/...` (rewritten to `/api/...`) because moonlight's cookie is scoped to `/stream`. Access rules live in Luma Arcade's database (`web/access.ts`, `web/appAccess.ts`). |
+| **Turns** | `web/sessions.ts`, `routes/handover.ts` | Whoever streams has the PC. Hand-over requests lapse after 10 s; idle players (15 min) hand over when asked; an abandoned game is released after 10 min (3 with someone waiting); the line holds a free PC for 90 s. |
+| **Co-op** | `sessions.ts`, `routes/coop.ts` | Up to 4 players on one screen at the host's size and frame rate; needs `channels = 2` in `sunshine.conf`. Guests can't go Home or close the game. |
+| **Guest links** | `web/guestLinks.ts` | `/g/<token>` signs a visitor in as a throwaway moonlight account whose time and expiry act as a play limit. |
+| **Saves** | `host/profiles.ps1`, `routes/saves.ts` | A Sunshine prep-command swaps save folders and ES-DE stats to the incoming player; snapshots are kept per player. |
+| **Limits and messages** | `web/limits.ts`, `web/announcements.ts`, `web/messages.ts` | Daily/weekly minutes, announcements and direct messages, delivered through one poll. |
+| **Play history** | `web/playLog.ts`, `web/games.ts` | Every stream and every game played in ES-DE, with connection quality. |
+| **Lockdown** | `web/lockdown.ts`, `host/lockdown.ps1` | While a non-admin streams, admin tools on the games desktop close as they open. Fails open if Luma Arcade stops. |
+| **HTTPS** | `web/https.ts` | With `server/https.json` (written by Setup), the same site is also served over TLS on port 7778. |
+| **Tunnels** | `web/requestOrigin.ts` | Forwarding headers are trusted from loopback only. Requests arriving through a tunnel count as internet and can't change settings that make the host run a file or rebind. |
+| **moonlight process** | `remote/moonlightWebStream.ts` | Started with `--bind-address 127.0.0.1:<port> --path-prefix /stream`, restarted with capped backoff if it exits. |
+| **Auto-start** | Scheduled task `\LumaArcade\LumaArcade` | Runs `LumaArcade.vbs --background` when the games account signs in, in that account's session. |
 
-## Getting started (LumaArcade itself)
+</details>
+
+## Development
 
 ```bash
 npm install
-npm run dev:server   # Fastify auth + reverse proxy on :7777, restarts on change
-npm test             # session lock, hand-over, queue, app access, play log
+npm run dev:server   # Fastify on :7777, restarts on change
+npm test             # the server's test suite
 ```
 
-Point the `moonlightWebStreamPath` setting at your moonlight-web-stream
-install, then open `http://localhost:7777/` and sign in with a
-moonlight-web-stream account (an Admin one to reach Settings).
+Point the `moonlightWebStreamPath` setting at a moonlight-web-stream build, open `http://localhost:7777` and sign in with a moonlight-web-stream account (an admin one for Settings). For a production-style run: `npm run build && npm run start`. The port is a setting, 7777 by default.
 
-For a production-style single-process run:
+### Building the installer
 
 ```bash
-npm run build
-npm run start         # Fastify on :7777
+npm run package   # needs NSIS (winget install NSIS.NSIS) and Node installed system-wide
 ```
 
-7777 is only the default - the listen port is a setting (Settings -> General),
-so a deployment may well be on something else.
+This produces `installer/output/LumaArcadeSetup.exe`. It bundles the built server, `node.exe`, production `node_modules`, the customized moonlight-web-stream from `../moonlight-web-stream-bin/package` (or `MOONLIGHT_PACKAGE_DIR`) and the PC-side helper scripts. It never includes `data.json`, `cloudflare_turn.json` or backups.
 
-## Building the Windows installer
+| Path | Purpose |
+|---|---|
+| `installer/LumaArcade.nsi` | The installer and uninstaller |
+| `installer/scripts/` | The steps it runs: games, Sunshine, drivers, Windows setup, PC-side helpers, network, first run, upgrade, uninstall |
+| `installer/scripts/versions.json` | Tested download versions with checksums |
+| `installer/scripts/update-versions.ps1` | Finds, downloads and checks newer releases |
 
-```bash
-npm run package        # requires NSIS (winget install NSIS.NSIS) and a system Node install to copy from
-```
-
-Produces `installer/output/LumaArcadeSetup.exe`, an admin install (Sunshine,
-Windows accounts and the Server fixes need it). It bundles the built server,
-a copied `node.exe`, production-only `node_modules`, and the customized
-moonlight-web-stream from `../moonlight-web-stream-bin/package` (override
-with `MOONLIGHT_PACKAGE_DIR`) - only its executables, `static\`, its config
-(as `config.default.json`, with `session_cookie_secure` off for a first sign-in
-over plain http), the TURN script and the PC-side helper scripts from its
-`host\`; never `data.json` (users and pairing key), `cloudflare_turn.json` or
-backups. On first start LumaArcade uses that bundled copy if no moonlight
-path is set (`server/src/config/bundled.ts`).
-`installer/LumaArcade.nsi` is the installer; `installer/scripts` holds the steps it
-runs: `install-games.ps1`, `install-sunshine.ps1`, `install-drivers.ps1`,
-`setup-windows.ps1`, `install-host.ps1`, `setup-network.ps1`, `first-run.mjs`
-(admin account + pairing), `stop-luma.ps1` (upgrades), `uninstall-host.ps1`.
-
-The download versions are pinned in `installer/scripts/versions.json`
-(`catalog.ps1` says where each comes from). `update-versions.ps1` finds newer
-releases, downloads and checks each one, and pins the good ones; the
-"Tested versions" GitHub workflow runs it every Monday and opens a pull
-request (it needs "Allow GitHub Actions to create and approve pull requests"
-in the repository's Actions settings).
-
-## Architecture notes
-
-- **Auth**: moonlight-web-stream's sign-in. Its session cookie is scoped to
-  `/stream`, so pages there call LumaArcade at `/stream/luma-api/...`
-  (rewritten to `/api/...`); `requireAuth` / `requireAdmin` ask
-  moonlight-web-stream who the cookie belongs to (`server/src/web/streamUser.ts`).
-  Per-user app access and session rules live in LumaArcade's DB
-  (`web/access.ts`, `web/appAccess.ts`, admin API in `web/routes/admin.ts`).
-- **Running behind a tunnel** (e.g. cloudflared on this machine): Fastify
-  trusts forwarding headers from loopback only (`server/src/web/requestOrigin.ts`),
-  so the login rate limit is per real visitor (`CF-Connecting-IP`) instead of
-  one shared bucket. Requests arriving through the tunnel
-  count as "internet"; those can't change the settings that make the host execute a file or rebind
-  (`moonlightWebStreamPath`/`Port`, `devTreePath`, `port`) - do those from
-  the home network.
-- **One PC, one player** (`server/src/web/sessions.ts`): whoever is
-  streaming has the PC. Someone else who connects asks them to hand it
-  over (`routes/handover.ts`): the streamer gets a notification with Hand
-  over / ✕ that lapses after 10 seconds, and the asker sees the answer.
-  Handing over closes the streamer's stream and lets the asker in; admins
-  can also take over without waiting. A player whose stream page reports no
-  input for 15 minutes hands over as soon as someone asks. A game left open
-  with nobody streaming stops being its player's after 10 minutes (3 when
-  someone is waiting), and anyone can then take it or close it. People can
-  also wait in line: once the PC is free it's held 90 seconds for whoever
-  is first, and their page connects them.
-- **Play history** (`server/src/web/playLog.ts`, admin page's Play history
-  tab): every stream's player, app, start and length, in the `play_sessions`
-  table.
-- **Per-player saves** (`host/profiles.ps1`, see `host/README.md`): a
-  Sunshine prep-cmd swaps the emulators' save folders and ES-DE's
-  favorites/play counts to whoever's stream is starting. Players snapshot
-  and restore their own saves from Settings -> My saves (`routes/saves.ts`).
-- **Co-op** (`sessions.ts`, `routes/coop.ts`): the person playing invites
-  someone (quick panel -> Play together); the invite shows on their home
-  screen, and they join the same screen as player 2 at the player's exact
-  size and frame rate, controllers only. Needs `channels = 2` in
-  `sunshine.conf`. Guests can't go Home, switch windows or close the game.
-- **Stream page report** (every 30 s): idle time and stream quality
-  (bitrate, fps, ping, dropped frames, loss) - shown per session in Play
-  history - answered with play time left and announcements.
-- **Play time limits** (`web/limits.ts`, admin -> person -> Play time):
-  minutes per day/week; a stream is refused or ended once they're used up.
-- **Announcements** (`web/announcements.ts`, admin -> Announcements): shown
-  on everyone's home screen and popped up once on stream pages.
-- **Guest links** (`web/guestLinks.ts`, `routes/guestLinks.ts`, admin ->
-  Guest links, or Play together -> "Or send a link" for admins): `/g/<token>`
-  for someone without an account, either their own turn on the PC or
-  joining the creator's game as player 2. Each link has its own throwaway
-  moonlight-web-stream account (made with the admin's session); opening the
-  link signs the visitor in as it. Its play time and expiry count as a time
-  limit, so warnings and the cut-off work as usual. Admins see who's playing,
-  and can message, change time, kick or turn a link off (which deletes its
-  account). New accounts only see PCs set to "Everyone", so the paired PC is
-  shared that way.
-- **Messages** (`web/messages.ts`): an admin can message anyone (person
-  page or guest link); it pops up on their stream or home screen within a
-  few seconds.
-- **Host health** (Settings -> Host health, `server/src/web/routes/health.ts`):
-  checks Sunshine's service (including whether its HTTPS port has hung,
-  with a Restart Sunshine button) and encoders, moonlight-web-stream, whether the
-  virtual-controller driver Sunshine needs is installed, whether anyone is
-  logged into the console session, and whether ES-DE is running.
-- **Reverse proxy**: `server/src/web/routes/moonlight.ts` registers
-  `@fastify/http-proxy` under `/stream`, behind the same `requireAuth` guard
-  as everything else, proxying both HTTP and WebSocket traffic to
-  `http://127.0.0.1:<moonlightWebStreamPort>`. The proxy target is bound at
-  server startup, so changing the port in Settings needs a LumaArcade
-  restart to take effect.
-- **Process lifecycle**: `server/src/remote/moonlightWebStream.ts` spawns
-  and manages the moonlight-web-stream process using the same generic
-  `ManagedProcess` wrapper (`server/src/process/managedProcess.ts`) this app
-  has always used for long-lived child processes - it tolerates the binary
-  not being installed/configured yet rather than crashing, and now retries
-  with capped exponential backoff (5s up to 2min) if the process crashes or
-  exits unexpectedly instead of just staying down. Its actual launch
-  arguments are `--bind-address 127.0.0.1:<port> --path-prefix /stream` -
-  moonlight-web-stream has no `--port` flag; check its own `--help` output
-  before changing these if you're modifying this file.
-- **Auto-start** is a scheduled task (`\LumaArcade\LumaArcade`) that runs
-  `LumaArcade.vbs --background` when the chosen account signs in, not a
-  Windows Service - it runs in that account's session, next to the games.
-  `--background` skips opening the portal in a browser, which would pop up
-  on the streamed desktop.
-- **Remote/WAN access**: LumaArcade itself is LAN-only - there's no bundled
-  tunnel or TURN relay anymore. If you want to play from outside your LAN,
-  that's handled by however you expose Sunshine/moonlight-web-stream
-  (port-forwarding, your own VPN/tunnel, etc.), not by LumaArcade.
+The **Tested versions** workflow runs `update-versions.ps1` every Monday and opens a pull request with any new pins. It needs *Settings > Actions > General > Allow GitHub Actions to create and approve pull requests*.
 
 ## Troubleshooting
 
-Start with Settings -> Host health; most of the issues below show up there.
+Start with **Settings > Host health** - most problems show up there, often with a fix.
 
-**The stream works but the controller does nothing in ES-DE/games (Windows
-Server hosts).** Sunshine emulates Xbox 360 pads through ViGEmBus, but
-Windows Server doesn't ship the Xbox 360 controller driver (`xusb22.sys`),
-so the virtual pads appear in Device Manager with no driver and no app ever
-sees them. Either install that driver, or set `gamepad = ds4` in
-`sunshine.conf` (PS4 emulation uses the built-in HID driver - fine for ES-DE
-and RetroArch, but Xbox-only PC games won't see it).
+<details>
+<summary><b>Controllers do nothing in games (Windows Server)</b></summary>
 
-**Moonlight/the stream shows a black screen or immediately disconnects, and
-Sunshine's own log says `Failed to start the specified application` or
-`Couldn't run [...]: System: Permission denied`.** This means nobody is
-actually logged into the host PC's physical console session right now -
-Sunshine (running as a Windows service) can only launch apps and capture the
-display of whichever session is on the console, and it can't do either if
-that session is sitting at an empty lock/login screen. Log into the host
-PC's console (physically, or with `mstsc /admin` if connecting over RDP -
-a normal RDP connection creates a *separate* session instead of resuming the
-console one, which won't fix this) and retry.
+<br>
 
-**A normal RDP connection to the host "steals" the stream / breaks
-Sunshine's capture even though nobody logged out.** Same root cause as
-above, from the other direction: if the console account is already logged
-in and you RDP into it normally, Windows creates a second, separate session
-for that RDP connection rather than reconnecting you to the console one -
-leaving the console empty. Use `mstsc /v:<host> /admin` to reconnect to the
-console session directly instead.
+Windows Server has no Xbox 360 controller driver, so Sunshine's virtual Xbox pads never reach games. Re-run Setup and tick the Xbox 360 driver on the Controllers page, or choose PlayStation 4 controllers, which don't need it (Xbox-only PC games won't see them).
 
-**Sunshine's Desktop Duplication capture is unreliable specifically over
-non-console sessions** (a known, unresolved upstream Sunshine limitation -
-[LizardByte/Sunshine#1832](https://github.com/LizardByte/Sunshine/issues/1832)).
-This isn't fixable by LumaArcade or moonlight-web-stream configuration -
-Windows only exposes DXGI Desktop Duplication (and Windows.Graphics.Capture)
-for the console-owning session, confirmed by testing directly against
-multiple real virtual display drivers, none of which were visible to a
-non-console session either. If you want a second person to use the PC
-locally while someone streams, give that second use case its own separate
-account connected over ordinary RDP (no capture needed there), rather than
-trying to make the *streamed* seat the isolated one.
+</details>
 
-**The host machine also runs other software that needs an interactive
-login** (Docker Desktop is a common one - it has no true headless-service
-mode, and depends on someone being logged into that same session). If you
-change which account auto-logs into the console for streaming purposes,
-anything else depending on interactive login on a *different* account will
-stop coming back after a reboot. Windows only supports one account
-auto-logging into the console at a time - plan around this before switching
-which account "owns" the console.
+<details>
+<summary><b>Black screen, or the stream disconnects straight away</b></summary>
 
-**Sunshine's `--creds` CLI flag ignores whatever config path you pass and
-always writes to its own default install-directory state file.** If you
-script Sunshine credential changes for a *specific* config (e.g. a
-non-default instance), use the `POST /api/password` HTTP endpoint against
-that instance's own port instead - it's correctly scoped per-instance and
-doesn't have this bug. Learned this the hard way: `--creds` silently
-overwrote an unrelated instance's admin login once.
+<br>
 
-**`moonlight-web-stream` shows as "not reachable" in Settings.** Check the
-new detail line beneath that status (added specifically for this) - it
-distinguishes "the process isn't running at all" from "it's running but not
-answering yet," and surfaces the last error it hit, instead of just a flat
-yes/no.
+If Sunshine's log says `Failed to start the specified application` or `Permission denied`, nobody is signed in on the PC's console. Sunshine can only capture and launch on the console session. Sign in there, or connect with `mstsc /admin` - a normal Remote Desktop connection opens a separate session and leaves the console empty.
 
-## Performance expectations
+</details>
 
-Sunshine/Moonlight performance depends heavily on the host's GPU encoder
-(NVENC/AMF/QuickSync) and network path, not on LumaArcade or
-moonlight-web-stream - neither of them touch video encoding. As a starting
-point:
-- 1080p60 at a moderate bitrate (~10-15 Mbps) is comfortable for most modern
-  NVENC-capable GPUs on a wired LAN connection.
-- Wi-Fi and internet-routed connections add latency and packet loss that
-  hurt responsiveness more than raw bitrate does - prefer wired where
-  possible, especially for the host.
-- The browser-based moonlight-web-stream client is inherently a step behind
-  a native Moonlight client on latency and decode efficiency - expect a
-  noticeably better experience from LumaArcade's website for slower-paced
-  games than for twitch-reflex-dependent ones.
+<details>
+<summary><b>Remote Desktop breaks the stream</b></summary>
 
-## Known operational quirks (PM2-based deployments)
+<br>
 
-If you run `luma-arcade` / `moonlight-web-stream` under PM2 rather than the
-built-in `HKCU\...\Run` auto-start (e.g. because you're also running other
-Node services on the same box), a few real PM2-on-Windows gotchas are worth
-knowing before you hit them the hard way:
+A normal RDP connection to the streaming account starts a second session instead of resuming the console one. Use `mstsc /v:<host> /admin`. Capture only works on the console session ([LizardByte/Sunshine#1832](https://github.com/LizardByte/Sunshine/issues/1832)), so give local users a separate account over plain RDP rather than trying to stream a non-console session.
 
-- **PM2's inter-process communication on Windows uses a single, fixed named
-  pipe** (`\\.\pipe\rpc.sock`), not one scoped per `PM2_HOME` the way it is
-  on Linux/Mac (a per-`PM2_HOME` unix socket file). Two different Windows
-  accounts both running their own PM2 daemon on the same machine will
-  collide on that pipe - whichever daemon already holds it "wins," and the
-  other account's `pm2` commands silently end up talking to it instead of
-  spawning their own daemon (`connect EPERM \\.\pipe\rpc.sock` on the losing
-  side). There is no supported way around this short of not running two
-  PM2 daemons on one machine at once - use plain Windows Scheduled Tasks for
-  a second account's processes instead.
-- **A given PM2 version's CLI argument parsing for `-- <app args>` is not
-  consistent across versions** - some versions correctly pass everything
-  after `--` through to the child process, others misparse it as PM2's own
-  flags (`error: unknown option ...`). Use an `ecosystem.config.js` file
-  with an explicit `args: [...]` array instead of CLI flags when you need to
-  pass arguments to a managed process - it sidesteps this entirely.
-- **`pm2 list`'s "user" column is cosmetic, not authoritative.** If a
-  cross-account pipe collision (above) happens, PM2 will still *display*
-  the account that issued the `pm2 start` command in that column, even
-  though the process was actually spawned by - and is owned by - whichever
-  account's daemon actually handled the request. Verify real process
-  ownership with `Get-WmiObject Win32_Process | ForEach-Object { $_.GetOwner() }`
-  if this matters, not `pm2 list`.
+</details>
+
+<details>
+<summary><b>Other software stops starting after a reboot</b></summary>
+
+<br>
+
+Windows signs only one account in automatically. Software that needs its own interactive sign-in (Docker Desktop, for example) won't come back if the games account now owns the console.
+
+</details>
+
+<details>
+<summary><b>Sunshine's <code>--creds</code> changed the wrong instance</b></summary>
+
+<br>
+
+`sunshine.exe --creds` always writes to the default install's state file, whatever config path you pass. For a non-default instance, use its `POST /api/password` endpoint instead.
+
+</details>
+
+<details>
+<summary><b>moonlight-web-stream shows as not reachable</b></summary>
+
+<br>
+
+The detail line under that status says whether the process isn't running or isn't answering yet, and shows the last error it hit.
+
+</details>
+
+<details>
+<summary><b>Running under PM2 instead of the scheduled task</b></summary>
+
+<br>
+
+- PM2 on Windows uses one fixed named pipe (`\\.\pipe\rpc.sock`), so two accounts' PM2 daemons collide (`connect EPERM`). Use scheduled tasks for a second account.
+- Some PM2 versions misparse `-- <app args>`; use an `ecosystem.config.js` with an `args` array.
+- `pm2 list`'s user column is cosmetic - check real ownership with `Get-WmiObject Win32_Process | ForEach-Object { $_.GetOwner() }`.
+
+</details>
+
+## Performance
+
+Streaming quality depends on the host's GPU encoder (NVENC, AMF or Quick Sync) and the network, not on Luma Arcade. 1080p60 at 10-15 Mbps is comfortable on a wired connection with a modern GPU. Wi-Fi and internet routes add latency and loss that matter more than bitrate, so wire the host where you can. A browser client is a step behind a native Moonlight app on latency, which suits slower-paced games best.
