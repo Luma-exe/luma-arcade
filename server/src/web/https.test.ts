@@ -8,15 +8,34 @@ import path from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
 import { registerHttpsRoutes, startHttps } from "./https.js";
 
-// A throwaway self-signed certificate, made the way the installer does
-// (setup-network.ps1), in the current user's store so no admin is needed.
+// A throwaway self-signed certificate generated in-memory, so this test does
+// not depend on the machine certificate store being available.
 function makeCertificate(dir: string, passphrase: string): void {
   const script = `
 $ErrorActionPreference = 'Stop'
-$c = New-SelfSignedCertificate -Subject 'CN=Luma Arcade test' -TextExtension @('2.5.29.17={text}DNS=localhost&IPAddress=127.0.0.1') -KeyAlgorithm RSA -KeyLength 2048 -KeyExportPolicy Exportable -CertStoreLocation 'Cert:\\CurrentUser\\My'
-Export-PfxCertificate -Cert $c -FilePath '${path.join(dir, "https", "luma.pfx")}' -Password (ConvertTo-SecureString '${passphrase}' -AsPlainText -Force) | Out-Null
-Export-Certificate -Cert $c -FilePath '${path.join(dir, "https", "luma-arcade.cer")}' | Out-Null
-Remove-Item "Cert:\\CurrentUser\\My\\$($c.Thumbprint)"
+$subject = [System.Security.Cryptography.X509Certificates.X500DistinguishedName]::new('CN=Luma Arcade test')
+$rsa = [System.Security.Cryptography.RSA]::Create(2048)
+try {
+  $req = [System.Security.Cryptography.X509Certificates.CertificateRequest]::new(
+    $subject,
+    $rsa,
+    [System.Security.Cryptography.HashAlgorithmName]::SHA256,
+    [System.Security.Cryptography.RSASignaturePadding]::Pkcs1
+  )
+  $san = [System.Security.Cryptography.X509Certificates.SubjectAlternativeNameBuilder]::new()
+  $san.AddDnsName('localhost')
+  $san.AddIpAddress([System.Net.IPAddress]::Parse('127.0.0.1'))
+  $req.CertificateExtensions.Add($san.Build())
+  $cert = $req.CreateSelfSigned([DateTimeOffset]::UtcNow.AddMinutes(-5), [DateTimeOffset]::UtcNow.AddDays(30))
+  try {
+    [System.IO.File]::WriteAllBytes('${path.join(dir, "https", "luma.pfx")}', $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Pfx, '${passphrase}'))
+    [System.IO.File]::WriteAllBytes('${path.join(dir, "https", "luma-arcade.cer")}', $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert))
+  } finally {
+    $cert.Dispose()
+  }
+} finally {
+  $rsa.Dispose()
+}
 `;
   execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], { stdio: "pipe" });
 }
