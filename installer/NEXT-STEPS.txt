@@ -1,0 +1,35 @@
+Luma Arcade - next steps
+========================
+
+1. Sunshine's admin password
+   Open https://localhost:47990 on this PC (accept the certificate warning)
+   and choose a name and password. Only you need these.
+
+2. Your Luma Arcade account
+   Open http://localhost:7777 on this PC. The first account you create
+   becomes the admin.
+
+3. Pair Luma Arcade with this PC
+   In Luma Arcade, add a PC with the address "localhost". It shows a PIN:
+   type it into Sunshine's page (https://localhost:47990 > PIN) and the PC
+   appears in Luma Arcade with ES-DE, Desktop and Steam Big Picture.
+
+4. Play from other devices
+   - At home: open http://<this PC's name or IP>:7777 in any browser.
+   - Away from home: put Luma Arcade behind HTTPS, e.g. a Cloudflare Tunnel
+     to http://127.0.0.1:7777 (then turn "session_cookie_secure" back on in
+     moonlight-web-stream\server\config.json). Browsers only allow game
+     controllers and full screen on HTTPS pages (or localhost).
+
+5. If you chose a separate games account
+   Sign in to it once (or restart the PC if it signs in by itself): Luma
+   Arcade starts with it, and Sunshine streams its desktop. Keep your own
+   account signed out while people play.
+
+6. Windows Server
+   Install "Xbox 360 Controller for Windows" from the Microsoft Update
+   Catalog if you want Xbox controllers in games (or keep Sunshine's PS4
+   controller emulation, if you picked it).
+
+Your games, BIOS files and emulator settings: see "READ ME - games setup.txt"
+in your games folder.

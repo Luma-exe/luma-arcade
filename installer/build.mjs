@@ -1,5 +1,5 @@
 import { execSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -10,14 +10,19 @@ const outputDir = path.join(__dirname, "output");
 
 const NODE_EXE = "C:\\Program Files\\nodejs\\node.exe";
 const MAKENSIS = "C:\\Program Files (x86)\\NSIS\\makensis.exe";
+// The customized moonlight-web-stream build (its own repo,
+// moonlight-web-stream-luma): web-server.exe, streamer.exe, static\, server\.
+const MOONLIGHT_DIR =
+  process.env.MOONLIGHT_PACKAGE_DIR || path.join(repoRoot, "..", "moonlight-web-stream-bin", "package");
 
 function run(cmd, cwd) {
   console.log(`> ${cmd}${cwd ? `  (cwd=${cwd})` : ""}`);
   execSync(cmd, { cwd, stdio: "inherit", shell: true });
 }
 
-// Only the server ships: LumaArcade's "/" redirects into moonlight-web-stream
-// under /stream, whose sign-in is the only login.
+// LumaArcade's "/" leads into moonlight-web-stream under /stream, whose
+// sign-in is the only login. ES-DE, the emulators and Sunshine aren't
+// bundled: the installer downloads them (installer/scripts).
 console.log("=== 1. Building server ===");
 run("npm run build -w server", repoRoot);
 
@@ -50,24 +55,55 @@ try {
   throw new Error("better-sqlite3 won't load from the staged node_modules — packaging would produce a broken installer");
 }
 
-console.log("=== 4. Copying portable node.exe ===");
+console.log("=== 4. Staging moonlight-web-stream ===");
+if (!existsSync(path.join(MOONLIGHT_DIR, "web-server.exe"))) {
+  throw new Error(`moonlight-web-stream not found at ${MOONLIGHT_DIR} — set MOONLIGHT_PACKAGE_DIR`);
+}
+const moonlightStage = path.join(stagingDir, "moonlight-web-stream");
+mkdirSync(path.join(moonlightStage, "server"), { recursive: true });
+for (const exe of ["web-server.exe", "streamer.exe"]) {
+  cpSync(path.join(MOONLIGHT_DIR, exe), path.join(moonlightStage, exe));
+}
+cpSync(path.join(MOONLIGHT_DIR, "static"), path.join(moonlightStage, "static"), {
+  recursive: true,
+  // Local backups of edited files never ship.
+  filter: (src) => !/[\\/]_backup|\.bak-/.test(src),
+});
+// Only the config and the TURN script from server\: never data.json (this
+// PC's users and pairing key), cloudflare_turn.json (an API token) or backups.
+for (const file of ["turn_ice_script.bat", "turn_ice_script.ps1"]) {
+  cpSync(path.join(MOONLIGHT_DIR, "server", file), path.join(moonlightStage, "server", file));
+}
+const config = JSON.parse(readFileSync(path.join(MOONLIGHT_DIR, "server", "config.json"), "utf-8"));
+// A fresh install is first opened over plain http (localhost / home
+// network), where secure-only cookies would make signing in impossible.
+config.web_server.session_cookie_secure = false;
+config.moonlight.pair_device_name = "LumaArcade";
+writeFileSync(path.join(moonlightStage, "server", "config.json"), JSON.stringify(config, null, 4));
+
+console.log("=== 5. Copying portable node.exe ===");
 if (!existsSync(NODE_EXE)) {
   throw new Error(`Expected Node.js at ${NODE_EXE} — adjust installer/build.mjs if it moved`);
 }
 cpSync(NODE_EXE, path.join(stagingDir, "node.exe"));
 
-console.log("=== 5. Writing launcher script ===");
+console.log("=== 6. Writing launcher script ===");
 writeFileSync(
   path.join(stagingDir, "LumaArcade.vbs"),
   [
     'Set shell = CreateObject("WScript.Shell")',
     'shell.CurrentDirectory = Left(WScript.ScriptFullName, InStrRev(WScript.ScriptFullName, "\\") - 1)',
-    'shell.Run """node.exe"" server\\dist\\main.js", 0, False',
+    // Arguments pass through (--background: started at sign-in, don't open a browser).
+    'args = ""',
+    "For Each a In WScript.Arguments",
+    '  args = args & " " & a',
+    "Next",
+    'shell.Run """node.exe"" server\\dist\\main.js" & args, 0, False',
   ].join("\r\n"),
   "utf-8"
 );
 
-console.log("=== 6. Running makensis ===");
+console.log("=== 7. Running makensis ===");
 mkdirSync(outputDir, { recursive: true });
 if (!existsSync(MAKENSIS)) {
   throw new Error(`makensis not found at ${MAKENSIS} — is NSIS installed?`);

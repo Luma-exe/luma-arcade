@@ -35,7 +35,48 @@ moonlight-web-stream's browser client. Its sign-in (moonlight-web-stream's
 users and roles) is the only login; LumaArcade reads that session to decide
 who may use which apps and the admin/settings API.
 
-## Host setup (do this once, outside LumaArcade)
+## Installing (the easy way)
+
+Download `LumaArcadeSetup.exe` and run it. It asks:
+
+1. **What to install**
+   - *Everything* - Luma Arcade (with moonlight-web-stream bundled), Sunshine,
+     ES-DE and emulators: play this PC's games from any browser.
+   - *ES-DE and emulators* - a console-style library for playing on this PC
+     with a TV and controller. No streaming, no Sunshine, no website.
+   - *Just the emulators* - one folder with Start menu shortcuts.
+
+   The next page lists every emulator, so you can untick the ones you don't
+   want. ES-DE, the emulators and Sunshine are downloaded from their official
+   releases at install time (`installer/scripts`), so the PC must be online.
+   BIOS/firmware files are never included.
+2. **Which Windows** (detected for you). Normal Windows 10/11 is right for
+   most people. Windows Server suits a PC that only hosts games, 24/7: no
+   forced feature updates or surprise restarts, no consumer apps in the
+   background, several people signed in at once over Remote Desktop, and
+   GPU partitioning for virtual machines. The downsides: no Xbox 360
+   controller driver, sound switched off, some anti-cheat and Store/Game
+   Pass games won't run, and it costs more. On Server the installer turns
+   sound on and can make Sunshine emulate PS4 controllers instead.
+3. **Which account runs it** (streaming installs only). A separate account
+   (default name `Arcade`) is recommended: people who stream see and control
+   that account's desktop - open windows, files, browser sessions, saved
+   passwords - so a games-only standard account keeps your own account
+   private. The installer creates it, can sign it in when the PC starts
+   (Sunshine can only stream a signed-in desktop; the password is stored as
+   an LSA secret like Sysinternals Autologon, not in plain text), and starts
+   Luma Arcade when it signs in.
+4. **Folders**: Luma Arcade (`Program Files\LumaArcade`) and a games folder
+   (`C:\Games`: `ES-DE\`, `ES-DE\Emulators\<name>` in the folder names
+   ES-DE's portable find rules expect, `ES-DE\ROMs\`). Every account on the
+   PC can use the games folder.
+
+Afterwards, `NEXT-STEPS.txt` (Sunshine password, first sign-in, pairing) and
+`READ ME - games setup.txt` (where games and BIOS files go) open. To add or
+update emulators later, run `<games folder>\setup\install-games.ps1` as
+administrator (`-Emulators retroarch,dolphin,...`, `-ListOnly` to check).
+
+## Host setup by hand (without the installer)
 
 1. **Install [Sunshine](https://github.com/LizardByte/Sunshine)** and
    **[ES-DE](https://es-de.org/)** on the gaming PC. In Sunshine's web UI ->
@@ -82,16 +123,18 @@ so a deployment may well be on something else.
 npm run package        # requires NSIS (winget install NSIS.NSIS) and a system Node install to copy from
 ```
 
-Produces `installer/output/LumaArcadeSetup.exe` - a per-user install (no
-admin/UAC prompt) to `%LOCALAPPDATA%\Programs\LumaArcade`, with a Start Menu
-shortcut, an uninstaller, and a finish-page "start with Windows" checkbox. It
-bundles the built server, a copied `node.exe` and production-only
-`node_modules` (including `better-sqlite3`'s and `bcrypt`'s native binaries) so end users don't need Node.js installed
-separately - see `installer/build.mjs` for the staging steps and
-`installer/LumaArcade.nsi` for the installer script itself. Sunshine, ES-DE,
-and moonlight-web-stream are **not** bundled or auto-installed - set them up
-per the Host setup section above, then point LumaArcade's Settings at your
-moonlight-web-stream build.
+Produces `installer/output/LumaArcadeSetup.exe`, an admin install (Sunshine,
+Windows accounts and the Server fixes need it). It bundles the built server,
+a copied `node.exe`, production-only `node_modules`, and the customized
+moonlight-web-stream from `../moonlight-web-stream-bin/package` (override
+with `MOONLIGHT_PACKAGE_DIR`) - only its executables, `static\`, `config.json`
+(with `session_cookie_secure` off for a first sign-in over plain http) and
+the TURN script; never `data.json` (users and pairing key),
+`cloudflare_turn.json` or backups. On first start LumaArcade uses that
+bundled copy if no moonlight path is set (`server/src/config/bundled.ts`).
+`installer/LumaArcade.nsi` is the installer; `installer/scripts/*.ps1` are
+the steps it runs (`install-games.ps1`, `install-sunshine.ps1`,
+`setup-windows.ps1`).
 
 ## Architecture notes
 
@@ -172,10 +215,11 @@ moonlight-web-stream build.
   arguments are `--bind-address 127.0.0.1:<port> --path-prefix /stream` -
   moonlight-web-stream has no `--port` flag; check its own `--help` output
   before changing these if you're modifying this file.
-- **Auto-start** writes a `HKCU\...\Run` registry value, not a Windows
-  Service - services run in Session 0, which matters less now that
-  LumaArcade itself doesn't touch the display/input, but keeps LumaArcade's
-  own boot behavior consistent with before.
+- **Auto-start** is a scheduled task (`\LumaArcade\LumaArcade`) that runs
+  `LumaArcade.vbs --background` when the chosen account signs in, not a
+  Windows Service - it runs in that account's session, next to the games.
+  `--background` skips opening the portal in a browser, which would pop up
+  on the streamed desktop.
 - **Remote/WAN access**: LumaArcade itself is LAN-only - there's no bundled
   tunnel or TURN relay anymore. If you want to play from outside your LAN,
   that's handled by however you expose Sunshine/moonlight-web-stream

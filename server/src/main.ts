@@ -15,6 +15,7 @@ import { startWatchdog } from "./web/watchdog.js";
 import { startLockdown } from "./web/lockdown.js";
 import { runHome } from "./web/routes/home.js";
 import { timestampStderr } from "./process/stderrTimestamps.js";
+import { useBundledMoonlight } from "./config/bundled.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -22,6 +23,9 @@ async function main() {
   timestampStderr();
   const dbPath = path.join(__dirname, "..", "luma-arcade.db");
   initDb(dbPath);
+  // Installed with the Windows installer: server\dist\main.js -> the install folder.
+  const bundled = useBundledMoonlight(path.join(__dirname, "..", ".."));
+  if (bundled) console.log(`Using the bundled moonlight-web-stream at ${bundled}`);
   const owner = restoreOwner();
   if (owner) console.log(`Game on the PC still belongs to ${owner.name}`);
 
@@ -57,8 +61,10 @@ async function main() {
   // server with no window — open the portal automatically so it doesn't
   // look like nothing happened. Skipped during `npm run dev:server` (set
   // via that script) since restarting on every file change would otherwise
-  // spam browser tabs.
-  if (process.env.LUMA_DEV !== "1") {
+  // spam browser tabs. Started at sign-in (--background, the installer's
+  // autostart), nobody asked for it: on a streamed desktop it would pop up
+  // in front of the game.
+  if (process.env.LUMA_DEV !== "1" && !process.argv.includes("--background")) {
     exec(`start ${portalUrl}`);
   }
 
