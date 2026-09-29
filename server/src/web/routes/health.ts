@@ -595,7 +595,15 @@ async function checkHomeHelper(): Promise<HealthCheck> {
  * for a stream to work - the checks that used to mean digging through
  * Sunshine/ES-DE logs and Device Manager by hand. */
 export async function registerHealthRoutes(app: FastifyInstance) {
-  app.get("/api/health/host", { preHandler: requireAdmin }, async () => {
+  // For uptime monitors (the glitch-dashboard checks every 15 s): cheap, no
+  // sign-in, and kept out of the log - loading the whole arcade page for
+  // that wrote ~20k log lines a day. 503 when the stream site is down.
+  app.get("/api/health", { logLevel: "silent" }, async (_req, reply) => {
+    const stream = moonlightProcess.isRunning();
+    return reply.code(stream ? 200 : 503).send({ ok: stream });
+  });
+
+  app.get("/api/health/host",{ preHandler: requireAdmin }, async () => {
     const results = await Promise.all([
       checkSunshine(),
       checkMoonlight(),

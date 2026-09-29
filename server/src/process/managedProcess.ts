@@ -1,5 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import path from "node:path";
+import { LineFilter } from "./logFilter.js";
 
 /** Generic spawn/log/stop wrapper reused for every long-lived child process
  * this app manages (currently just moonlight-web-stream). */
@@ -18,7 +19,9 @@ export class ManagedProcess {
    * reliably propagate to already-running processes on Windows. */
   constructor(
     private readonly binary: string | (() => string),
-    private readonly logTag: string
+    private readonly logTag: string,
+    /** Lines of its output to leave out of the log (logFilter.ts). */
+    private readonly logRules: ConstructorParameters<typeof LineFilter>[0] = { drop: [] }
   ) {}
 
   isRunning(): boolean {
@@ -47,11 +50,16 @@ export class ManagedProcess {
       cwd: path.dirname(resolvedBinary),
     });
 
-    this.child.stdout.on("data", (chunk) => {
-      process.stdout.write(`[${this.logTag}] ${chunk}`);
+    const tagged = (text: string) => text.replace(/^(?=.)/gm, `[${this.logTag}] `);
+    const out = new LineFilter(this.logRules);
+    const err = new LineFilter(this.logRules);
+    this.child.stdout.setEncoding("utf8").on("data", (chunk: string) => {
+      const kept = out.push(chunk);
+      if (kept) process.stdout.write(tagged(kept));
     });
-    this.child.stderr.on("data", (chunk) => {
-      process.stderr.write(`[${this.logTag}] ${chunk}`);
+    this.child.stderr.setEncoding("utf8").on("data", (chunk: string) => {
+      const kept = err.push(chunk);
+      if (kept) process.stderr.write(tagged(kept));
     });
 
     // An unhandled 'error' event on a ChildProcess (e.g. ENOENT — the binary

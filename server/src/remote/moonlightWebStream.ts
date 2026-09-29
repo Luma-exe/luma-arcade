@@ -1,5 +1,6 @@
 import { ManagedProcess } from "../process/managedProcess.js";
 import { getSetting } from "../config/settings.js";
+import { MOONLIGHT_LOG_RULES } from "../process/logFilter.js";
 
 /** Shared between here (the launch args) and web/routes/moonlight.ts (the
  * reverse-proxy prefix) so the two can't drift out of sync — they did once,
@@ -15,7 +16,8 @@ export const MOONLIGHT_PATH_PREFIX = "/stream";
  * to it once it's up, see web/routes/moonlight.ts. */
 export const moonlightProcess = new ManagedProcess(
   () => getSetting("moonlightWebStreamPath"),
-  "moonlight-web-stream"
+  "moonlight-web-stream",
+  MOONLIGHT_LOG_RULES
 );
 
 export function syncMoonlightWithSettings(): void {
