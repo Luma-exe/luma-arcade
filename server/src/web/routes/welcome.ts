@@ -93,7 +93,7 @@ export async function registerWelcomeRoutes(app: FastifyInstance) {
     const db = getDb();
     const ip = clientIp(request);
     if (db.prepare("SELECT 1 FROM account_requests WHERE ip = ?").get(ip)) {
-      return reply.code(409).send({ error: "You've already asked. Luma will get back to you." });
+      return reply.code(409).send({ error: "You've already asked. An admin will get back to you." });
     }
     const now = Date.now();
     const lastHour = (db.prepare("SELECT COUNT(*) AS n FROM account_requests WHERE created_at >= ?").get(now - 3_600_000) as { n: number }).n;
@@ -135,7 +135,7 @@ export async function registerWelcomeRoutes(app: FastifyInstance) {
     const ip = clientIp(request);
     const now = Date.now();
     if (db.prepare("SELECT 1 FROM password_resets WHERE ip = ? AND created_at >= ?").get(ip, now - RESET_EVERY_MS)) {
-      return reply.code(409).send({ error: "You've already asked today. Luma will get back to you." });
+      return reply.code(409).send({ error: "You've already asked today. An admin will get back to you." });
     }
     const lastHour = (db.prepare("SELECT COUNT(*) AS n FROM password_resets WHERE created_at >= ?").get(now - 3_600_000) as { n: number }).n;
     if (lastHour >= REQUESTS_PER_HOUR) {
