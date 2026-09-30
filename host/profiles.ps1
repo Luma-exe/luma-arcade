@@ -52,6 +52,7 @@ $R = 'C:\Users\Arcade\AppData\Roaming'
 $Gamelists = 'C:\Users\Arcade\ES-DE\gamelists'
 $EsDeDir = 'G:\ES-DE'
 $SnapshotRoot = 'E:\GameSaveBackups\snapshots'
+$Bios = 'G:\BIOS'
 # A PC set up by the Luma Arcade installer says where things are in
 # host.json (installer/scripts/install-host.ps1); the paths above are the
 # original gaming PC's.
@@ -63,10 +64,11 @@ if (-not $TestRoot -and (Test-Path $HostFile)) {
     if ($hostConfig.gamelists) { $Gamelists = $hostConfig.gamelists }
     if ($hostConfig.esDeDir) { $EsDeDir = $hostConfig.esDeDir }
     if ($hostConfig.snapshots) { $SnapshotRoot = $hostConfig.snapshots }
+    if ($hostConfig.bios) { $Bios = $hostConfig.bios }
 }
 if ($TestRoot) {
     $Root = "$TestRoot\profiles"; $EsDeDir = $TestRoot; $SnapshotRoot = "$TestRoot\snapshots"
-    $E = "$TestRoot\Emulators"; $R = "$TestRoot\Roaming"; $Gamelists = "$TestRoot\gamelists"
+    $E = "$TestRoot\Emulators"; $R = "$TestRoot\Roaming"; $Gamelists = "$TestRoot\gamelists"; $Bios = "$TestRoot\BIOS"
 }
 $LogFile = Join-Path $Root 'profiles.log'
 $StateFile = Join-Path $Root 'state.json'
@@ -76,9 +78,22 @@ $StatFields = 'favorite', 'playcount', 'lastplayed', 'completed'
 $KeepSnapshots = 10
 $KeepAutoSnapshots = 4
 
-# slot => @(folder, seed). seed: a new player's saves start as a copy of the
-# shared ones (in-game saves and memory cards); save states start empty,
-# they're tied to one person's moment in a game.
+# slot => @(folder, seed). What a new player starts with:
+#   $false              an empty folder (the emulators make fresh memory
+#                       cards and save folders on their own)
+#   $true               a copy of the shared folder: only Vita3K, whose
+#                       folder holds the emulator's user profile it needs
+#   'only:<sub path>'   just that part of the shared folder (Xenia: the
+#                       gamer profile's Account file, not its saves); no
+#                       folder at all if the shared one doesn't have it
+#   'template:<folder>' a copy of a clean folder (xemu: a blank hard disk
+#                       image); the slot is left shared until it exists
+# So a new player never gets somebody else's progress (they used to start
+# from a copy of everyone's pre-profile saves).
+# melonDS, Flycast and ScummVM were pointed at these save folders
+# (2026-10-01; their saves used to sit next to the ROMs or in the profile);
+# EasyRPG and DOSBox Staging games are started through launchers that keep
+# their saves here (host/launchers).
 # Left shared on purpose: Azahar's sdmc/nand and Xenia's content hold
 # installed games/DLC next to the saves, xemu's hdd is one disk image.
 # Dolphin and Cemu keep their saves in their own folder when they're
@@ -86,23 +101,54 @@ $KeepAutoSnapshots = 4
 $DolphinUser = if (Test-Path "$E\Dolphin-x64\portable.txt") { "$E\Dolphin-x64\User" } else { "$R\Dolphin Emulator" }
 $CemuUser = if (Test-Path "$E\cemu\portable") { "$E\cemu\portable" } else { "$R\Cemu" }
 $Slots = [ordered]@{
-    'RetroArch-saves'      = @("$E\RetroArch-Win64\saves", $true)
+    'RetroArch-saves'      = @("$E\RetroArch-Win64\saves", $false)
     'RetroArch-states'     = @("$E\RetroArch-Win64\states", $false)
-    'Dolphin-GC'           = @("$DolphinUser\GC", $true)
-    'Dolphin-Wii-title'    = @("$DolphinUser\Wii\title", $true)
+    'Dolphin-GC'           = @("$DolphinUser\GC", $false)
+    'Dolphin-Wii-title'    = @("$DolphinUser\Wii\title", $false)
     'Dolphin-StateSaves'   = @("$DolphinUser\StateSaves", $false)
-    'PCSX2-memcards'       = @("$E\PCSX2-Qt\memcards", $true)
+    'PCSX2-memcards'       = @("$E\PCSX2-Qt\memcards", $false)
     'PCSX2-sstates'        = @("$E\PCSX2-Qt\sstates", $false)
-    'DuckStation-memcards' = @("$E\duckstation\memcards", $true)
+    'DuckStation-memcards' = @("$E\duckstation\memcards", $false)
     'DuckStation-states'   = @("$E\duckstation\savestates", $false)
-    'PPSSPP-SAVEDATA'      = @("$E\PPSSPP\memstick\PSP\SAVEDATA", $true)
+    'PPSSPP-SAVEDATA'      = @("$E\PPSSPP\memstick\PSP\SAVEDATA", $false)
     'PPSSPP-STATE'         = @("$E\PPSSPP\memstick\PSP\PPSSPP_STATE", $false)
-    'RPCS3-savedata'       = @("$E\RPCS3\dev_hdd0\home\00000001\savedata", $true)
-    'Cemu-save'            = @("$CemuUser\mlc01\usr\save", $true)
-    'Eden-save'            = @("$E\eden\user\nand\user\save", $true)
+    'RPCS3-savedata'       = @("$E\RPCS3\dev_hdd0\home\00000001\savedata", $false)
+    'Cemu-save'            = @("$CemuUser\mlc01\usr\save", $false)
+    'Eden-save'            = @("$E\eden\user\nand\user\save", $false)
     'Vita3K-user'          = @("$E\Vita3K\ux0\user", $true)
-    'Supermodel-NVRAM'     = @("$E\Supermodel\NVRAM", $true)
-    'Supermodel-Saves'     = @("$E\Supermodel\Saves", $true)
+    'Supermodel-NVRAM'     = @("$E\Supermodel\NVRAM", $false)
+    'Supermodel-Saves'     = @("$E\Supermodel\Saves", $false)
+    'shadPS4-savedata'     = @("$E\shadPS4\user\savedata", $false)
+    'melonDS-saves'        = @("$E\melonDS\saves", $false)
+    'melonDS-states'       = @("$E\melonDS\states", $false)
+    'Flycast-saves'        = @("$E\flycast\saves", $false)
+    'Flycast-states'       = @("$E\flycast\states", $false)
+    'ScummVM-saves'        = @("$E\scummvm\saves", $false)
+    'Azahar-sdmc'          = @("$E\azahar\user\sdmc", $false)
+    'EasyRPG-saves'        = @("$E\EasyRPG\saves", $false)
+    'DOSBox-saves'         = @("$E\dosbox-staging\saves", $false)
+    'xemu-hdd'             = @("$Bios\XBOXOG\hdd", "template:$Bios\XBOXOG\hdd-clean")
+}
+# Where a slot's put-away folders live, when not "<folder>.profiles".
+$SlotStores = @{}
+# Too big to copy into every snapshot (a 1 GB disk image).
+$NoSnapshot = @('xemu-hdd')
+# Xenia: each gamer profile's saves are in content\<its XUID>; DLC and
+# title updates in content\0000000000000000 stay shared. Every profile
+# folder is a slot of its own, put away outside content\ so Xenia never
+# takes a put-away folder for a profile. Profiles made later belong to the
+# player who made them (see Owner).
+$XeniaContent = "$E\xenia_canary\content"
+$XeniaStore = "$E\xenia_canary\content-profiles"
+$DynamicSlots = @()
+$xuids = @()
+if (Test-Path $XeniaContent) { $xuids += Get-ChildItem $XeniaContent -Directory | Select-Object -ExpandProperty Name }
+if (Test-Path $XeniaStore) { $xuids += Get-ChildItem $XeniaStore -Directory | Select-Object -ExpandProperty Name }
+foreach ($xuid in ($xuids | Where-Object { $_ -match '^[0-9A-Fa-f]{16}$' -and $_ -ne '0000000000000000' } | Sort-Object -Unique)) {
+    $slot = "Xenia-$xuid"
+    $Slots[$slot] = @("$XeniaContent\$xuid", "only:FFFE07D1\00010000\$xuid\Account")
+    $SlotStores[$slot] = "$XeniaStore\$xuid"
+    $DynamicSlots += $slot
 }
 
 New-Item -ItemType Directory -Force -Path $Root | Out-Null
@@ -137,6 +183,7 @@ if (Test-Path $StateFile) {
     $state.current = $saved.current
     $state.name = $saved.name
     if ($saved.slots) { foreach ($p in $saved.slots.PSObject.Properties) { $state.slots[$p.Name] = $p.Value } }
+    $state.dynamicReady = [bool]$saved.dynamicReady
 }
 
 function Save-State {
@@ -235,22 +282,32 @@ function Write-StatsFile([string]$File, $Stats) {
 
 function Owner([string]$Slot, [string]$Path) {
     if ($state.slots.ContainsKey($Slot)) { return $state.slots[$Slot] }
+    if (-not (Test-Path -LiteralPath $Path)) { return $null }
+    # A Xenia profile made since the last switch: the current player's.
+    if ($DynamicSlots -contains $Slot -and $state.dynamicReady -and $state.current) { return $state.current }
     # Never switched: whatever is there is everyone's.
-    if (Test-Path -LiteralPath $Path) { return '_shared' }
-    return $null
+    return '_shared'
+}
+
+function Store([string]$Slot, [string]$Path) {
+    if ($SlotStores.ContainsKey($Slot)) { return $SlotStores[$Slot] }
+    return "$Path.profiles"
 }
 
 # Where this player's saves for a slot are right now (in use or put away).
 function SlotDir([string]$Slot, [string]$Path, [string]$Id) {
     if ((Owner $Slot $Path) -eq $Id) { return $Path }
-    return Join-Path "$Path.profiles" $Id
+    return Join-Path (Store $Slot $Path) $Id
 }
 
-function Swap-Slot([string]$Slot, [string]$Path, [bool]$Seed, [string]$Id, [string]$Name) {
+function Swap-Slot([string]$Slot, [string]$Path, $Seed, [string]$Id, [string]$Name) {
     $owner = Owner $Slot $Path
     if ($owner -eq $Id) { return }
-    $store = "$Path.profiles"
+    $store = Store $Slot $Path
     $mine = Join-Path $store $Id
+    $template = if ($Seed -is [string] -and $Seed.StartsWith('template:')) { $Seed.Substring(9) } else { $null }
+    # Nothing clean to start a new player from yet: it stays shared.
+    if ($template -and -not (Test-Path -LiteralPath $template) -and -not (Test-Path -LiteralPath $mine)) { return }
 
     # Put away whoever's saves are in use.
     if (Test-Path -LiteralPath $Path) {
@@ -279,10 +336,33 @@ function Swap-Slot([string]$Slot, [string]$Path, [bool]$Seed, [string]$Id, [stri
         }
         else {
             $shared = Join-Path $store '_shared'
-            Log "$Slot`: first time for $Name$(if ($Seed -and (Test-Path -LiteralPath $shared)) { ', starting from the shared saves' })"
-            if (-not $DryRun) {
-                if ($Seed -and (Test-Path -LiteralPath $shared)) { Copy-Tree $shared $Path }
-                else { New-Item -ItemType Directory -Force -Path $Path | Out-Null }
+            $only = if ($Seed -is [string] -and $Seed.StartsWith('only:')) { Join-Path $shared $Seed.Substring(5) } else { $null }
+            if ($template) {
+                Log "$Slot`: first time for $Name, starting from a clean copy"
+                if (-not $DryRun) { Copy-Tree $template $Path }
+            }
+            elseif ($only) {
+                if (-not (Test-Path -LiteralPath $only)) {
+                    # Nothing to start from: leave it missing (no empty profile).
+                    Log "$Slot`: first time for $Name, nothing to start from"
+                    $state.slots[$Slot] = $Id
+                    Save-State
+                    return
+                }
+                Log "$Slot`: first time for $Name, starting with the profile only"
+                if (-not $DryRun) {
+                    $dest = Join-Path $Path $Seed.Substring(5)
+                    New-Item -ItemType Directory -Force -Path (Split-Path $dest) | Out-Null
+                    Copy-Item -LiteralPath $only -Destination $dest -Recurse
+                }
+            }
+            else {
+                $copy = $Seed -eq $true -and (Test-Path -LiteralPath $shared)
+                Log "$Slot`: first time for $Name$(if ($copy) { ', starting from the shared saves' })"
+                if (-not $DryRun) {
+                    if ($copy) { Copy-Tree $shared $Path }
+                    else { New-Item -ItemType Directory -Force -Path $Path | Out-Null }
+                }
             }
         }
     }
@@ -344,6 +424,7 @@ function Take-Snapshot($Who, [string]$Text, [bool]$IsAuto = $false) {
     $dest = Join-Path (Snapshot-Dir $id) $name
     $copied = @()
     foreach ($slot in $Slots.Keys) {
+        if ($NoSnapshot -contains $slot) { continue }
         $src = SlotDir $slot $Slots[$slot][0] $id
         if (-not (Test-Path -LiteralPath $src)) { continue }
         Copy-Tree $src (Join-Path $dest $slot)
@@ -378,15 +459,15 @@ function Transfer([string]$FromId, [string]$ToId, [string]$ToName) {
     foreach ($slot in $Slots.Keys) {
         $path = $Slots[$slot][0]
         if ((Owner $slot $path) -eq $FromId) { $relabel += $slot; continue }
-        $src = Join-Path "$path.profiles" $FromId
-        if (Test-Path -LiteralPath $src) { $moves += , @($src, (Join-Path "$path.profiles" $ToId)) }
+        $src = Join-Path (Store $slot $path) $FromId
+        if (Test-Path -LiteralPath $src) { $moves += , @($src, (Join-Path (Store $slot $path) $ToId)) }
     }
     foreach ($pair in @(@((Join-Path $Root $FromId), (Join-Path $Root $ToId)), @((Snapshot-Dir $FromId), (Snapshot-Dir $ToId)))) {
         if (Test-Path -LiteralPath $pair[0]) { $moves += , $pair }
     }
     foreach ($slot in $Slots.Keys) {
         $path = $Slots[$slot][0]
-        if ((Owner $slot $path) -eq $ToId -or (Test-Path -LiteralPath (Join-Path "$path.profiles" $ToId))) {
+        if ((Owner $slot $path) -eq $ToId -or (Test-Path -LiteralPath (Join-Path (Store $slot $path) $ToId))) {
             throw "$ToName already has saves for $slot - transfer to a new account"
         }
     }
@@ -499,6 +580,10 @@ try {
         $state.name = $who.name
         Save-State
         Log "Now using $($who.name)'s saves"
+    }
+    if (-not $state.dynamicReady) {
+        $state.dynamicReady = $true
+        Save-State
     }
 }
 catch {

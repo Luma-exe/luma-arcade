@@ -7,7 +7,11 @@ favorites / play counts / last played / completed flags, on the one shared
 gaming PC.
 
 How it works: Sunshine runs `profiles.ps1` (the first prep-cmd of the ES-DE
-app) just before it starts ES-DE. The script asks LumaArcade
+app) just before it starts ES-DE. Sunshine only does that when it STARTS
+ES-DE, so the stream page first asks LumaArcade to get the saves ready
+(`POST /api/sessions/prepare`, server `web/savesReady.ts`): an ES-DE session
+running with someone else's saves is closed, and starts again for the new
+player. The script asks LumaArcade
 (`GET http://127.0.0.1:<port>/api/profiles/current`, answered only for
 requests from the PC itself) whose stream is starting, then:
 
@@ -16,8 +20,9 @@ requests from the PC itself) whose stream is starting, then:
   `<folder>`. Renames on the same drive are instant, and they work on the
   exFAT games drive (G:), which can't hold junctions or symlinks. The first
   time, the folder becomes `<folder>.profiles\_shared` - the saves everyone
-  had until then - and a new player's saves start as a copy of it (save
-  states start empty).
+  had until then. A new player starts with empty saves (only Vita3K's user
+  profile, and Xenia's gamer profiles without their saves, are copied), so
+  nobody gets someone else's progress.
 - saves the previous player's ES-DE stats to
   `C:\ProgramData\LumaArcade\profiles\user-<id>\esde-stats.json` and writes
   this player's into the game lists.
@@ -29,8 +34,30 @@ open and taken over keeps saving where it was), and nothing when the same
 person plays again. Log: `C:\ProgramData\LumaArcade\profiles\profiles.log`.
 Host Health's "Player saves" row shows who is loaded and any problem.
 
-Left shared on purpose: Azahar (3DS) and Xenia keep installed games/DLC next
-to their saves, and xemu's saves live in one disk image.
+Covered: RetroArch, Dolphin (GC/Wii), PCSX2, DuckStation, PPSSPP, RPCS3, Cemu,
+Eden (Switch), Vita3K, Supermodel, shadPS4, melonDS, Flycast, ScummVM, Azahar
+(3DS: its virtual SD card; games run from .cci files, so it only holds saves),
+EasyRPG, DOSBox Staging, Xenia and xemu:
+
+- melonDS, Flycast and ScummVM were pointed at `saves`/`states` folders in
+  their own folder (2026-10-01; backups `*.bak-20261001-saves`).
+- EasyRPG and DOSBox Staging games start through `launchers\` (copied next to
+  `Player.exe` / `dosbox.exe`; ES-DE uses them through
+  `C:\Users\Arcade\ES-DE\custom_systems\es_systems.xml`, backup
+  `.bak-20261001-saves`). EasyRPG gets `--save-path saves\<game>`; DOSBox
+  mounts an overlay on C: at `saves\<game>`, so the game's folder is never
+  written to and everything it saves lands there. `.conf`, disc/disk images
+  and zips still start the plain way (saves shared).
+- Xenia: each gamer profile's folder (`content\<XUID>`) is a slot of its own,
+  put away in `content-profiles\<XUID>` (outside `content\`, so Xenia never
+  mistakes one for a profile). `content\0000000000000000` (DLC, title
+  updates) stays shared. A profile made later belongs to whoever made it.
+- xemu: its disk image folder `G:\BIOS\XBOXOG\hdd` is swapped, and new
+  players start from a clean image in `G:\BIOS\XBOXOG\hdd-clean`. Until that
+  folder exists, xemu stays shared. Left out of snapshots (1 GB).
+
+Not covered: Steam and other PC games (their saves follow the Steam account or
+the game).
 
 ### Snapshots
 
@@ -80,7 +107,9 @@ folder out of the way).
 `-TestRoot <folder>` runs against a copy of the layout under that folder
 (`Emulators\`, `Roaming\`, `gamelists\`, `profiles\`, `snapshots\`) instead
 of the real paths; `-Player "<id>:<name>"` skips asking LumaArcade;
-`-DryRun` only logs.
+`-DryRun` only logs. `test-profiles.ps1` runs a switch scenario (Xenia
+profiles, DLC, xemu with and without a clean image, snapshots) against a
+throwaway layout and prints ok/FAIL per check.
 
 ### On a PC set up by the installer
 
@@ -88,7 +117,7 @@ The installer (`installer/scripts/install-host.ps1`) copies these scripts,
 and moonlight-web-stream's `host\` ones, to `C:\ProgramData\LumaArcade`,
 sets up the prep-cmd and the scheduled tasks, and writes
 `C:\ProgramData\LumaArcade\host.json` with where things are on that PC
-(`esDe`, `esDeDir`, `gamelists`, `emulators`, `roaming`, `snapshots`).
+(`esDe`, `esDeDir`, `gamelists`, `emulators`, `roaming`, `snapshots`, `bios`).
 `profiles.ps1` and `home.ps1` use it instead of the original gaming PC's
 paths above (without it, nothing changes). Dolphin and Cemu saves are taken
 from their own folder when they're portable (`portable.txt` / `portable\`),
