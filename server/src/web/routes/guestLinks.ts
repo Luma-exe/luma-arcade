@@ -28,6 +28,7 @@ import { requireAuth } from "../session.js";
 import { answerInvite, createInvite, endInvitesFrom, endInvitesTo, joinableStream, playingUserIds } from "../sessions.js";
 import { clearStreamUserCache, requireAdmin, streamUser, type StreamUser } from "../streamUser.js";
 import { MOONLIGHT_PATH_PREFIX } from "../../remote/moonlightWebStream.js";
+import { sturdySetCookieHeader } from "../sessionCookie.js";
 
 // Guest links (guestLinks.ts): /g/<token> signs the visitor in as the
 // link's own account and sends them to the arcade, or straight into the
@@ -148,7 +149,7 @@ export async function registerGuestLinkRoutes(app: FastifyInstance) {
     }
     recordUse(link);
     clearStreamUserCache();
-    reply.header("set-cookie", cookies);
+    reply.header("set-cookie", sturdySetCookieHeader(cookies));
     reply.header("cache-control", "no-store");
     return reply.redirect(target);
   });
