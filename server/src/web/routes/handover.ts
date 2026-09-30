@@ -3,6 +3,7 @@ import { notify } from "../notify.js";
 import { requireAuth } from "../session.js";
 import { streamUser, type StreamUser } from "../streamUser.js";
 import { toStream } from "./coop.js";
+import { prepareSaves } from "../savesReady.js";
 import {
   answerOffer,
   answerRequest,
@@ -107,6 +108,17 @@ export async function registerHandoverRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     (request, reply) => withUser(request, reply, (user) => answerOffer(request.params.id, user, request.body?.accept === true))
   );
+
+  // The stream page, just before connecting: a session running with someone
+  // else's saves is closed first so this player's load (savesReady.ts).
+  app.post("/api/sessions/prepare", { preHandler: requireAuth }, async (request, reply) => {
+    const user = await streamUser(request);
+    if (!user) return reply.code(401).send({ error: "unauthorized" });
+    const result = await prepareSaves(user);
+    if ("error" in result) return reply.code(409).send(result);
+    if (result.restarted) request.log.info({ player: user.name }, "closed the last player's session so their saves load");
+    return result;
+  });
 
   app.post("/api/sessions/queue", { preHandler: requireAuth }, (request, reply) =>
     withUser(request, reply, (user) => {
