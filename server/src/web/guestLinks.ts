@@ -5,6 +5,7 @@ import { MOONLIGHT_PATH_PREFIX } from "../remote/moonlightWebStream.js";
 import { readData } from "../remote/moonlightData.js";
 import { totalUsage } from "./playLog.js";
 import { profilesInstalled, runProfiles } from "./profilesScript.js";
+import { copyStreamSetup } from "./streamSetup.js";
 
 // Temporary links for people without an account: "play for an hour", or
 // "join my game as player 2". Every link gets its own throwaway
@@ -301,6 +302,8 @@ export async function convertLink(cookie: string, id: number, account: NewAccoun
 
   // Play history
   getDb().prepare("UPDATE play_sessions SET user_id = ?, user_name = ? WHERE user_id = ?").run(userId, userName, link.user_id);
+  // Their stream setup, so the new account isn't asked again
+  copyStreamSetup(link.user_id, userId);
 
   getDb().prepare("UPDATE guest_links SET converted_at = ? WHERE id = ?").run(now, id);
   await revokeLink(cookie, id, now);

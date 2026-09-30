@@ -16,6 +16,7 @@ import { registerGuestLinkRoutes } from "./routes/guestLinks.js";
 import { registerPollRoutes } from "./routes/poll.js";
 import { registerGameRoutes } from "./routes/games.js";
 import { registerWelcomeRoutes } from "./routes/welcome.js";
+import { registerStreamSetupRoutes } from "./routes/streamSetup.js";
 import { MOONLIGHT_PATH_PREFIX } from "../remote/moonlightWebStream.js";
 import { TRUSTED_PROXIES, httpsUpgradeUrl } from "./requestOrigin.js";
 import { registerHttpsRoutes, startHttps } from "./https.js";
@@ -65,6 +66,7 @@ export async function createServer(opts: { port: number; serverDir: string }) {
   await registerPollRoutes(app);
   await registerGameRoutes(app);
   await registerWelcomeRoutes(app);
+  await registerStreamSetupRoutes(app);
   await registerHttpsRoutes(app, opts.serverDir);
 
   await app.listen({ port: opts.port, host: "0.0.0.0" });
