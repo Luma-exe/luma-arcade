@@ -17,7 +17,7 @@ import { registerPollRoutes } from "./routes/poll.js";
 import { registerGameRoutes } from "./routes/games.js";
 import { registerWelcomeRoutes } from "./routes/welcome.js";
 import { MOONLIGHT_PATH_PREFIX } from "../remote/moonlightWebStream.js";
-import { TRUSTED_PROXIES } from "./requestOrigin.js";
+import { TRUSTED_PROXIES, httpsUpgradeUrl } from "./requestOrigin.js";
 import { registerHttpsRoutes, startHttps } from "./https.js";
 
 /** serverDir: the server folder (luma-arcade.db, https.json). */
@@ -35,6 +35,13 @@ export async function createServer(opts: { port: number; serverDir: string }) {
       req.url?.startsWith(`${MOONLIGHT_PATH_PREFIX}/luma-api/`)
         ? `/api/${req.url.slice(MOONLIGHT_PATH_PREFIX.length + "/luma-api/".length)}`
         : req.url ?? "/",
+  });
+
+  // From the internet it's https only (requestOrigin.ts: Safari on http://
+  // couldn't stay signed in). 308 keeps a POST a POST.
+  app.addHook("onRequest", async (request, reply) => {
+    const to = httpsUpgradeUrl(request);
+    if (to) return reply.redirect(to, request.method === "GET" || request.method === "HEAD" ? 301 : 308);
   });
 
   // The arcade is moonlight-web-stream under /stream, and its sign-in is the

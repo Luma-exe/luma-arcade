@@ -41,3 +41,17 @@ export function clientIp(request: FastifyRequest): string {
 export function isLocalRequest(request: FastifyRequest): boolean {
   return !isViaTunnel(request) && isPrivateAddress(request.ip);
 }
+
+/** For a visit that reached Cloudflare as plain http://, the https:// address
+ * to send it to; otherwise null. Safari keeps http:// when that's what was
+ * typed or saved, and moonlight-web-stream's sign-in cookie is Secure, so
+ * the sign-in "worked" but the next request was a 401. */
+export function httpsUpgradeUrl(request: FastifyRequest): string | null {
+  if (!isViaTunnel(request)) return null;
+  const visitor = String(request.headers["cf-visitor"] ?? "");
+  const proto = String(request.headers["x-forwarded-proto"] ?? "");
+  if (!/"scheme"\s*:\s*"http"/.test(visitor) && proto !== "http") return null;
+  const host = request.headers.host;
+  if (!host) return null;
+  return `https://${host}${request.raw.url ?? "/"}`;
+}
