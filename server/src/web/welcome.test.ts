@@ -42,6 +42,25 @@ beforeEach(() => {
 const ask = (ip: string, payload: object) =>
   app.inject({ method: "POST", url: "/api/account-request", headers: { "cf-connecting-ip": ip }, payload });
 
+describe("how it works page", () => {
+  it("is public at /howitworks/, and /howitworks goes there", async () => {
+    const page = await app.inject({ method: "GET", url: "/howitworks/" });
+    assert.equal(page.statusCode, 200);
+    assert.match(String(page.headers["content-type"]), /text\/html/);
+    assert.match(page.body, /How Luma Arcade works/);
+    const bare = await app.inject({ method: "GET", url: "/howitworks" });
+    assert.equal(bare.statusCode, 302);
+    assert.equal(bare.headers.location, "/howitworks/");
+  });
+
+  it("links back to the welcome page, which links to it", async () => {
+    const how = await app.inject({ method: "GET", url: "/howitworks/" });
+    assert.match(how.body, /<a class="back" href="\/">/);
+    const welcome = await app.inject({ method: "GET", url: "/" });
+    assert.match(welcome.body, /href="\/howitworks\/"/);
+  });
+});
+
 describe("welcome page", () => {
   it("is what / shows, and a / link with a query still goes to the arcade", async () => {
     const page = await app.inject({ method: "GET", url: "/" });

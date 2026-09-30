@@ -27,8 +27,12 @@ const MAX_MESSAGE = 500;
 /** One password reset request per visitor per this long. */
 const RESET_EVERY_MS = 24 * 60 * 60_000;
 
-const PAGE = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "pages", "welcome.html");
+const PAGES = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "pages");
+const PAGE = path.join(PAGES, "welcome.html");
 let page: string | null = null;
+/** /howitworks/: how the arcade works and everything it does, for visitors. */
+const HOW_PAGE = path.join(PAGES, "howitworks.html");
+let howPage: string | null = null;
 
 /** One line of text as typed, trimmed to `max`. */
 export function oneLine(value: unknown, max: number): string {
@@ -62,6 +66,17 @@ export async function registerWelcomeRoutes(app: FastifyInstance) {
       return reply.redirect(`${MOONLIGHT_PATH_PREFIX}/`);
     }
     return reply.header("cache-control", "no-cache").type("text/html; charset=utf-8").send(page);
+  });
+
+  // Public, like the welcome page: no sign-in needed to read it.
+  app.get("/howitworks", async (_request, reply) => reply.redirect("/howitworks/"));
+  app.get("/howitworks/", async (_request, reply) => {
+    try {
+      howPage ??= readFileSync(HOW_PAGE, "utf8");
+    } catch {
+      return reply.redirect("/");
+    }
+    return reply.header("cache-control", "no-cache").type("text/html; charset=utf-8").send(howPage);
   });
 
   /** Has this visitor asked already? */

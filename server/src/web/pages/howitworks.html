@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>How Luma Arcade works</title>
+<meta name="description" content="How Luma Arcade streams a real gaming PC to your browser, and everything it does for the people playing.">
+<link rel="icon" href="/stream/resources/luma-star-64.png" sizes="64x64" type="image/png">
+<link rel="icon" href="/stream/resources/luma-star-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/stream/resources/luma-star-apple-180.png">
+<meta name="theme-color" content="#0d3f6e">
+<!--
+  arcade.lumaplayground.com/howitworks/ (LumaArcade web/routes/welcome.ts):
+  what happens between a button press and the game, and every feature, for
+  visitors. Linked from the welcome page ("/") and back.
+-->
+<style>
+  :root {
+    --card: rgba(255, 255, 255, 0.96);
+    --border: rgba(15, 51, 95, 0.12);
+    --text: #10233b;
+    --muted: #5b6b80;
+    --accent: #1f6fd1;
+    --accent-dark: #1759ab;
+    --accent-soft: rgba(31, 111, 209, 0.1);
+    --teal: #1a9aa6;
+    --orange: #e8830c;
+    --green: #1a7f37;
+    --purple: #7a4fd6;
+    --pink: #d6457a;
+    --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 76px; }
+  html, body { margin: 0; }
+  body {
+    font-family: var(--font);
+    color: var(--text);
+    background-color: #0d3f6e;
+    /* The arcade's wallpaper, as on the welcome page */
+    background:
+      radial-gradient(ellipse 90% 70% at 30% 20%, rgba(93, 200, 210, 0.55) 0%, rgba(93, 200, 210, 0) 55%),
+      radial-gradient(ellipse 80% 60% at 75% 85%, rgba(56, 150, 210, 0.5) 0%, rgba(56, 150, 210, 0) 55%),
+      linear-gradient(160deg, #0d3f6e 0%, #12578f 35%, #0a3f75 65%, #041c3d 100%);
+    background-attachment: fixed;
+    min-height: 100vh;
+    line-height: 1.5;
+  }
+  a { color: var(--accent); }
+  [hidden] { display: none !important; }
+
+  /* ---------------------------------------------------------- top bar */
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    backdrop-filter: blur(14px) saturate(1.3);
+    -webkit-backdrop-filter: blur(14px) saturate(1.3);
+    background: rgba(6, 30, 60, 0.62);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-top: env(safe-area-inset-top);
+  }
+  .topbar-inner {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .home-link {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    color: #fff;
+    text-decoration: none;
+    font-weight: 800;
+    font-size: 16px;
+    white-space: nowrap;
+  }
+  .home-link img { width: 30px; height: 30px; }
+  .nav {
+    display: flex;
+    gap: 2px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    flex: 1;
+    margin: 0 4px;
+  }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav a {
+    color: rgba(255, 255, 255, 0.78);
+    text-decoration: none;
+    font-size: 13.5px;
+    font-weight: 600;
+    padding: 6px 10px;
+    border-radius: 999px;
+    white-space: nowrap;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .nav a:hover { color: #fff; background: rgba(255, 255, 255, 0.1); }
+  .nav a.active { color: #fff; background: rgba(255, 255, 255, 0.18); }
+  .back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 13px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    color: #fff;
+    text-decoration: none;
+    font-size: 13.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: background 0.15s ease;
+  }
+  .back:hover { background: rgba(255, 255, 255, 0.12); }
+  .back svg { width: 16px; height: 16px; }
+
+  /* ---------------------------------------------------------- layout */
+  main {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 0 16px max(40px, env(safe-area-inset-bottom));
+  }
+  section { margin-top: 56px; }
+  .eyebrow {
+    display: inline-block;
+    color: #9fe3ea;
+    font-size: 12.5px;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .section-head { color: #fff; margin-bottom: 18px; max-width: 720px; }
+  .section-head h2 {
+    margin: 0 0 8px;
+    font: 800 clamp(24px, 3.4vw, 32px)/1.15 var(--font);
+    letter-spacing: -0.01em;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+  }
+  .section-head p { margin: 0; color: rgba(255, 255, 255, 0.84); font-size: 16px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(4, 20, 45, 0.28);
+    padding: 24px;
+  }
+  .card h3 { margin: 0 0 6px; font-size: 17px; }
+  .card p { margin: 0; color: var(--muted); font-size: 14.5px; }
+  .grid { display: grid; gap: 14px; }
+  .grid.two { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .grid.three { grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+  .split { display: grid; gap: 22px; grid-template-columns: 1.1fr 1fr; align-items: center; }
+  @media (max-width: 820px) { .split { grid-template-columns: 1fr; } }
+  .points { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+  .points li { display: flex; gap: 12px; font-size: 14.5px; color: var(--text); }
+  .points li b { display: block; }
+  .points li span { color: var(--muted); }
+  .dot {
+    flex: 0 0 26px;
+    height: 26px;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 800;
+    font-size: 13px;
+  }
+  .dot svg { width: 15px; height: 15px; }
+
+  /* ---------------------------------------------------------- hero */
+  .hero {
+    text-align: center;
+    color: #fff;
+    padding: 64px 0 8px;
+    margin-top: 0;
+  }
+  .hero img { width: 84px; height: 84px; filter: drop-shadow(0 4px 16px rgba(0, 0, 0, 0.35)); }
+  .hero h1 {
+    margin: 14px 0 12px;
+    font: 800 clamp(32px, 5.6vw, 52px)/1.08 var(--font);
+    letter-spacing: -0.02em;
+    text-shadow: 0 3px 14px rgba(0, 0, 0, 0.3);
+  }
+  .hero p { margin: 0 auto; max-width: 640px; font-size: clamp(16px, 2vw, 18.5px); color: rgba(255, 255, 255, 0.88); }
+  .chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 26px; }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .chip b { color: #9fe3ea; }
+  .hero-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 28px; }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 46px;
+    padding: 10px 20px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--text);
+    font: 600 15px var(--font);
+    text-decoration: none;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  }
+  .btn:hover { border-color: rgba(31, 111, 209, 0.45); background: #f6f9fe; }
+  .btn:active { transform: translateY(1px); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+  .btn.ghost { background: transparent; color: #fff; border-color: rgba(255, 255, 255, 0.35); }
+  .btn.ghost:hover { background: rgba(255, 255, 255, 0.1); }
+  a:focus-visible, button:focus-visible, summary:focus-visible {
+    outline: 3px solid rgba(159, 227, 234, 0.8);
+    outline-offset: 2px;
+  }
+
+  /* ---------------------------------------------------------- journey diagram */
+  .diagram { padding: 18px 14px 10px; overflow: hidden; }
+  .diagram svg { display: block; width: 100%; height: auto; }
+  .diagram .tall { display: none; }
+  @media (max-width: 700px) {
+    .diagram .wide { display: none; }
+    .diagram .tall { display: block; max-width: 380px; margin: 0 auto; }
+  }
+  .node rect { fill: #fff; stroke: rgba(15, 51, 95, 0.16); stroke-width: 1.5; }
+  .node .title { font: 700 15px var(--font); fill: var(--text); }
+  .node .sub { font: 12px var(--font); fill: var(--muted); }
+  .node .icon { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .wire { fill: none; stroke: rgba(15, 51, 95, 0.14); stroke-width: 10; stroke-linecap: round; }
+  .flow { fill: none; stroke-width: 3; stroke-linecap: round; stroke-dasharray: 2 16; }
+  .flow.input { stroke: var(--orange); animation: dash-forward 1.1s linear infinite; }
+  .flow.video { stroke: var(--accent); animation: dash-back 0.8s linear infinite; }
+  @keyframes dash-forward { to { stroke-dashoffset: -36; } }
+  @keyframes dash-back { to { stroke-dashoffset: 36; } }
+  .legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 18px; margin: 8px 0 4px; font-size: 13.5px; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 8px; }
+  .legend i { width: 22px; height: 4px; border-radius: 2px; display: inline-block; }
+
+  .stages { counter-reset: stage; }
+  .stage { position: relative; padding-top: 22px; }
+  .stage .num {
+    position: absolute;
+    top: -14px;
+    left: 20px;
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    color: #fff;
+    font-weight: 800;
+    box-shadow: 0 4px 12px rgba(4, 20, 45, 0.25);
+  }
+  .stage .tag { display: block; font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 2px; }
+
+  /* ---------------------------------------------------------- timeline */
+  .timeline { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; grid-template-columns: repeat(6, 1fr); }
+  .timeline li { position: relative; padding: 0 10px; text-align: center; }
+  .timeline li::before {
+    content: "";
+    position: absolute;
+    top: 25px;
+    left: -50%;
+    width: 100%;
+    height: 3px;
+    background: linear-gradient(90deg, rgba(31, 111, 209, 0.25), rgba(26, 154, 166, 0.5));
+    z-index: 0;
+  }
+  .timeline li:first-child::before { display: none; }
+  .timeline .step {
+    position: relative;
+    z-index: 1;
+    width: 52px;
+    height: 52px;
+    margin: 0 auto 12px;
+    border-radius: 16px;
+    background: linear-gradient(145deg, var(--accent), var(--teal));
+    color: #fff;
+    display: grid;
+    place-items: center;
+    box-shadow: 0 6px 16px rgba(31, 111, 209, 0.35);
+  }
+  .timeline .step svg { width: 24px; height: 24px; }
+  .timeline h3 { font-size: 15px; margin: 0 0 4px; }
+  .timeline p { font-size: 13.5px; }
+  @media (max-width: 900px) {
+    .timeline { grid-template-columns: 1fr; gap: 18px; }
+    .timeline li { display: grid; grid-template-columns: 52px 1fr; gap: 14px; text-align: left; padding: 0; }
+    .timeline li::before { top: -18px; left: 25px; width: 3px; height: 18px; }
+    .timeline .step { margin: 0; }
+  }
+
+  /* ---------------------------------------------------------- features */
+  .feature { display: flex; flex-direction: column; gap: 10px; transition: transform 0.15s ease, box-shadow 0.15s ease; }
+  .feature:hover { transform: translateY(-2px); box-shadow: 0 14px 34px rgba(4, 20, 45, 0.34); }
+  .ficon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    color: #fff;
+  }
+  .ficon svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .c-blue { background: linear-gradient(145deg, #2b7de0, #1759ab); }
+  .c-teal { background: linear-gradient(145deg, #25b3bf, #13808a); }
+  .c-orange { background: linear-gradient(145deg, #f39a2e, #d06f06); }
+  .c-green { background: linear-gradient(145deg, #2fa052, #17692e); }
+  .c-purple { background: linear-gradient(145deg, #9168e6, #6038c0); }
+  .c-pink { background: linear-gradient(145deg, #e8649a, #b8335f); }
+  .feature-group { color: #fff; font-size: 15px; font-weight: 700; margin: 26px 0 12px; display: flex; align-items: center; gap: 10px; }
+  .feature-group::after { content: ""; flex: 1; height: 1px; background: rgba(255, 255, 255, 0.22); }
+
+  /* ---------------------------------------------------------- turns flow */
+  .flowchart svg { width: 100%; height: auto; display: block; }
+  .fc-box rect { stroke-width: 1.5; }
+  .fc-box text { font: 700 14px var(--font); }
+  .fc-box .small { font: 12px var(--font); fill: var(--muted); font-weight: 400; }
+  .fc-arrow { fill: none; stroke: rgba(15, 51, 95, 0.35); stroke-width: 2; marker-end: url(#arrow); }
+  .fc-label { font: 600 12px var(--font); fill: var(--muted); }
+
+  /* ---------------------------------------------------------- co-op screen */
+  .screen {
+    position: relative;
+    aspect-ratio: 16 / 10;
+    border-radius: 14px;
+    background:
+      radial-gradient(circle at 30% 30%, rgba(93, 200, 210, 0.6), transparent 55%),
+      radial-gradient(circle at 75% 70%, rgba(122, 79, 214, 0.55), transparent 55%),
+      linear-gradient(160deg, #0b2d52, #061a33);
+    border: 6px solid #1a2c42;
+    box-shadow: 0 16px 40px rgba(4, 20, 45, 0.4);
+    overflow: hidden;
+  }
+  .screen::after {
+    content: "One game, one screen";
+    position: absolute;
+    left: 50%;
+    top: 42%;
+    transform: translate(-50%, -50%);
+    color: rgba(255, 255, 255, 0.9);
+    font-weight: 800;
+    font-size: clamp(15px, 2.4vw, 20px);
+    white-space: nowrap;
+  }
+  .seats { position: absolute; left: 0; right: 0; bottom: 14px; display: flex; justify-content: center; gap: 10px; }
+  .seat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    animation: pop 3.2s ease-in-out infinite;
+  }
+  .seat svg { width: 30px; height: 30px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .seat:nth-child(1) { color: #9fe3ea; }
+  .seat:nth-child(2) { color: #ffc27a; animation-delay: 0.4s; }
+  .seat:nth-child(3) { color: #c9b3ff; animation-delay: 0.8s; }
+  .seat:nth-child(4) { color: #ff9fc3; animation-delay: 1.2s; }
+  .seat.watch { color: rgba(255, 255, 255, 0.75); border-style: dashed; animation: none; }
+  @keyframes pop { 0%, 70%, 100% { transform: translateY(0); } 80% { transform: translateY(-5px); } }
+  @media (max-width: 480px) { .seat { padding: 6px; } .seat svg { width: 22px; height: 22px; } .seat.watch { display: none; } }
+
+  /* ---------------------------------------------------------- saves swap */
+  .swap svg { width: 100%; height: auto; display: block; }
+  .swap .folder { stroke-width: 1.5; }
+  .swap text { font: 600 13px var(--font); }
+  .swap .label { font: 12px var(--font); fill: var(--muted); font-weight: 400; }
+  .swap .moving { animation: swap-in 4s ease-in-out infinite; }
+  .swap .leaving { animation: swap-out 4s ease-in-out infinite; }
+  @keyframes swap-in { 0%, 20% { transform: translateX(0); opacity: 0.35; } 45%, 100% { transform: translateX(-190px); opacity: 1; } }
+  @keyframes swap-out { 0%, 20% { transform: translateX(0); opacity: 1; } 45%, 100% { transform: translateX(190px); opacity: 0.35; } }
+
+  /* ---------------------------------------------------------- quality ladder */
+  .ladder { display: flex; align-items: flex-end; gap: 8px; height: 170px; padding: 8px 4px 0; }
+  .rung {
+    flex: 1;
+    border-radius: 8px 8px 3px 3px;
+    background: rgba(31, 111, 209, 0.16);
+    position: relative;
+  }
+  .rung span {
+    position: absolute;
+    bottom: -22px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  /* The step the stream is on (script below): down on trouble, up when clean. */
+  .rung { transition: background 0.4s ease, box-shadow 0.4s ease; }
+  .rung.on { background: linear-gradient(180deg, var(--teal), var(--accent)); box-shadow: 0 6px 16px rgba(31, 111, 209, 0.35); }
+  .card .ladder-note { margin-top: 36px; font-size: 13.5px; color: var(--muted); text-align: center; min-height: 20px; }
+  .card .ladder-note b { color: var(--text); }
+
+  /* ---------------------------------------------------------- stack + faq */
+  .stack { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .pill {
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent-dark);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .pill.alt { background: rgba(26, 154, 166, 0.12); color: #0f6f78; }
+  .faq { display: grid; gap: 10px; }
+  .faq details {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: 0 6px 20px rgba(4, 20, 45, 0.2);
+    padding: 0 20px;
+  }
+  .faq summary {
+    cursor: pointer;
+    list-style: none;
+    padding: 16px 0;
+    font-weight: 700;
+    font-size: 15.5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary::after { content: "+"; font-size: 22px; font-weight: 400; color: var(--accent); transition: transform 0.2s ease; }
+  .faq details[open] summary::after { transform: rotate(45deg); }
+  .faq details p { margin: 0 0 16px; color: var(--muted); font-size: 14.5px; }
+
+  .cta { text-align: center; padding: 36px 24px; }
+  .cta h2 { margin: 0 0 8px; font-size: 26px; }
+  .cta p { margin: 0 auto 20px; max-width: 520px; }
+  .cta .hero-actions { margin-top: 0; }
+  footer { text-align: center; color: rgba(255, 255, 255, 0.7); font-size: 13.5px; margin-top: 30px; }
+  footer a { color: #fff; }
+
+  /* Sections fade in as they scroll into view (not with reduced motion). */
+  .reveal { opacity: 0; transform: translateY(14px); transition: opacity 0.5s ease, transform 0.5s ease; }
+  .reveal.shown { opacity: 1; transform: none; }
+
+  @media (max-width: 640px) {
+    .card { padding: 20px; }
+    .nav { display: none; }
+    .topbar-inner { justify-content: space-between; }
+    .hero { padding-top: 40px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .flow, .seat, .swap .moving, .swap .leaving { animation: none !important; }
+    .swap .moving { transform: translateX(-190px); opacity: 1; }
+    .swap .leaving { transform: translateX(190px); opacity: 0.35; }
+    .reveal { opacity: 1; transform: none; transition: none; }
+    .feature, .btn { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="home-link" href="/" title="Back to the welcome page">
+      <img src="/stream/resources/luma-star-64.png" alt="">
+      <span>Luma Arcade</span>
+    </a>
+    <nav class="nav" aria-label="On this page">
+      <a href="#journey">The journey</a>
+      <a href="#playing">Click to game</a>
+      <a href="#features">Features</a>
+      <a href="#turns">Turns</a>
+      <a href="#together">Together</a>
+      <a href="#saves">Saves</a>
+      <a href="#quality">Quality</a>
+      <a href="#safety">Safety</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <a class="back" href="/">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+      Welcome page
+    </a>
+  </div>
+</header>
+
+<main>
+  <section class="hero" aria-labelledby="hero-title">
+    <img src="/stream/resources/luma-star-192.png" alt="">
+    <h1 id="hero-title">How Luma Arcade works</h1>
+    <p>A real gaming PC, streamed to your browser. Here's everything that happens between your button press and the game, and everything the arcade does for the people playing.</p>
+    <div class="chips">
+      <span class="chip"><b>0</b> things to install</span>
+      <span class="chip">Up to <b>4</b> players at once</span>
+      <span class="chip">Up to <b>4K</b> picture</span>
+      <span class="chip"><b>Your own</b> saves</span>
+    </div>
+    <div class="hero-actions">
+      <a class="btn primary" href="/stream/">Sign in and play</a>
+      <a class="btn ghost" href="#journey">See how it works</a>
+    </div>
+  </section>
+
+  <!-- ====================================================== journey -->
+  <section id="journey" class="reveal" aria-labelledby="journey-title">
+    <div class="section-head">
+      <span class="eyebrow">The journey</span>
+      <h2 id="journey-title">From your button to the game, and back</h2>
+      <p>The games run on Luma's PC. Your browser sends it your controls and gets a live video of the game back - many times a second, in both directions at once.</p>
+    </div>
+
+    <div class="card diagram">
+      <!-- Wide layout -->
+      <svg class="wide" viewBox="0 0 1000 250" role="img" aria-labelledby="dg-title dg-desc">
+        <title id="dg-title">How a stream flows</title>
+        <desc id="dg-desc">Your device sends controls through Luma Arcade and the streaming client to Sunshine on the games PC, which runs ES-DE and the games. Video comes back the same way.</desc>
+        <path class="wire" d="M150 110 H850"/>
+        <path class="flow input" d="M150 102 H850"/>
+        <path class="flow video" d="M150 118 H850"/>
+
+        <g class="node" transform="translate(20 50)">
+          <rect width="150" height="120" rx="16"/>
+          <g class="icon" stroke="#1f6fd1" transform="translate(59 16)"><rect x="0" y="2" width="32" height="22" rx="3"/><path d="M10 30h12M16 24v6"/></g>
+          <text class="title" x="75" y="74" text-anchor="middle">Your device</text>
+          <text class="sub" x="75" y="94" text-anchor="middle">phone, laptop, TV</text>
+        </g>
+        <g class="node" transform="translate(222 50)">
+          <rect width="150" height="120" rx="16"/>
+          <g class="icon" stroke="#1a9aa6" transform="translate(59 14)"><path d="M16 2l12 5v9c0 8-6 13-12 15C10 29 4 24 4 16V7z"/><path d="M11 16l4 4 7-8"/></g>
+          <text class="title" x="75" y="74" text-anchor="middle">Luma Arcade</text>
+          <text class="sub" x="75" y="94" text-anchor="middle">sign-in, turns, rules</text>
+        </g>
+        <g class="node" transform="translate(425 50)">
+          <rect width="150" height="120" rx="16"/>
+          <g class="icon" stroke="#7a4fd6" transform="translate(59 16)"><path d="M2 14c4-10 24-10 28 0M6 20c3-6 17-6 20 0"/><circle cx="16" cy="26" r="2.5"/></g>
+          <text class="title" x="75" y="74" text-anchor="middle">Stream client</text>
+          <text class="sub" x="75" y="94" text-anchor="middle">moonlight-web-stream</text>
+        </g>
+        <g class="node" transform="translate(628 50)">
+          <rect width="150" height="120" rx="16"/>
+          <g class="icon" stroke="#e8830c" transform="translate(59 16)"><circle cx="16" cy="14" r="6"/><path d="M16 0v4M16 24v4M2 14h4M26 14h4M6 4l3 3M23 21l3 3M6 24l3-3M23 7l3-3"/></g>
+          <text class="title" x="75" y="74" text-anchor="middle">Sunshine</text>
+          <text class="sub" x="75" y="94" text-anchor="middle">capture + encode</text>
+        </g>
+        <g class="node" transform="translate(830 50)">
+          <rect width="150" height="120" rx="16"/>
+          <g class="icon" stroke="#1a7f37" transform="translate(57 18)"><rect x="0" y="4" width="36" height="20" rx="10"/><path d="M9 11v6M6 14h6"/><circle cx="25" cy="12" r="1.6"/><circle cx="29" cy="16" r="1.6"/></g>
+          <text class="title" x="75" y="74" text-anchor="middle">The games</text>
+          <text class="sub" x="75" y="94" text-anchor="middle">ES-DE, emulators, Steam</text>
+        </g>
+        <text class="sub" x="500" y="222" text-anchor="middle" style="font:12.5px var(--font);fill:#5b6b80">Everything from Luma Arcade onwards runs on the one gaming PC</text>
+        <path d="M222 196 H980" stroke="rgba(15,51,95,0.18)" stroke-width="1.5" stroke-dasharray="4 5" fill="none"/>
+      </svg>
+
+      <!-- Narrow layout -->
+      <svg class="tall" viewBox="0 0 360 700" role="img" aria-labelledby="dg-title-2">
+        <title id="dg-title-2">How a stream flows</title>
+        <path class="wire" d="M180 60 V640"/>
+        <path class="flow input" d="M172 60 V640"/>
+        <path class="flow video" d="M188 640 V60" style="animation-name:dash-forward"/>
+        <g class="node" transform="translate(70 10)"><rect width="220" height="92" rx="16"/><text class="title" x="110" y="42" text-anchor="middle">Your device</text><text class="sub" x="110" y="64" text-anchor="middle">phone, laptop, TV</text></g>
+        <g class="node" transform="translate(70 152)"><rect width="220" height="92" rx="16"/><text class="title" x="110" y="42" text-anchor="middle">Luma Arcade</text><text class="sub" x="110" y="64" text-anchor="middle">sign-in, turns, rules</text></g>
+        <g class="node" transform="translate(70 294)"><rect width="220" height="92" rx="16"/><text class="title" x="110" y="42" text-anchor="middle">Stream client</text><text class="sub" x="110" y="64" text-anchor="middle">moonlight-web-stream</text></g>
+        <g class="node" transform="translate(70 436)"><rect width="220" height="92" rx="16"/><text class="title" x="110" y="42" text-anchor="middle">Sunshine</text><text class="sub" x="110" y="64" text-anchor="middle">capture + encode</text></g>
+        <g class="node" transform="translate(70 578)"><rect width="220" height="92" rx="16"/><text class="title" x="110" y="42" text-anchor="middle">The games</text><text class="sub" x="110" y="64" text-anchor="middle">ES-DE, emulators, Steam</text></g>
+      </svg>
+
+      <div class="legend">
+        <span><i style="background:var(--orange)"></i>Your controls going to the PC</span>
+        <span><i style="background:var(--accent)"></i>Video and sound coming back</span>
+      </div>
+    </div>
+
+    <div class="grid three stages" style="margin-top:30px">
+      <div class="card stage">
+        <span class="num c-blue">1</span>
+        <span class="tag" style="color:var(--accent)">Your device</span>
+        <h3>Just a web page</h3>
+        <p>Your browser decodes the video with your device's own hardware, plays the sound, and reads your controller, keyboard, mouse or the on-screen touch controls.</p>
+      </div>
+      <div class="card stage">
+        <span class="num c-teal">2</span>
+        <span class="tag" style="color:var(--teal)">Luma Arcade</span>
+        <h3>The front door</h3>
+        <p>Checks who you are and whether it's your turn, enforces play time, passes messages around, and keeps the PC tidy between players. Everything is encrypted on the way.</p>
+      </div>
+      <div class="card stage">
+        <span class="num c-purple">3</span>
+        <span class="tag" style="color:var(--purple)">Stream client</span>
+        <h3>The live link</h3>
+        <p>Sets up a direct, low-latency connection to your browser (WebRTC). If a direct route isn't possible it goes through a relay, and as a last resort over a regular web connection.</p>
+      </div>
+      <div class="card stage">
+        <span class="num c-orange">4</span>
+        <span class="tag" style="color:var(--orange)">Sunshine</span>
+        <h3>Capture and compress</h3>
+        <p>Grabs every frame the PC draws, and the graphics card compresses it (H.265 or H.264) in a few milliseconds. Your controls arrive as a virtual controller plugged into the PC.</p>
+      </div>
+      <div class="card stage">
+        <span class="num c-green">5</span>
+        <span class="tag" style="color:var(--green)">The games</span>
+        <h3>A real PC, running for you</h3>
+        <p>ES-DE is the console-style menu. It starts the right emulator for each system - from NES to PS3, Switch and Xbox 360 - or Steam games, full screen.</p>
+      </div>
+      <div class="card stage">
+        <span class="num c-pink">6</span>
+        <span class="tag" style="color:var(--pink)">And back</span>
+        <h3>The round trip</h3>
+        <p>Button press to new frame on your screen typically takes tens of milliseconds at home, a little more over the internet. A wired connection helps the most.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====================================================== click to game -->
+  <section id="playing" class="reveal" aria-labelledby="playing-title">
+    <div class="section-head">
+      <span class="eyebrow">Click to game</span>
+      <h2 id="playing-title">What happens when you press Play</h2>
+      <p>A lot gets done in the few seconds before the picture appears.</p>
+    </div>
+    <div class="card">
+      <ol class="timeline">
+        <li>
+          <div class="step"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4.5-6 8-6s7 2 8 6"/></svg></div>
+          <div><h3>Sign in</h3><p>With the name Luma gave you, or a guest link.</p></div>
+        </li>
+        <li>
+          <div class="step"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8"/></svg></div>
+          <div><h3>Pick an app</h3><p>ES-DE for consoles, Steam Big Picture for PC games.</p></div>
+        </li>
+        <li>
+          <div class="step"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20a8 8 0 1 1 8-8"/><path d="M12 12l5-3"/></svg></div>
+          <div><h3>Quick speed test</h3><p>About a second, to pick a starting picture quality.</p></div>
+        </li>
+        <li>
+          <div class="step"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h10M4 17h7"/><path d="M17 15l2 2 3-4"/></svg></div>
+          <div><h3>The PC gets ready</h3><p>Loads your saves, resizes its screen to yours, and brings the game to the front.</p></div>
+        </li>
+        <li>
+          <div class="step"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 5l12 7-12 7z"/></svg></div>
+          <div><h3>Play</h3><p>Quality adjusts itself as you go. Home and window switching are one tap away.</p></div>
+        </li>
+        <li>
+          <div class="step"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h11M12 7l5 5-5 5"/><path d="M20 4v16"/></svg></div>
+          <div><h3>Leave</h3><p>Your game waits for you, and your saves are snapshotted when it closes.</p></div>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ====================================================== features -->
+  <section id="features" class="reveal" aria-labelledby="features-title">
+    <div class="section-head">
+      <span class="eyebrow">Features</span>
+      <h2 id="features-title">Everything the arcade does</h2>
+      <p>Built for a shared PC that lots of people play on - at home and from anywhere.</p>
+    </div>
+
+    <div class="feature-group">Playing</div>
+    <div class="grid three">
+      <div class="card feature">
+        <span class="ficon c-blue"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="7" width="20" height="10" rx="5"/><path d="M7 10v4M5 12h4"/><circle cx="16" cy="11" r="0.8"/><circle cx="18" cy="13" r="0.8"/></svg></span>
+        <h3>Your controller, or touch</h3>
+        <p>Plug in any controller - it joins on the first button press. On a phone, on-screen touch controls change layout to match the system you're playing.</p>
+      </div>
+      <div class="card feature">
+        <span class="ficon c-teal"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l5-5 4 4 8-8"/><path d="M14 8h6v6"/></svg></span>
+        <h3>Automatic quality</h3>
+        <p>Watches your connection every two seconds and steps the picture up or down smoothly - without dropping your game.</p>
+      </div>
+      <div class="card feature">
+        <span class="ficon c-orange"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 9h18"/></svg></span>
+        <h3>Sized for your screen</h3>
+        <p>The PC switches its own screen to your device's size and frame rate - up to 4K, and up to 240 fps at smaller sizes.</p>
+      </div>
+      <div class="card feature">
+        <span class="ficon c-green"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg></span>
+        <h3>Home button</h3>
+        <p>Back to ES-DE or Steam in one tap - keep the game running in the background, or close it.</p>
+      </div>
+      <div class="card feature">
+        <span class="ficon c-purple"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="8" height="6" rx="1"/><rect x="13" y="5" width="8" height="6" rx="1"/><rect x="3" y="13" width="8" height="6" rx="1"/><rect x="13" y="13" width="8" height="6" rx="1"/></svg></span>
+        <h3>Window picker</h3>
+        <p>Hold Alt+Tab in the quick panel to see every open window on the PC and jump to the one you want.</p>
+      </div>
+      <div class="card feature">
+        <span class="ficon c-pink"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="5"/></svg></span>
+        <h3>Every console era</h3>
+        <p>NES to PS3, GameCube, Wii U, Switch, Xbox and Xbox 360, handhelds, arcade, plus the PC's own Steam and Epic games.</p>
+      </div>
+    </div>
+
+    <div class="feature-group">Together</div>
+    <div class="grid three">
+      <div class="card feature">
+        <span class="ficon c-blue"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="9" r="3"/><circle cx="16" cy="9" r="3"/><path d="M2 20c1-3 3.5-4.5 6-4.5s5 1.5 6 4.5M14 15.6c.6-.1 1.3-.1 2-.1 2.5 0 5 1.5 6 4.5"/></svg></span>
+        <h3>Co-op, up to 4 players</h3>
+        <p>Invite people into your game from the People panel. Everyone plays on the same screen, each with their own controller.</p>
+      </div>
+      <div class="card feature">
+        <span class="ficon c-teal"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span>
+        <h3>Watch</h3>
+        <p>Join as a spectator to see what someone is playing without taking a controller.</p>
+      </div>
+      <div class="card feature">
+        <span class="ficon c-orange"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg></span>
+        <h3>Guest links</h3>
+        <p>A link that lets a friend without an account have a turn, or join a game, for a set amount of time.</p>
+      </div>
+      <div class="card feature">
+        <span class="ficon c-green"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+        <h3>Messages and announcements</h3>
+        <p>News from Luma pops up on the home screen and in your stream, so nobody misses it.</p>
+      </div>
+      <div class="card feature">
+        <span class="ficon c-purple"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+        <h3>A fair queue</h3>
+        <p>Ask for the PC, wait in line, and get it held for you the moment it's free.</p>
+      </div>
+      <div class="card feature">
+        <span class="ficon c-pink"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg></span>
+        <h3>Your play stats</h3>
+        <p>See your play time and top games for the week, and choose whether the welcome page shows what you're playing.</p>
+      </div>
+    </div>
+
+    <div class="feature-group">Looked after</div>
+    <div class="grid three">
+      <div class="card feature">
+        <span class="ficon c-blue"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg></span>
+        <h3>Saves that are yours</h3>
+        <p>Your game saves and ES-DE favorites stay separate from everyone else's, with snapshots you can go back to.</p>
+      </div>
+      <div class="card feature">
+        <span class="ficon c-teal"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/></svg></span>
+        <h3>Play time limits</h3>
+        <p>Daily and weekly limits where Luma sets them, with a warning before time runs out.</p>
+      </div>
+      <div class="card feature">
+        <span class="ficon c-orange"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span>
+        <h3>Lockdown</h3>
+        <p>While anyone but Luma is playing, the PC's settings and admin tools close the moment they open. Games are all you can reach.</p>
+      </div>
+      <div class="card feature">
+        <span class="ficon c-green"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
+        <h3>Health checks</h3>
+        <p>The arcade keeps checking the streaming host, drivers, screen, backups and disk space, and fixes what it safely can.</p>
+      </div>
+      <div class="card feature">
+        <span class="ficon c-purple"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg></span>
+        <h3>Nightly backups</h3>
+        <p>Every player's saves, snapshots and the arcade's accounts are backed up every night.</p>
+      </div>
+      <div class="card feature">
+        <span class="ficon c-pink"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l9-5 9 5v8l-9 5-9-5z"/><path d="M12 13v8M3 8l9 5 9-5"/></svg></span>
+        <h3>Picks up where you left off</h3>
+        <p>Lost your connection? The game keeps running and stays yours for a while, so you can reconnect and carry on.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====================================================== turns -->
+  <section id="turns" class="reveal" aria-labelledby="turns-title">
+    <div class="section-head">
+      <span class="eyebrow">Taking turns</span>
+      <h2 id="turns-title">One PC, shared fairly</h2>
+      <p>There's one gaming PC, so there's one player in charge at a time. Here's how the PC moves between people.</p>
+    </div>
+    <div class="card split">
+      <div class="flowchart">
+        <svg viewBox="0 0 440 400" role="img" aria-labelledby="turns-svg-title">
+          <title id="turns-svg-title">How the PC moves between players</title>
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0L10 5L0 10z" fill="rgba(15,51,95,0.45)"/>
+            </marker>
+          </defs>
+          <g class="fc-box"><rect x="140" y="10" width="160" height="56" rx="14" fill="rgba(26,127,55,0.1)" stroke="rgba(26,127,55,0.45)"/><text x="220" y="36" text-anchor="middle" fill="#17692e">PC is free</text><text class="small" x="220" y="54" text-anchor="middle">first to connect plays</text></g>
+          <path class="fc-arrow" d="M220 66 V100"/>
+          <g class="fc-box"><rect x="140" y="102" width="160" height="56" rx="14" fill="rgba(31,111,209,0.1)" stroke="rgba(31,111,209,0.45)"/><text x="220" y="128" text-anchor="middle" fill="#1759ab">You're playing</text><text class="small" x="220" y="146" text-anchor="middle">the PC is yours</text></g>
+          <path class="fc-arrow" d="M220 158 V192"/>
+          <g class="fc-box"><rect x="140" y="194" width="160" height="56" rx="14" fill="rgba(232,131,12,0.1)" stroke="rgba(232,131,12,0.5)"/><text x="220" y="220" text-anchor="middle" fill="#b35f05">Someone asks</text><text class="small" x="220" y="238" text-anchor="middle">you get a notification</text></g>
+          <path class="fc-arrow" d="M170 250 L100 300"/>
+          <path class="fc-arrow" d="M270 250 L340 300"/>
+          <text class="fc-label" x="98" y="272" text-anchor="middle">Hand over</text>
+          <text class="fc-label" x="344" y="272" text-anchor="middle">No / ignore</text>
+          <g class="fc-box"><rect x="10" y="302" width="180" height="70" rx="14" fill="rgba(122,79,214,0.1)" stroke="rgba(122,79,214,0.45)"/><text x="100" y="330" text-anchor="middle" fill="#6038c0">They play next</text><text class="small" x="100" y="350" text-anchor="middle">your stream ends,</text><text class="small" x="100" y="365" text-anchor="middle">theirs starts</text></g>
+          <g class="fc-box"><rect x="250" y="302" width="180" height="70" rx="14" fill="rgba(15,51,95,0.05)" stroke="rgba(15,51,95,0.25)"/><text x="340" y="330" text-anchor="middle" fill="#10233b">You keep playing</text><text class="small" x="340" y="350" text-anchor="middle">the request lapses</text><text class="small" x="340" y="365" text-anchor="middle">after 10 seconds</text></g>
+          <path class="fc-arrow" d="M300 130 C400 130 400 38 302 38"/>
+          <text class="fc-label" x="408" y="88" text-anchor="middle">you leave</text>
+        </svg>
+      </div>
+      <ul class="points">
+        <li><span class="dot">1</span><div><b>Ask, don't grab</b><span>Connecting while someone plays sends them a request. They choose, and you see the answer straight away.</span></div></li>
+        <li><span class="dot">2</span><div><b>Wait in line</b><span>Join the queue instead, and when the PC frees up it's held for you for 90 seconds while your page connects.</span></div></li>
+        <li><span class="dot">3</span><div><b>Walked away?</b><span>After 15 minutes with no input, a request hands the PC over automatically.</span></div></li>
+        <li><span class="dot">4</span><div><b>Came back?</b><span>A game left running stays yours for 10 minutes (3 if someone is waiting), so a dropped connection doesn't cost you your spot.</span></div></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ====================================================== together -->
+  <section id="together" class="reveal" aria-labelledby="together-title">
+    <div class="section-head">
+      <span class="eyebrow">Playing together</span>
+      <h2 id="together-title">Couch co-op, from different couches</h2>
+      <p>Up to four people play the same game on the same screen, each from their own device.</p>
+    </div>
+    <div class="card split">
+      <div class="screen" role="img" aria-label="One game screen with four players and a spectator">
+        <div class="seats">
+          <div class="seat"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="7" width="20" height="10" rx="5"/><path d="M7 10v4M5 12h4"/></svg>P1</div>
+          <div class="seat"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="7" width="20" height="10" rx="5"/><path d="M7 10v4M5 12h4"/></svg>P2</div>
+          <div class="seat"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="7" width="20" height="10" rx="5"/><path d="M7 10v4M5 12h4"/></svg>P3</div>
+          <div class="seat"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="7" width="20" height="10" rx="5"/><path d="M7 10v4M5 12h4"/></svg>P4</div>
+          <div class="seat watch"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>Watch</div>
+        </div>
+      </div>
+      <ul class="points">
+        <li><span class="dot">1</span><div><b>Invite from the People panel</b><span>The invite pops up on their home screen. They join as a player or as a spectator.</span></div></li>
+        <li><span class="dot">2</span><div><b>Same picture for everyone</b><span>Guests see exactly the host's screen, at the host's size and frame rate, with the game's sound.</span></div></li>
+        <li><span class="dot">3</span><div><b>Player numbers in join order</b><span>Whoever presses a button first is player 1, the next player 2, and so on - up to four controllers between everyone.</span></div></li>
+        <li><span class="dot">4</span><div><b>The host stays in charge</b><span>Guests can play but can't go Home, switch windows or close the game.</span></div></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ====================================================== saves -->
+  <section id="saves" class="reveal" aria-labelledby="saves-title">
+    <div class="section-head">
+      <span class="eyebrow">Your saves</span>
+      <h2 id="saves-title">Your progress is yours</h2>
+      <p>Everyone plays on the same PC and the same emulators, but nobody overwrites anyone else's save.</p>
+    </div>
+    <div class="card split">
+      <div class="swap">
+        <svg viewBox="0 0 440 220" role="img" aria-labelledby="swap-title">
+          <title id="swap-title">Before your stream, the PC swaps your saves into place</title>
+          <g>
+            <rect class="folder" x="20" y="40" width="170" height="130" rx="14" fill="rgba(31,111,209,0.07)" stroke="rgba(31,111,209,0.4)"/>
+            <text x="105" y="30" text-anchor="middle" fill="#1759ab">In use by the games</text>
+            <rect class="folder" x="250" y="40" width="170" height="130" rx="14" fill="rgba(15,51,95,0.04)" stroke="rgba(15,51,95,0.2)" stroke-dasharray="5 5"/>
+            <text x="335" y="30" text-anchor="middle" fill="#5b6b80">Put away safely</text>
+          </g>
+          <g class="leaving">
+            <rect x="45" y="72" width="120" height="66" rx="10" fill="#fff" stroke="rgba(122,79,214,0.5)"/>
+            <text x="105" y="100" text-anchor="middle" fill="#6038c0">Sam's saves</text>
+            <text class="label" x="105" y="120" text-anchor="middle">last player</text>
+          </g>
+          <g class="moving">
+            <rect x="275" y="72" width="120" height="66" rx="10" fill="#fff" stroke="rgba(26,154,166,0.6)"/>
+            <text x="335" y="100" text-anchor="middle" fill="#0f6f78">Your saves</text>
+            <text class="label" x="335" y="120" text-anchor="middle">you're up next</text>
+          </g>
+          <text class="label" x="220" y="205" text-anchor="middle">Swapped in an instant, before the game starts</text>
+        </svg>
+      </div>
+      <ul class="points">
+        <li><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span><div><b>Loaded when you connect</b><span>Memory cards, in-game saves and save states, plus your ES-DE favorites and play counts, swap in before the game starts.</span></div></li>
+        <li><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span><div><b>Snapshots</b><span>Save a snapshot of all your saves from the settings, and restore one when you need to. Up to 10 are kept.</span></div></li>
+        <li><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span><div><b>Automatic ones too</b><span>Whenever a game closes, a snapshot is taken for you - separate from your own, so they never push yours out.</span></div></li>
+        <li><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span><div><b>Your first time</b><span>Your first time, your saves start from the shared set the PC already had, and are yours from then on.</span></div></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ====================================================== quality -->
+  <section id="quality" class="reveal" aria-labelledby="quality-title">
+    <div class="section-head">
+      <span class="eyebrow">Picture quality</span>
+      <h2 id="quality-title">Sharp when it can be, smooth when it can't</h2>
+      <p>Automatic quality picks the best picture your connection can hold, and moves between steps without interrupting the game.</p>
+    </div>
+    <div class="card split">
+      <div>
+        <div class="ladder" id="ladder" aria-hidden="true">
+          <div class="rung" style="height:22%"><span>720p</span></div>
+          <div class="rung" style="height:34%"><span></span></div>
+          <div class="rung" style="height:46%"><span>1080p</span></div>
+          <div class="rung" style="height:58%"><span></span></div>
+          <div class="rung" style="height:70%"><span></span></div>
+          <div class="rung" style="height:84%"><span>1440p</span></div>
+          <div class="rung" style="height:100%"><span>4K</span></div>
+        </div>
+        <p class="ladder-note" id="ladder-note" aria-live="off"><b>Starting</b> from the speed test</p>
+      </div>
+      <ul class="points">
+        <li><span class="dot">1</span><div><b>A head start</b><span>A one-second speed test picks the first step, and the arcade remembers what worked for you last time.</span></div></li>
+        <li><span class="dot">2</span><div><b>Always watching</b><span>Every two seconds it checks lost packets, dropped frames and delay. A few bad checks in a row step it down.</span></div></li>
+        <li><span class="dot">3</span><div><b>Climbing back</b><span>After a stretch of clean playing it tries the next step up - and backs off for a while if that one doesn't hold.</span></div></li>
+        <li><span class="dot">4</span><div><b>No blackouts</b><span>The new quality starts in the background and takes over only once its first frame is ready, so the game never stops.</span></div></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ====================================================== safety -->
+  <section id="safety" class="reveal" aria-labelledby="safety-title">
+    <div class="section-head">
+      <span class="eyebrow">Safe by design</span>
+      <h2 id="safety-title">Private, secure and kept in order</h2>
+      <p>Letting people play on a real PC means being careful about what they can reach.</p>
+    </div>
+    <div class="grid two">
+      <div class="card feature">
+        <span class="ficon c-blue"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4.5-6 8-6s7 2 8 6"/></svg></span>
+        <h3>A games-only Windows account</h3>
+        <p>The streamed desktop belongs to a separate account with only the games on it. Nobody streaming can see Luma's own files, browser or passwords, and it can't change the PC.</p>
+      </div>
+      <div class="card feature">
+        <span class="ficon c-teal"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span>
+        <h3>Encrypted connections</h3>
+        <p>The site and the stream are served over HTTPS through Cloudflare, so your sign-in and your game never travel in the open.</p>
+      </div>
+      <div class="card feature">
+        <span class="ficon c-orange"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/></svg></span>
+        <h3>Accounts and roles</h3>
+        <p>Everyone signs in with their own account. Admin tools are for admins only, and guesses at passwords are slowed right down.</p>
+      </div>
+      <div class="card feature">
+        <span class="ficon c-green"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+        <h3>Guest access that expires</h3>
+        <p>Guest links carry their own time limit and end automatically. Luma can see who's using one, message them, or switch it off.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====================================================== under the hood -->
+  <section id="stack" class="reveal" aria-labelledby="stack-title">
+    <div class="section-head">
+      <span class="eyebrow">Under the hood</span>
+      <h2 id="stack-title">Built on great open-source projects</h2>
+      <p>Luma Arcade ties together proven streaming and emulation software, and adds everything a shared arcade needs.</p>
+    </div>
+    <div class="grid two">
+      <div class="card">
+        <h3>Streaming</h3>
+        <p>Sunshine captures and encodes on the PC's graphics card; moonlight-web-stream brings the Moonlight protocol to the browser over WebRTC; Luma Arcade handles accounts, turns and the rest.</p>
+        <div class="stack">
+          <span class="pill">Sunshine</span><span class="pill">moonlight-web-stream</span><span class="pill">WebRTC</span><span class="pill">H.265 / H.264</span><span class="pill">Cloudflare</span><span class="pill">Node.js + TypeScript</span><span class="pill">SQLite</span>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Games</h3>
+        <p>ES-DE is the console-style library you browse with a controller. It launches the best emulator for each system, full screen.</p>
+        <div class="stack">
+          <span class="pill alt">ES-DE</span><span class="pill alt">RetroArch</span><span class="pill alt">Dolphin</span><span class="pill alt">PCSX2</span><span class="pill alt">DuckStation</span><span class="pill alt">PPSSPP</span><span class="pill alt">RPCS3</span><span class="pill alt">Xenia</span><span class="pill alt">xemu</span><span class="pill alt">Cemu</span><span class="pill alt">Eden</span><span class="pill alt">Azahar</span><span class="pill alt">melonDS</span><span class="pill alt">Vita3K</span><span class="pill alt">Flycast</span><span class="pill alt">Steam</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====================================================== faq -->
+  <section id="faq" class="reveal" aria-labelledby="faq-title">
+    <div class="section-head">
+      <span class="eyebrow">Questions</span>
+      <h2 id="faq-title">Good to know</h2>
+    </div>
+    <div class="faq">
+      <details>
+        <summary>Do I need to install anything?</summary>
+        <p>No. It all runs in a web browser - Chrome, Edge, Safari or Firefox - on a phone, tablet, laptop or TV.</p>
+      </details>
+      <details>
+        <summary>Can I use my own controller?</summary>
+        <p>Yes. Connect it to your device (USB or Bluetooth) and press a button once the stream starts. Xbox, PlayStation and most other controllers work. On a phone without one, use the on-screen touch controls.</p>
+      </details>
+      <details>
+        <summary>Why does the picture sometimes get softer?</summary>
+        <p>That's automatic quality stepping down so the game stays smooth when your connection struggles. It climbs back up once things are steady. A wired connection, or being closer to your Wi-Fi, helps the most.</p>
+      </details>
+      <details>
+        <summary>What happens if my connection drops?</summary>
+        <p>The game keeps running on the PC and stays yours for a while. Reconnect and you're back where you were.</p>
+      </details>
+      <details>
+        <summary>Can a friend play with me?</summary>
+        <p>Yes. Invite them from the People panel if they have an account. If they don't, Luma can make them a guest link.</p>
+      </details>
+      <details>
+        <summary>Can other people see what I'm playing?</summary>
+        <p>Only if you turn on "Show what I'm playing" in your settings - then the welcome page shows it. Luma can see play history as the arcade's admin.</p>
+      </details>
+      <details>
+        <summary>How do I get an account?</summary>
+        <p>Use "Request an account" on the welcome page. Luma gets your request and sets you up.</p>
+      </details>
+    </div>
+  </section>
+
+  <section class="card cta reveal" aria-labelledby="cta-title">
+    <h2 id="cta-title">Ready to play?</h2>
+    <p>Sign in to pick a game, or head back to the welcome page to ask for an account.</p>
+    <div class="hero-actions">
+      <a class="btn primary" href="/stream/">Sign in</a>
+      <a class="btn" href="/">Back to the welcome page</a>
+    </div>
+  </section>
+
+  <footer>
+    <p><a href="/">Luma Arcade</a> · Questions? Message <b>luma_exe</b> on Discord.</p>
+  </footer>
+</main>
+
+<script>
+(() => {
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // Sections fade in as they come into view.
+  const reveals = document.querySelectorAll(".reveal");
+  if (reduced || !("IntersectionObserver" in window)) {
+    reveals.forEach((el) => el.classList.add("shown"));
+  } else {
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) if (e.isIntersecting) { e.target.classList.add("shown"); io.unobserve(e.target); }
+    }, { rootMargin: "0px 0px -8% 0px" });
+    reveals.forEach((el) => io.observe(el));
+  }
+
+  // The nav follows the section on screen: the last one whose top has
+  // passed a third of the way down. Only the nav strip scrolls to show it.
+  const nav = document.querySelector(".nav");
+  const links = [...nav.querySelectorAll("a")];
+  const sections = links.map((a) => document.querySelector(a.getAttribute("href")));
+  let current = -1;
+  function spy() {
+    const line = innerHeight / 3;
+    let i = -1;
+    sections.forEach((s, j) => { if (s && s.getBoundingClientRect().top <= line) i = j; });
+    if (i === current) return;
+    current = i;
+    links.forEach((a, j) => a.classList.toggle("active", i === j));
+    const link = links[i];
+    if (link && nav.scrollWidth > nav.clientWidth) {
+      nav.scrollTo({ left: link.offsetLeft - nav.clientWidth / 2 + link.offsetWidth / 2, behavior: reduced ? "auto" : "smooth" });
+    }
+  }
+  let queued = false;
+  addEventListener("scroll", () => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => { queued = false; spy(); });
+  }, { passive: true });
+  spy();
+
+  // The quality ladder: start from the speed test, trouble steps it down,
+  // clean playing climbs back up.
+  const rungs = [...document.querySelectorAll("#ladder .rung")];
+  const note = document.getElementById("ladder-note");
+  const script = [
+    [4, "<b>Starting</b> from the speed test"],
+    [5, "<b>Clean for a while</b> - stepping up"],
+    [5, "<b>Holding</b> a sharp picture"],
+    [3, "<b>Wi-Fi hiccup</b> - stepping down smoothly"],
+    [2, "<b>Still busy</b> - one more step down"],
+    [3, "<b>Steady again</b> - climbing back"],
+    [4, "<b>Back up</b> - and remembered for next time"],
+  ];
+  let at = 0;
+  function showStep() {
+    const [rung, text] = script[at];
+    rungs.forEach((r, i) => r.classList.toggle("on", i <= rung));
+    note.innerHTML = text;
+  }
+  showStep();
+  if (!reduced) setInterval(() => { if (!document.hidden) { at = (at + 1) % script.length; showStep(); } }, 2200);
+})();
+</script>
+</body>
+</html>

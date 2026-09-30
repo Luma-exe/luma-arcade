@@ -96,6 +96,18 @@
   }
 
   .actions { display: grid; gap: 10px; }
+  .more {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 14px;
+    color: var(--accent);
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .more:hover { text-decoration: underline; }
+  .more:focus-visible { outline: 3px solid rgba(31, 111, 209, 0.45); outline-offset: 2px; border-radius: 6px; }
   .btn {
     display: flex;
     align-items: center;
@@ -235,6 +247,7 @@
       <a class="btn primary" href="/stream/">Sign in</a>
       <button class="btn" type="button" id="open-request">Request an account</button>
     </div>
+    <a class="more" href="/howitworks/">How it works, and everything it can do <span aria-hidden="true">→</span></a>
   </section>
 
   <section class="card" id="request" aria-labelledby="request-title" hidden>
