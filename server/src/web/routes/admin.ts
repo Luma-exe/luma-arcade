@@ -4,7 +4,8 @@ import path from "node:path";
 import { SETTINGS_SECTIONS, deleteAccess, getAccess, getAllAccess, setAccess, type UserAccess } from "../access.js";
 import { requireAuth } from "../session.js";
 import { clearStreamUserCache, requireAdmin, streamUser } from "../streamUser.js";
-import { decide, guestStream, status as sessionStatus } from "../sessions.js";
+import { adminKick, decide, guestStream, liveSessions, status as sessionStatus } from "../sessions.js";
+import { forceStop } from "../idle.js";
 import { playSummary, usage } from "../playLog.js";
 import { gamesByApp } from "../games.js";
 import { weeklySummary } from "../watchdog.js";
@@ -86,6 +87,27 @@ export async function registerAdminRoutes(app: FastifyInstance) {
     }
     // A co-op guest's page asks the host for exactly the player's stream.
     return { ...sessionStatus(user), decision, coop: user ? guestStream(user) : null };
+  });
+
+  // Live now (admin screen): everyone streaming, and an admin's say over it
+  // from anywhere - remove one person, or end everything and close the game.
+  app.get("/api/admin/live", { preHandler: requireAdmin, logLevel: "warn" }, async () => liveSessions());
+
+  app.post<{ Params: { id: string } }>("/api/admin/live/:id/kick", { preHandler: requireAdmin }, async (req, reply) => {
+    const admin = await streamUser(req);
+    if (!admin) return reply.code(401).send({ error: "unauthorized" });
+    const result = adminKick(admin, toId(req.params.id));
+    if ("error" in result) return reply.code(409).send(result);
+    req.log.info({ admin: admin.name, target: Number(req.params.id) }, "admin removed someone from the stream");
+    return result;
+  });
+
+  app.post("/api/admin/live/stop", { preHandler: requireAdmin }, async (req, reply) => {
+    const admin = await streamUser(req);
+    if (!admin) return reply.code(401).send({ error: "unauthorized" });
+    const result = await forceStop(admin.name);
+    req.log.info({ admin: admin.name, ...result }, "admin force-stopped the session");
+    return result;
   });
 
   app.get("/api/admin/apps", { preHandler: requireAdmin }, async (_req, reply) => {

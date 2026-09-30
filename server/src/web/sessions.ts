@@ -257,6 +257,9 @@ export function streamStarted(socket: object, user: StreamUser): "owner" | "gues
   if (owner && owner.user.id !== user.id) endInvitesFrom(owner.user.id, `${user.name} took over the PC`);
   streaming.set(socket, { user, since: Date.now() });
   setOwner({ user, since: Date.now(), lastSeen: Date.now() });
+  // A fresh start: an away streak from their last stream doesn't carry over.
+  activity.set(user.id, { idleMs: 0, at: Date.now() });
+  endSoon = false;
   // Sunshine starts (or resumes) an app for every stream; the next poll
   // confirms it, but until then the PC is already busy.
   sunshineBusy = true;
@@ -331,8 +334,8 @@ export function status(user: StreamUser | null) {
 }
 
 // --- Activity: the stream page reports how long since the player last
-// touched anything. Nothing is ended for being idle alone; it only means a
-// hand-over request doesn't have to wait for an answer.
+// touched anything. A player away for IDLE_MS hands over as soon as someone
+// asks; one away for AFK_KICK_MS is disconnected (awayCheck, below).
 
 export function recordActivity(user: StreamUser, idleMs: number): void {
   if (!Number.isFinite(idleMs) || idleMs < 0) return;
@@ -345,6 +348,146 @@ function idleFor(userId: number, now = Date.now()): number | null {
   const a = activity.get(userId);
   if (!a || now - a.at > ACTIVITY_FRESH_MS) return null;
   return a.idleMs + (now - a.at);
+}
+
+// --- Away and left open: a player who hasn't touched anything for
+// AFK_KICK_MS is disconnected (their page warns them AFK_WARN_MS before),
+// and a game nobody is streaming is closed on the PC after END_IDLE_MS -
+// END_SOON_MS after an away kick or when someone is waiting for the PC.
+// Before this, disconnecting left the game running on the PC for good.
+
+export const AFK_KICK_MS = 20 * 60_000;
+export const AFK_WARN_MS = 2 * 60_000;
+export const END_IDLE_MS = 10 * 60_000;
+export const END_SOON_MS = 3 * 60_000;
+/** The last stream ended in an away kick (or force stop): close it sooner. */
+let endSoon = false;
+
+/** How long since this streamer touched anything. A page that stopped
+ * reporting (asleep phone, frozen tab) keeps counting from its last report;
+ * one that never reported counts from the stream's start. */
+function awayFor(userId: number, since: number, now: number): number {
+  const a = activity.get(userId);
+  if (!a || a.at < since) return now - since;
+  return a.idleMs + (now - a.at);
+}
+
+/** For the player's page: ms until they're disconnected for being away. */
+export function awayKickInMs(user: StreamUser, now = Date.now()): number | null {
+  for (const s of streaming.values()) {
+    if (s.user.id === user.id) return Math.max(0, AFK_KICK_MS - awayFor(user.id, s.since, now));
+  }
+  return null;
+}
+
+/** Every 30 s (web/idle.ts): disconnect players away too long; endGame
+ * says the game nobody is streaming should be closed on the PC now. */
+export function awayCheck(now = Date.now()): { kicked: StreamUser[]; endGame: boolean } {
+  const kicked = new Map<number, StreamUser>();
+  for (const s of streaming.values()) {
+    if (awayFor(s.user.id, s.since, now) >= AFK_KICK_MS) kicked.set(s.user.id, s.user);
+  }
+  for (const user of kicked.values()) {
+    const minutesAway = Math.round(AFK_KICK_MS / 60_000);
+    endInvitesFrom(user.id, `${user.name} was away, so the session ended`);
+    closeStreamsOf(user.id, `Disconnected: no input for ${minutesAway} minutes`);
+    if (owner?.user.id === user.id) owner.lastSeen = now;
+    endSoon = true;
+  }
+  const limit = endSoon || queue.length > 0 ? END_SOON_MS : END_IDLE_MS;
+  const endGame = sunshineBusy && streaming.size + guests.size === 0 && now - lastStreamingAt >= limit;
+  return { kicked: [...kicked.values()], endGame };
+}
+
+function closeStreamsOf(userId: number, reason: string): void {
+  for (const [socket, s] of streaming) {
+    if (s.user.id !== userId) continue;
+    streaming.delete(socket);
+    socketClose(socket, 4014, reason);
+  }
+  if (streaming.size + guests.size === 0) lastStreamingAt = Date.now();
+}
+
+/** The game on the PC was closed (Sunshine's /cancel): nobody owns it. */
+export function gameEnded(): void {
+  endSoon = false;
+  sunshineBusy = false;
+  setOwner(null);
+  advanceQueue();
+}
+
+/** An admin: everyone's stream (players, player 2s, watchers) ends now. */
+export function disconnectEveryone(reason: string): number {
+  const sockets = [...streaming.keys(), ...guests.keys()];
+  for (const socket of sockets) socketClose(socket, 4014, reason);
+  streaming.clear();
+  guests.clear();
+  for (const i of invites.values()) if (i.state !== "ended" && i.state !== "declined") i.state = "ended";
+  lastStreamingAt = Date.now();
+  endSoon = true;
+  return sockets.length;
+}
+
+/** The admin screen's "Live now": who is connected, as what, for how long,
+ * how long they've been away; and the game left open, if any. */
+export function liveSessions(now = Date.now()) {
+  const people = new Map<number, { id: number; name: string; role: "player" | "player2" | "spectator"; sinceMs: number; awayMs: number | null }>();
+  for (const s of streaming.values()) {
+    const away = awayFor(s.user.id, s.since, now);
+    const known = people.get(s.user.id);
+    if (!known || known.sinceMs < now - s.since) {
+      people.set(s.user.id, { id: s.user.id, name: s.user.name, role: "player", sinceMs: now - s.since, awayMs: away });
+    }
+  }
+  for (const g of guests.values()) {
+    if (!people.has(g.user.id)) people.set(g.user.id, { id: g.user.id, name: g.user.name, role: guestRole(g), sinceMs: 0, awayMs: null });
+  }
+  const quiet = streaming.size + guests.size === 0 ? now - lastStreamingAt : 0;
+  const endAfter = endSoon || queue.length > 0 ? END_SOON_MS : END_IDLE_MS;
+  return {
+    people: [...people.values()],
+    gameOpen: sunshineBusy,
+    owner: owner ? { id: owner.user.id, name: owner.user.name } : null,
+    /** A game open with nobody streaming: closed in this long. */
+    closesInMs: sunshineBusy && quiet > 0 ? Math.max(0, endAfter - quiet) : null,
+    waiting: queue.map((q) => ({ id: q.user.id, name: q.user.name })),
+    afkKickMs: AFK_KICK_MS,
+  };
+}
+
+/** An admin, from the admin screen: this person's streams end, whatever
+ * they were doing (player, player 2 or watching), and they leave the line. */
+export function adminKick(by: StreamUser, targetId: number): { ok: true; closed: number } | { error: string } {
+  if (!by.admin) return { error: "Only an admin can do that." };
+  const reason = `${by.name} removed you`;
+  let closed = 0;
+  let target: StreamUser | null = null;
+  for (const [socket, s] of streaming) {
+    if (s.user.id !== targetId) continue;
+    target = s.user;
+    streaming.delete(socket);
+    socketClose(socket, 4014, reason);
+    closed++;
+  }
+  for (const [socket, g] of guests) {
+    if (g.user.id !== targetId) continue;
+    target = g.user;
+    guests.delete(socket);
+    socketClose(socket, 4014, reason);
+    closed++;
+  }
+  endInvitesTo(targetId, reason);
+  if (target) endInvitesFrom(targetId, `${by.name} ended ${target.name}'s session`);
+  if (owner?.user.id === targetId) {
+    setOwner(null);
+    endSoon = true;
+  }
+  queue = queue.filter((q) => q.user.id !== targetId);
+  if (reserved?.user.id === targetId) reserved = null;
+  if (streaming.size + guests.size === 0) lastStreamingAt = Date.now();
+  advanceQueue();
+  if (!closed && !target) return { error: "They're not connected any more." };
+  return { ok: true, closed };
 }
 
 // --- Waiting in line
@@ -1282,4 +1425,5 @@ export function resetSessions(): void {
   queue = [];
   reserved = null;
   requests.clear();
+  endSoon = false;
 }

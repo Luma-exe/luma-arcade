@@ -3,7 +3,7 @@ import { activeAnnouncements } from "../announcements.js";
 import { timeLeft } from "../limits.js";
 import { recordQuality, type QualitySample } from "../playLog.js";
 import { requireAuth } from "../session.js";
-import { answerInvite, createInvite, endInvite, invitesFor, invitesFrom, recordActivity, recordConnection, recordStream, type CoopStream } from "../sessions.js";
+import { answerInvite, awayKickInMs, createInvite, endInvite, invitesFor, invitesFrom, recordActivity, recordConnection, recordStream, type CoopStream } from "../sessions.js";
 import { guestUserIds } from "../guestLinks.js";
 import { streamUser, type StreamUser } from "../streamUser.js";
 import { listUsers } from "../../remote/moonlightData.js";
@@ -91,7 +91,7 @@ export async function registerCoopRoutes(app: FastifyInstance) {
       try {
         left = timeLeft(user);
       } catch {}
-      return { remainingMs: left?.remainingMs ?? null, announcements: announcementsOrNone() };
+      return { remainingMs: left?.remainingMs ?? null, awayKickInMs: awayKickInMs(user), announcements: announcementsOrNone() };
     })
   );
 

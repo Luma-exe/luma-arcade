@@ -13,6 +13,7 @@ import { sunshineAppName } from "./web/sunshine.js";
 import { startGameTracking } from "./web/games.js";
 import { startWatchdog } from "./web/watchdog.js";
 import { startLockdown } from "./web/lockdown.js";
+import { startIdleChecks } from "./web/idle.js";
 import { runHome } from "./web/routes/home.js";
 import { timestampStderr } from "./process/stderrTimestamps.js";
 import { useBundledMoonlight } from "./config/bundled.js";
@@ -43,6 +44,7 @@ async function main() {
     httpsPort = server.httpsPort;
     startWatchdog(server.app.log);
     startLockdown(server.app.log);
+    startIdleChecks(server.app.log);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "EADDRINUSE") {
       console.error(await explainPortInUse(port));
