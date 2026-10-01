@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { closeRunningGame } from "./idle.js";
+import { MAIN, savesElsewhere } from "./saveSync.js";
 import { decide, gameEnded } from "./sessions.js";
 import { sunshineAppName } from "./sunshine.js";
 import type { StreamUser } from "./streamUser.js";
@@ -69,7 +70,8 @@ export async function prepareSaves(user: StreamUser, deps: ReadyDeps = realDeps)
       if (!running.busy || running.appId === null) return { restarted: false };
       if (!swapsSaves(await deps.appName(running.appId).catch(() => null))) return { restarted: false };
       const loaded = deps.loadedFor();
-      if (loaded === `user-${user.id}`) return { restarted: false };
+      // Theirs are loaded and nothing newer is on another PC (saveSync.ts).
+      if (loaded === `user-${user.id}` && !savesElsewhere(user.id, MAIN)) return { restarted: false };
       if (!(await deps.close())) return { restarted: false };
       gameEnded();
       // Sunshine takes a moment to close ES-DE; connecting before that

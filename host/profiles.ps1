@@ -25,11 +25,19 @@
 #   -Action restore  -Player "<id>:<name>" -Snapshot <name>
 # and to hand a guest link's saves to a new account (routes/guestLinks.ts):
 #   -Action transfer -From <guest id> -To "<new id>:<name>"
+# and to move a player's saves between PCs (an extra seat and the main PC,
+# LumaArcade saveSync.ts):
+#   -Action export -Player "<id>:<name>" -Dir <folder>   their saves, here, into <folder>
+#   -Action import -Player "<id>:<name>" -Dir <folder>   <folder> becomes their saves here
 # Those print one line of JSON for it to read.
+#
+# A switch also asks LumaArcade (POST /api/saves/arrive) whether this
+# player last played on another PC; if so it hands over a folder with their
+# latest saves, imported here before switching to them.
 #
 # Deployed copy: C:\ProgramData\LumaArcade\profiles.ps1. See host/README.md.
 param(
-    [ValidateSet('switch', 'snapshot', 'list', 'restore', 'transfer')]
+    [ValidateSet('switch', 'snapshot', 'list', 'restore', 'transfer', 'export', 'import')]
     [string]$Action = 'switch',
     [switch]$DryRun,
     # The player, instead of asking LumaArcade: "<id>:<name>"
@@ -40,6 +48,8 @@ param(
     # transfer: whose saves (a user id), and who gets them ("<id>:<name>")
     [string]$From,
     [string]$To,
+    # export/import: the folder holding one player's saves on the move
+    [string]$Dir,
     [int]$Port = 4500,
     # Run against a copy of the folder layout under this folder (testing)
     [string]$TestRoot
@@ -452,6 +462,75 @@ function Take-Snapshot($Who, [string]$Text, [bool]$IsAuto = $false) {
     return $name
 }
 
+# --- moving between PCs: one player's saves out to a folder, or in from one
+
+function Export-Saves([string]$Id, [string]$To) {
+    if (Test-Path -LiteralPath $To) { Remove-Item -LiteralPath $To -Recurse -Force }
+    New-Item -ItemType Directory -Force -Path $To | Out-Null
+    $copied = @()
+    foreach ($slot in $Slots.Keys) {
+        if ($NoSnapshot -contains $slot) { continue }
+        $src = SlotDir $slot $Slots[$slot][0] $Id
+        if (-not (Test-Path -LiteralPath $src)) { continue }
+        Copy-Tree $src (Join-Path $To $slot)
+        $copied += $slot
+    }
+    $stats = if ($state.current -eq $Id) { Read-Stats } else { Read-StatsFile (Stats-File $Id) }
+    if ($stats) { Write-StatsFile (Join-Path $To 'esde-stats.json') $stats }
+    [ordered]@{ time = (Get-Date).ToString('o'); pc = $env:COMPUTERNAME; slots = $copied } |
+        ConvertTo-Json | Set-Content (Join-Path $To 'export.json') -Encoding utf8
+    Log "Exported $Id's saves ($($copied.Count) folders) to $To"
+    return $copied.Count
+}
+
+function Import-Saves([string]$Id, [string]$From) {
+    $meta = Join-Path $From 'export.json'
+    if (-not (Test-Path -LiteralPath $meta)) { throw "$From has no export.json" }
+    $info = Get-Content $meta -Raw | ConvertFrom-Json
+    # Their folders in use here: nothing of theirs may be running.
+    if ($state.current -eq $Id) {
+        $busy = Busy
+        if ($busy) { throw "A game is still running ($($busy -join ', '))" }
+    }
+    $n = 0
+    foreach ($slot in $info.slots) {
+        if (-not $Slots.Contains($slot)) { continue }
+        $src = Join-Path $From $slot
+        if (-not (Test-Path -LiteralPath $src)) { continue }
+        Copy-Tree $src (SlotDir $slot $Slots[$slot][0] $Id) -Mirror
+        $n++
+    }
+    $stats = Read-StatsFile (Join-Path $From 'esde-stats.json')
+    if ($stats) {
+        if ($state.current -eq $Id) { Write-Stats $stats }
+        Write-StatsFile (Stats-File $Id) $stats
+    }
+    Log "Imported $Id's saves from $($info.pc) ($n folders, exported $($info.time))"
+    return $n
+}
+
+# Their latest saves from the PC they last played on, if that's another one.
+function Fetch-FromOtherPc($Who) {
+    if ($Player -or $DryRun) { return }
+    try {
+        $body = @{ player = [string]$Who.id } | ConvertTo-Json -Compress
+        $answer = Invoke-RestMethod -Method Post -Uri "$LumaUrl/api/saves/arrive" -Body $body -ContentType 'application/json' -TimeoutSec 900 -UseBasicParsing
+    }
+    catch {
+        Log "Couldn't ask LumaArcade where $($Who.name)'s latest saves are ($($_.Exception.Message)); using the ones here"
+        return
+    }
+    if (-not $answer.import) { return }
+    $ok = $false
+    try { Import-Saves "user-$($Who.id)" $answer.import | Out-Null; $ok = $true }
+    catch { Log "Couldn't bring $($Who.name)'s saves over from $($answer.from): $($_.Exception.Message)" }
+    try {
+        $done = @{ player = [string]$Who.id; ok = $ok } | ConvertTo-Json -Compress
+        Invoke-RestMethod -Method Post -Uri "$LumaUrl/api/saves/arrived" -Body $done -ContentType 'application/json' -TimeoutSec 30 -UseBasicParsing | Out-Null
+    }
+    catch { Log "Couldn't tell LumaArcade the saves arrived: $($_.Exception.Message)" }
+}
+
 # --- transfer: everything one player has (saves wherever they are, ES-DE
 # stats, snapshots) becomes another's. Renames only, so it's instant; the
 # new owner must have nothing yet. All destinations are checked before
@@ -518,6 +597,14 @@ if ($Action -ne 'switch') {
     try {
         switch ($Action) {
             'list' { Reply @{ snapshots = @(List-Snapshots $id) } }
+            'export' {
+                if (-not $Dir) { throw 'export needs -Dir' }
+                Reply @{ exported = (Export-Saves $id $Dir); dir = $Dir }
+            }
+            'import' {
+                if (-not $Dir) { throw 'import needs -Dir' }
+                Reply @{ imported = (Import-Saves $id $Dir) }
+            }
             'snapshot' { Reply @{ snapshot = (Take-Snapshot $who $Label $Auto.IsPresent) } }
             'restore' {
                 $src = Join-Path (Snapshot-Dir $id) $Snapshot
@@ -558,6 +645,7 @@ if ($busy) {
     Log "Not switching to $($who.name): still running: $($busy -join ', ')"
     exit 0
 }
+Fetch-FromOtherPc $who
 
 $previous = $state.current
 try {

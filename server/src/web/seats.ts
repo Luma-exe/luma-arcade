@@ -1,4 +1,5 @@
 import { listDevices } from "../remote/moonlightData.js";
+import { savesElsewhere } from "./saveSync.js";
 import { sunshineGet } from "./sunshine.js";
 import type { StreamUser } from "./streamUser.js";
 
@@ -153,7 +154,12 @@ export async function seatOffer(user: StreamUser, now = Date.now()): Promise<{ a
  * for CLAIM_MS until their stream starts. null when every seat is taken. */
 export async function claimSeat(user: StreamUser, now = Date.now()): Promise<Seat | null> {
   const mine = seatOf(user.id, now);
-  if (mine) return mine;
+  if (mine) {
+    // Back to their seat after playing elsewhere: it starts again, fetching
+    // their newer saves (saveSync.ts).
+    if (savesElsewhere(user.id, mine.name)) await deps.close(mine).catch(() => {});
+    return mine;
+  }
   const seat = await freeSeat(user, now);
   if (!seat) return null;
   holders.set(seat.hostId, { user, sockets: new Set(), lastSeen: now, claimedUntil: now + CLAIM_MS });

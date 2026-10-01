@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
-import { seatAt, seatHolder } from "../seats.js";
+import { arrive, arrived, MAIN } from "../saveSync.js";
+import { listSeats, seatAt, seatHolder } from "../seats.js";
 import { currentPlayer } from "../sessions.js";
 
 // Per-player saves (host/profiles.ps1): Sunshine runs that script before it
@@ -34,5 +35,44 @@ export async function registerProfileRoutes(app: FastifyInstance) {
     if (!fromThisPc(request)) return reply.code(403).send({ error: "Only the PC itself can ask this" });
     const user = currentPlayer();
     return { user: user ? { id: user.id, name: user.name } : null };
+  });
+
+  // Saves follow their player between PCs (saveSync.ts). The asking PC's
+  // switch calls arrive before loading someone's saves, and arrived once it
+  // imported what it was handed. Only for the player on that PC right now.
+  const askingPc = (request: FastifyRequest): { pc: string; player: { id: number; name: string } | null } | null => {
+    const seat = fromSeat(request);
+    if (seat) {
+      const user = seatHolder(seat.hostId);
+      return { pc: seat.name, player: user ? { id: user.id, name: user.name } : null };
+    }
+    if (!fromThisPc(request)) return null;
+    const user = currentPlayer();
+    return { pc: MAIN, player: user ? { id: user.id, name: user.name } : null };
+  };
+
+  app.post<{ Body: { player?: string | number } }>("/api/saves/arrive", async (request, reply) => {
+    const asking = askingPc(request);
+    if (!asking) return reply.code(403).send({ error: "Only a PC itself can ask this" });
+    if (!asking.player || String(asking.player.id) !== String(request.body?.player)) {
+      return reply.code(409).send({ error: "That isn't who is playing on this PC" });
+    }
+    try {
+      const answer = await arrive(asking.player, asking.pc, listSeats());
+      if (answer.import) request.log.info({ player: asking.player.name, from: answer.from, to: asking.pc }, "saves moved");
+      return answer;
+    } catch (err) {
+      request.log.warn({ player: asking.player.name, to: asking.pc, err: (err as Error).message }, "couldn't move saves");
+      return reply.code(502).send({ error: (err as Error).message });
+    }
+  });
+
+  app.post<{ Body: { player?: string | number; ok?: boolean } }>("/api/saves/arrived", async (request, reply) => {
+    const asking = askingPc(request);
+    if (!asking) return reply.code(403).send({ error: "Only a PC itself can say this" });
+    const id = Number(request.body?.player);
+    if (!asking.player || asking.player.id !== id) return reply.code(409).send({ error: "That isn't who is playing on this PC" });
+    arrived(id, asking.pc, !!request.body?.ok);
+    return { ok: true };
   });
 }

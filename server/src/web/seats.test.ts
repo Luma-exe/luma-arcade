@@ -16,6 +16,7 @@ import {
   setSeatDeps,
   type Seat,
 } from "./seats.js";
+import { setLastPc, setSyncDeps } from "./saveSync.js";
 import type { StreamUser } from "./streamUser.js";
 
 const alice: StreamUser = { id: 1, name: "Alice", roleId: 2, admin: false };
@@ -32,12 +33,18 @@ function useSeats(seats: Seat[], offline: number[] = []) {
 }
 
 describe("seats", () => {
+  let home: Record<string, string> = {};
   beforeEach(() => {
     closed = [];
+    home = {};
+    setSyncDeps({ readHome: () => ({ ...home }), writeHome: (h) => void (home = { ...h }), exportMain: async () => {}, exportSeat: async () => {}, toSeat: async () => {} });
     resetSeats();
     useSeats([seat2]);
   });
-  afterEach(() => setSeatDeps(null));
+  afterEach(() => {
+    setSeatDeps(null);
+    setSyncDeps(null);
+  });
 
   it("knows which hosts are seats", () => {
     assert.equal(isSeatHost(200), true);
@@ -57,8 +64,16 @@ describe("seats", () => {
   it("closes the last player's game for a new player, not for the same one", async () => {
     await claimSeat(alice);
     assert.deepEqual(closed, [200]);
+    setLastPc(alice.id, "Seat2");
     await claimSeat(alice);
     assert.deepEqual(closed, [200]);
+  });
+
+  it("closes their own seat's game when they played elsewhere since", async () => {
+    await claimSeat(alice);
+    setLastPc(alice.id, "main");
+    await claimSeat(alice);
+    assert.deepEqual(closed, [200, 200]);
   });
 
   it("knows a seat by its address and who has it", async () => {
