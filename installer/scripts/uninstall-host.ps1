@@ -47,6 +47,12 @@ if (Test-Path $sunshineApps) {
     $apps = Get-Content -Raw $sunshineApps | ConvertFrom-Json
     $changed = $false
     foreach ($app in $apps.apps) {
+        # ES-DE back to starting ES-DE.exe itself, not esde-keepalive.ps1.
+        if ($app.cmd -match 'esde-keepalive\.ps1.*-Exe\s+"([^"]+)"') {
+            Write-Step "Sunshine: $($app.name) starts $($Matches[1]) itself again"
+            $app.cmd = $Matches[1]
+            $changed = $true
+        }
         $prep = @($app.'prep-cmd' | Where-Object { $_ })
         if (-not ($prep | Where-Object { $_.do -like "*$dataDir\*" })) { continue }
         Write-Step "Sunshine: $($app.name) no longer runs Luma Arcade's scripts"
@@ -67,7 +73,7 @@ if (Test-Path $sunshineApps) {
 
 if ($hostConfig -and $hostConfig.gamelists) {
     $events = Join-Path (Split-Path $hostConfig.gamelists) 'scripts\game-start'
-    foreach ($bat in '01-minimize-es-de.bat', '02-luma-game-events.bat') {
+    foreach ($bat in '00-emulator-window.bat', '01-minimize-es-de.bat', '02-luma-game-events.bat') {
         Remove-Item -Force (Join-Path $events $bat) -ErrorAction SilentlyContinue
     }
 }

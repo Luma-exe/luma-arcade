@@ -8,6 +8,11 @@
 #   esde-game-*.ps1     ES-DE event scripts: what's being played (game
 #                       tracking) and minimizing ES-DE behind a game (it
 #                       otherwise steals a held stick direction)
+#   emulator-window.ps1 ES-DE event script: Switch, Wii and GameCube games
+#                       fill the screen whatever size the previous player
+#                       streamed at
+#   esde-keepalive.ps1  what Sunshine's ES-DE app runs: starts ES-DE again
+#                       when a player quits it from its menu
 # They go in C:\ProgramData\LumaArcade (the website looks for them there),
 # with host.json saying where ES-DE, the emulators and the saves are.
 #  -LumaDir   Luma Arcade's install folder (the scripts are in its host\)
@@ -45,7 +50,9 @@ foreach ($dir in "$dataDir\home", "$dataDir\profiles") {
 # Where things are. ES-DE: the one given, else the one Sunshine starts.
 if (-not $EsDeExe -and (Test-Path $sunshineApps)) {
     $app = (Get-Content -Raw $sunshineApps | ConvertFrom-Json).apps | Where-Object { $_.name -eq 'ES-DE' } | Select-Object -First 1
-    if ($app -and $app.cmd) { $EsDeExe = $app.cmd.Trim('"') }
+    # Set up before: Sunshine starts esde-keepalive.ps1 -Exe "<ES-DE.exe>".
+    if ($app -and $app.cmd -match 'esde-keepalive\.ps1.*-Exe\s+"([^"]+)"') { $EsDeExe = $Matches[1] }
+    elseif ($app -and $app.cmd) { $EsDeExe = $app.cmd.Trim('"') }
 }
 $esDeDir = if ($EsDeExe) { Split-Path $EsDeExe } else { '' }
 $profileDir = $null
@@ -116,6 +123,15 @@ if ($esDeData) {
         'rem ES-DE passes: ROM path, game name, system name, system full name (quoted).'
         "start `"`" /b powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$dataDir\esde-game-events.ps1`" -Rom %1 -Name %2 -System %3"
     ) | Set-Content -Path (Join-Path $events '02-luma-game-events.bat') -Encoding ASCII
+    @(
+        '@echo off'
+        "rem Switch, Wii and GameCube games fill the screen whatever size the last player streamed at, see $dataDir\emulator-window.ps1"
+        'rem Runs without "start" so the saved window size is gone before the emulator starts.'
+        'for %%s in (switch wii gc gamecube wiiware) do if /i "%~3"=="%%s" goto run'
+        'exit /b 0'
+        ':run'
+        "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$dataDir\emulator-window.ps1`" -System %3"
+    ) | Set-Content -Path (Join-Path $events '00-emulator-window.bat') -Encoding ASCII
 
     # CustomEventScripts: run the scripts above. RunInBackground: keep ES-DE
     # responsive while a game runs, so the Home button can switch back to it.
@@ -139,6 +155,13 @@ if (Test-Path $sunshineApps) {
     $start = "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File $dataDir\stream-start.ps1"
     $wanted = @{ 'ES-DE' = "$start -Port $Port -FocusProcess ES-DE"; 'Steam Big Picture' = "$start -FocusTitle `"*Big Picture*`"" }
     foreach ($app in $apps.apps) {
+        # ES-DE starts through esde-keepalive.ps1, which starts it again if a
+        # player picks "Quit ES-DE" (they'd be left on the desktop).
+        if ($app.name -eq 'ES-DE' -and $EsDeExe -and $app.cmd -notmatch 'esde-keepalive\.ps1') {
+            Write-Step 'Sunshine: ES-DE starts again if a player quits it'
+            $app.cmd = "conhost.exe --headless powershell.exe -NoProfile -ExecutionPolicy Bypass -File $dataDir\esde-keepalive.ps1 -Exe `"$EsDeExe`""
+            $changed = $true
+        }
         if (-not $wanted.ContainsKey($app.name)) { continue }
         $prep = @($app.'prep-cmd' | Where-Object { $_ })
         # Already set up (by Setup, or by hand with the older profiles.ps1).

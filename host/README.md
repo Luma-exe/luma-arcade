@@ -131,3 +131,24 @@ ES-DE, which otherwise catches a held stick direction during a focus bounce
 and scrolls sideways forever behind the game; when only the desktop is left
 it brings ES-DE back. Needs ES-DE's `CustomEventScripts` setting. Deployed
 copy: `C:\ProgramData\LumaArcade\esde-game-started.ps1`.
+
+## Switch, Wii and GameCube games fill the screen (`emulator-window.ps1`)
+
+Eden (`user\config\window_state.ini`) and Dolphin (`Config\Qt.ini`) save
+their window's place and size and put it back next time. The PC's screen
+changes size with every player's stream, so after someone played at another
+size the next game opened off to the side. The ES-DE game-start script
+`00-emulator-window.bat` (switch, wii, gc only) clears the saved place and
+size before the emulator starts, then watches in the background: a
+fullscreen window that doesn't cover the screen is put over the whole
+screen. Log: `C:\ProgramData\LumaArcade\home\emulator-window.log`.
+
+## Quitting ES-DE (`esde-keepalive.ps1`)
+
+Sunshine's ES-DE app starts `esde-keepalive.ps1 -Exe "<ES-DE.exe>"` instead
+of ES-DE itself. If a player picks "Quit ES-DE" while someone is streaming,
+ES-DE is started again 7 seconds later, instead of leaving them on the
+desktop with the stream ended. Sunshine closing the app (Stop, idle close,
+saves switch) ends this script within its 5-second exit timeout, before it
+would restart anything; with nobody streaming it just ends.
+Log: `C:\ProgramData\LumaArcade\home\esde-keepalive.log`.
