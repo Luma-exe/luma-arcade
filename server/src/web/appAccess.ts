@@ -4,6 +4,7 @@ import { getAccess, isAppAllowed, type UserAccess } from "./access.js";
 import { timeLeft } from "./limits.js";
 import { nameUnnamedApps, playEnded, playStarted } from "./playLog.js";
 import { knownAppName, sunshineAppName } from "./sunshine.js";
+import { isSeatHost, seatStreamEnded, seatStreamStarted } from "./seats.js";
 import { decide, guestStream, streamEnded, streamStarted } from "./sessions.js";
 import { streamUser, type StreamUser } from "./streamUser.js";
 
@@ -114,6 +115,13 @@ export function checkStreamInit(source: WsLike, target: WsLike, data: unknown, b
     // no database: no limits
   }
   if (left?.remainingMs === 0) return refuse(4012, left.reason ?? "You're out of play time");
+  // An extra seat (seats.ts) is one person's, apart from the main PC's lock.
+  if (isSeatHost(Number(init.host_id))) {
+    const seat = seatStreamStarted(Number(init.host_id), who.user, source);
+    if (!seat.allowed) return refuse(4009, seat.reason ?? "Someone else is using this seat");
+    openStreams.set(source, { user: who.user, row: logPlay(who.user, title, init.app_id, false) });
+    return;
+  }
   // One PC, one screen: someone else's game isn't yours to join (sessions.ts).
   const decision = decide(who.user);
   if (!decision.allowed) return refuse(4009, decision.reason ?? "Someone else is using this PC");
@@ -125,14 +133,19 @@ export function checkStreamInit(source: WsLike, target: WsLike, data: unknown, b
     }
   }
   const role = streamStarted(source, who.user);
-  let row: number | null = null;
+  openStreams.set(source, { user: who.user, row: logPlay(who.user, title, init.app_id, role === "guest") });
+}
+
+/** The play_sessions row for a stream that got through (playLog.ts). */
+function logPlay(user: StreamUser, title: string | undefined, appId: number | undefined, guest: boolean): number | null {
   try {
-    row = playStarted(who.user.id, who.user.name, title || `App ${init.app_id ?? "?"}`, Date.now(), role === "guest");
+    const row = playStarted(user.id, user.name, title || `App ${appId ?? "?"}`, Date.now(), guest);
     if (!title) void nameUnnamedApps(sunshineAppName).catch(() => {});
+    return row;
   } catch {
     // the play log is a nice-to-have; never let it stop a stream
+    return null;
   }
-  openStreams.set(source, { user: who.user, row });
 }
 
 /** End this person's streams now (an admin kicking a guest). */
@@ -206,7 +219,7 @@ export function streamClosed(source: WsLike): void {
     clearInterval(keepalive);
     keepalives.delete(source);
   }
-  streamEnded(source);
+  if (!seatStreamEnded(source)) streamEnded(source);
   const open = openStreams.get(source);
   if (!open) return;
   openStreams.delete(source);

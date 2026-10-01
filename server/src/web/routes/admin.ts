@@ -4,7 +4,8 @@ import path from "node:path";
 import { SETTINGS_SECTIONS, deleteAccess, getAccess, getAllAccess, setAccess, type UserAccess } from "../access.js";
 import { requireAuth } from "../session.js";
 import { clearStreamUserCache, requireAdmin, streamUser } from "../streamUser.js";
-import { adminKick, decide, guestStream, liveSessions, status as sessionStatus } from "../sessions.js";
+import { adminKick, decide, guestStream, liveSessions, status as sessionStatus, type SessionDecision } from "../sessions.js";
+import { claimSeat, isSeatHost, seatDecision, seatOffer, seatsStatus } from "../seats.js";
 import { forceStop } from "../idle.js";
 import { playSummary, usage } from "../playLog.js";
 import { gamesByApp } from "../games.js";
@@ -75,8 +76,21 @@ export async function registerAdminRoutes(app: FastifyInstance) {
 
   // Who has the PC right now, and whether this person may connect
   // (sessions.ts): the PC card and the stream page ask before connecting.
-  app.get("/api/sessions/status", { preHandler: requireAuth, logLevel: "warn" }, async (request) => {
+  // ?hostId= names the PC the page is about to connect to: an extra seat
+  // (seats.ts) answers for itself. For the main PC, newSession says whether
+  // a seat is free (or already theirs) for "Start a new session".
+  app.get<{ Querystring: { hostId?: string } }>("/api/sessions/status", { preHandler: requireAuth, logLevel: "warn" }, async (request) => {
     const user = await streamUser(request);
+    const hostId = Number(request.query.hostId);
+    if (user && hostId && isSeatHost(hostId)) {
+      let decision: SessionDecision = seatDecision(hostId, user);
+      if (decision.allowed && decision.reason) decision = { ...decision, takeOver: true };
+      try {
+        const left = timeLeft(user);
+        if (left.remainingMs === 0) decision = { allowed: false, reason: left.reason };
+      } catch {}
+      return { ...sessionStatus(user), decision, coop: null, seat: true };
+    }
     let decision = user ? decide(user) : { allowed: false };
     // Out of play time beats everything else (limits.ts).
     if (user) {
@@ -86,8 +100,21 @@ export async function registerAdminRoutes(app: FastifyInstance) {
       } catch {}
     }
     // A co-op guest's page asks the host for exactly the player's stream.
-    return { ...sessionStatus(user), decision, coop: user ? guestStream(user) : null };
+    const newSession = user ? await seatOffer(user).catch(() => null) : null;
+    return { ...sessionStatus(user), decision, coop: user ? guestStream(user) : null, newSession };
   });
+
+  // "Start a new session": a free seat for this person (or theirs again).
+  app.post("/api/seats/claim", { preHandler: requireAuth }, async (request, reply) => {
+    const user = await streamUser(request);
+    if (!user) return reply.code(401).send({ error: "unauthorized" });
+    const seat = await claimSeat(user);
+    if (!seat) return reply.code(409).send({ error: "Every other PC is in use right now" });
+    request.log.info({ player: user.name, seat: seat.name }, "seat claimed");
+    return { hostId: seat.hostId, name: seat.name };
+  });
+
+  app.get("/api/admin/seats", { preHandler: requireAdmin, logLevel: "warn" }, async () => ({ seats: seatsStatus() }));
 
   // Live now (admin screen): everyone streaming, and an admin's say over it
   // from anywhere - remove one person, or end everything and close the game.
