@@ -57,6 +57,7 @@ $Bios = 'G:\BIOS'
 # host.json (installer/scripts/install-host.ps1); the paths above are the
 # original gaming PC's.
 $HostFile = 'C:\ProgramData\LumaArcade\host.json'
+$LumaUrl = "http://127.0.0.1:$Port"
 if (-not $TestRoot -and (Test-Path $HostFile)) {
     $hostConfig = Get-Content -Raw $HostFile | ConvertFrom-Json
     if ($hostConfig.emulators) { $E = $hostConfig.emulators }
@@ -65,6 +66,9 @@ if (-not $TestRoot -and (Test-Path $HostFile)) {
     if ($hostConfig.esDeDir) { $EsDeDir = $hostConfig.esDeDir }
     if ($hostConfig.snapshots) { $SnapshotRoot = $hostConfig.snapshots }
     if ($hostConfig.bios) { $Bios = $hostConfig.bios }
+    # An extra seat (a VM streamed as "Seat2"...) asks the main PC's
+    # LumaArcade who has it: "luma": "http://<main PC>:4500".
+    if ($hostConfig.luma) { $LumaUrl = $hostConfig.luma }
 }
 if ($TestRoot) {
     $Root = "$TestRoot\profiles"; $EsDeDir = $TestRoot; $SnapshotRoot = "$TestRoot\snapshots"
@@ -389,7 +393,7 @@ function Who {
         return [pscustomobject]@{ id = [long]$id; name = $(if ($name) { $name } else { "Player $id" }) }
     }
     try {
-        return (Invoke-RestMethod -Uri "http://127.0.0.1:$Port/api/profiles/current" -TimeoutSec 5 -UseBasicParsing).user
+        return (Invoke-RestMethod -Uri "$LumaUrl/api/profiles/current" -TimeoutSec 5 -UseBasicParsing).user
     }
     catch {
         Log "Couldn't ask LumaArcade who is playing ($($_.Exception.Message)); saves left as they are"

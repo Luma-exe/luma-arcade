@@ -19,14 +19,16 @@ function pairedClient(): { key: string; cert: string } | null {
 
 export type SunshineAnswer = { status: "ok"; code: number; body: string } | { status: "hung" } | { status: "unpaired" };
 
-/** GET a Sunshine HTTPS path. "hung" when the handshake or reply never comes. */
-export function sunshineGet(path: string, timeoutMs = 5000): Promise<SunshineAnswer> {
+/** GET a Sunshine HTTPS path. "hung" when the handshake or reply never comes.
+ * host: another paired Sunshine (an extra seat, seats.ts) - they all trust
+ * the same client certificate. */
+export function sunshineGet(path: string, timeoutMs = 5000, host = "127.0.0.1"): Promise<SunshineAnswer> {
   const client = pairedClient();
   if (!client) return Promise.resolve({ status: "unpaired" });
   return new Promise((resolve) => {
     const req = httpsRequest(
       {
-        host: "127.0.0.1",
+        host,
         port: SUNSHINE_HTTPS_PORT,
         path,
         key: client.key,

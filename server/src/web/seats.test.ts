@@ -8,6 +8,8 @@ import {
   resetSeats,
   seatDecision,
   seatOf,
+  seatAt,
+  seatHolder,
   seatOffer,
   seatStreamEnded,
   seatStreamStarted,
@@ -24,12 +26,14 @@ const admin: StreamUser = { id: 9, name: "Admin", roleId: 1, admin: true };
 const seat2: Seat = { hostId: 200, name: "Seat2", address: "10.0.0.2", httpPort: 47989, owner: null };
 const seat3: Seat = { hostId: 300, name: "Seat3", address: "10.0.0.3", httpPort: 47989, owner: null };
 
+let closed: number[] = [];
 function useSeats(seats: Seat[], offline: number[] = []) {
-  setSeatDeps({ seats: () => seats, online: async (s) => !offline.includes(s.hostId) });
+  setSeatDeps({ seats: () => seats, online: async (s) => !offline.includes(s.hostId), close: async (s) => void closed.push(s.hostId) });
 }
 
 describe("seats", () => {
   beforeEach(() => {
+    closed = [];
     resetSeats();
     useSeats([seat2]);
   });
@@ -48,6 +52,20 @@ describe("seats", () => {
     assert.equal((await claimSeat(alice))?.hostId, 200);
     assert.deepEqual(await seatOffer(bob), { available: false, yours: false });
     assert.equal(await claimSeat(bob), null);
+  });
+
+  it("closes the last player's game for a new player, not for the same one", async () => {
+    await claimSeat(alice);
+    assert.deepEqual(closed, [200]);
+    await claimSeat(alice);
+    assert.deepEqual(closed, [200]);
+  });
+
+  it("knows a seat by its address and who has it", async () => {
+    await claimSeat(alice);
+    assert.equal(seatAt("10.0.0.2")?.hostId, 200);
+    assert.equal(seatAt("10.9.9.9"), null);
+    assert.equal(seatHolder(200)?.name, "Alice");
   });
 
   it("skips seats that are off", async () => {

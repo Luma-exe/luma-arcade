@@ -1,4 +1,5 @@
 import { listDevices } from "../remote/moonlightData.js";
+import { sunshineGet } from "./sunshine.js";
 import type { StreamUser } from "./streamUser.js";
 
 // Extra seats: more Windows PCs to stream (Hyper-V VMs with a slice of the
@@ -44,6 +45,8 @@ export interface SeatDeps {
   seats(): Seat[];
   /** Does the seat's Sunshine answer? */
   online(seat: Seat): Promise<boolean>;
+  /** Close whatever the seat's Sunshine is running (the last player's game). */
+  close(seat: Seat): Promise<void>;
 }
 
 const realDeps: SeatDeps = {
@@ -58,6 +61,9 @@ const realDeps: SeatDeps = {
     } catch {
       return false;
     }
+  },
+  close: async (seat) => {
+    await sunshineGet("/cancel", 10_000, seat.address);
   },
 };
 
@@ -151,6 +157,9 @@ export async function claimSeat(user: StreamUser, now = Date.now()): Promise<Sea
   const seat = await freeSeat(user, now);
   if (!seat) return null;
   holders.set(seat.hostId, { user, sockets: new Set(), lastSeen: now, claimedUntil: now + CLAIM_MS });
+  // A new player: the last one's ES-DE (and their saves) closes, so the
+  // seat starts it again with this player's saves (host/profiles.ps1).
+  await deps.close(seat).catch(() => {});
   return seat;
 }
 
@@ -189,6 +198,17 @@ export function seatStreamEnded(socket: object, now = Date.now()): boolean {
     }
   }
   return false;
+}
+
+/** The seat with this address, for the seat's own save switching to ask
+ * who has it (routes/profiles.ts). */
+export function seatAt(address: string): Seat | null {
+  return listSeats().find((s) => s.address === address) ?? null;
+}
+
+/** Who has this seat right now (playing, holding or claimed it). */
+export function seatHolder(hostId: number, now = Date.now()): StreamUser | null {
+  return holderOf(hostId, now)?.user ?? null;
 }
 
 /** Admin screen: every seat and who has it. */
