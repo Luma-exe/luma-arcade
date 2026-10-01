@@ -38,6 +38,10 @@ export interface SyncDeps {
   exportSeat(seat: Seat, player: Player, hostDir: string): Promise<void>;
   /** hostDir copied onto the seat at seatDir. */
   toSeat(seat: Seat, player: Player, hostDir: string, seatDir: string): Promise<void>;
+  /** The folder becomes the player's saves on that PC (its profiles.ps1
+   * -Action import): on the main PC, or (copied there first) on a seat. */
+  importMain(player: Player, dir: string): Promise<void>;
+  importSeat(seat: Seat, player: Player, hostDir: string, seatDir: string): Promise<void>;
 }
 
 /** The seat VM's sign-in, made when it was set up. */
@@ -45,7 +49,7 @@ function credFile(seat: Seat): string {
   return path.join("E:\\HyperV", seat.name, `${seat.name.toLowerCase()}-credentials.json`);
 }
 
-async function seatSync(mode: "export" | "import", seat: Seat, player: Player, seatDir: string, hostDir: string) {
+async function seatSync(mode: "export" | "import" | "apply", seat: Seat, player: Player, seatDir: string, hostDir: string) {
   let stdout = "";
   try {
     ({ stdout } = await run(
@@ -81,6 +85,11 @@ const realDeps: SyncDeps = {
     await seatSync("export", seat, player, path.win32.join(SEAT_DIR, `user-${player.id}`), hostDir);
   },
   toSeat: (seat, player, hostDir, seatDir) => seatSync("import", seat, player, seatDir, hostDir),
+  importMain: async (player, dir) => {
+    const answer = await runProfiles(["-Action", "import", "-Player", `${player.id}:${player.name}`, "-Dir", dir]);
+    if (answer.error) throw new Error(String(answer.error));
+  },
+  importSeat: (seat, player, hostDir, seatDir) => seatSync("apply", seat, player, seatDir, hostDir),
 };
 
 let deps: SyncDeps = realDeps;
@@ -134,6 +143,43 @@ export function arrive(player: Player, pc: string, seats: Seat[]): Promise<{ imp
     const seatDir = path.win32.join(SEAT_DIR, `user-${player.id}`);
     await deps.toSeat(to, player, hostDir, seatDir);
     return { import: seatDir, from: last };
+  });
+  queues.set(player.id, job);
+  return job;
+}
+
+/**
+ * The whole move, before the player connects (the stream page waits on it,
+ * POST /api/saves/fetch): their latest saves exported where they last
+ * played, copied over and imported on this PC. Afterwards arrive() has
+ * nothing to do. moved: false when they were here already.
+ */
+export function fetchTo(player: Player, pc: string, seats: Seat[]): Promise<{ moved: boolean; from?: string }> {
+  const previous = queues.get(player.id) ?? Promise.resolve();
+  const job = previous.catch(() => {}).then(async () => {
+    const last = lastPc(player.id);
+    if (last === pc) return { moved: false };
+    const seatNamed = (name: string) => seats.find((s) => s.name === name) ?? null;
+    const hostDir = path.win32.join(STAGING, `user-${player.id}`);
+    if (last === MAIN) {
+      await deps.exportMain(player, hostDir);
+    } else {
+      const from = seatNamed(last);
+      if (!from) {
+        setLastPc(player.id, pc);
+        return { moved: false };
+      }
+      await deps.exportSeat(from, player, hostDir);
+    }
+    if (pc === MAIN) {
+      await deps.importMain(player, hostDir);
+    } else {
+      const to = seatNamed(pc);
+      if (!to) throw new Error(`No seat called ${pc}`);
+      await deps.importSeat(to, player, hostDir, path.win32.join(SEAT_DIR, `user-${player.id}`));
+    }
+    setLastPc(player.id, pc);
+    return { moved: true, from: last };
   });
   queues.set(player.id, job);
   return job;

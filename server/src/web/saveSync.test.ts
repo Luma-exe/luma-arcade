@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { MAIN, arrive, arrived, lastPc, savesElsewhere, setLastPc, setSyncDeps, type SyncDeps } from "./saveSync.js";
+import { MAIN, arrive, arrived, fetchTo, lastPc, savesElsewhere, setLastPc, setSyncDeps, type SyncDeps } from "./saveSync.js";
 import type { Seat } from "./seats.js";
 
 const seat2: Seat = { hostId: 200, name: "Seat2", address: "10.0.0.2", httpPort: 47989, owner: null };
@@ -16,6 +16,8 @@ function fake(overrides: Partial<SyncDeps> = {}): SyncDeps {
     exportMain: async (p) => void calls.push(`export main ${p.id}`),
     exportSeat: async (s, p) => void calls.push(`export ${s.name} ${p.id}`),
     toSeat: async (s, p, _host, seatDir) => void calls.push(`to ${s.name} ${p.id} ${seatDir}`),
+    importMain: async (p) => void calls.push(`import main ${p.id}`),
+    importSeat: async (s, p) => void calls.push(`import ${s.name} ${p.id}`),
     ...overrides,
   };
 }
@@ -74,6 +76,27 @@ describe("saves follow their player between PCs", () => {
   it("a seat that's gone has nothing to fetch", async () => {
     setLastPc(1, "Seat9");
     assert.deepEqual(await arrive(alice, MAIN, [seat2]), {});
+  });
+
+  it("before connecting: the whole move, then the switch has nothing to do", async () => {
+    assert.deepEqual(await fetchTo(alice, "Seat2", [seat2]), { moved: true, from: MAIN });
+    assert.deepEqual(calls, ["export main 1", "import Seat2 1"]);
+    assert.equal(lastPc(1), "Seat2");
+    assert.deepEqual(await arrive(alice, "Seat2", [seat2]), {});
+    assert.deepEqual(await fetchTo(alice, MAIN, [seat2]), { moved: true, from: "Seat2" });
+    assert.deepEqual(calls.slice(2), ["export Seat2 1", "import main 1"]);
+    assert.equal(lastPc(1), MAIN);
+  });
+
+  it("before connecting, already here: nothing moves", async () => {
+    assert.deepEqual(await fetchTo(alice, MAIN, [seat2]), { moved: false });
+    assert.deepEqual(calls, []);
+  });
+
+  it("a failed import keeps them where they were", async () => {
+    setSyncDeps(fake({ importSeat: async () => { throw new Error("busy"); } }));
+    await assert.rejects(fetchTo(alice, "Seat2", [seat2]), /busy/);
+    assert.equal(lastPc(1), MAIN);
   });
 
   it("an export that fails is reported, and nothing changes", async () => {

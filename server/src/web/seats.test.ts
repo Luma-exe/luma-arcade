@@ -37,7 +37,7 @@ describe("seats", () => {
   beforeEach(() => {
     closed = [];
     home = {};
-    setSyncDeps({ readHome: () => ({ ...home }), writeHome: (h) => void (home = { ...h }), exportMain: async () => {}, exportSeat: async () => {}, toSeat: async () => {} });
+    setSyncDeps({ readHome: () => ({ ...home }), writeHome: (h) => void (home = { ...h }), exportMain: async () => {}, exportSeat: async () => {}, toSeat: async () => {}, importMain: async () => {}, importSeat: async () => {} });
     resetSeats();
     useSeats([seat2]);
   });

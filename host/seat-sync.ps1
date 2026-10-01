@@ -5,12 +5,14 @@
 #                 copy that folder here to -HostDir
 #   -Mode import: copy -HostDir to -SeatDir on the seat (the seat's own
 #                 switch imports it before loading their saves)
+#   -Mode apply:  copy -HostDir to -SeatDir on the seat and import it there
+#                 now (before the player connects)
 # The seat's sign-in is read from -CredFile ({ arcadeUser, arcadePassword },
 # made when the seat was set up). Prints one line of JSON.
 #
 # Deployed copy: C:\ProgramData\LumaArcade\seat-sync.ps1.
 param(
-    [Parameter(Mandatory)][ValidateSet('export', 'import')][string]$Mode,
+    [Parameter(Mandatory)][ValidateSet('export', 'import', 'apply')][string]$Mode,
     [Parameter(Mandatory)][string]$VmName,
     [Parameter(Mandatory)][string]$CredFile,
     [Parameter(Mandatory)][string]$Player,
@@ -42,7 +44,15 @@ try {
                 New-Item -ItemType Directory -Force -Path $d | Out-Null
             }
             Copy-Item -ToSession $session -Path (Join-Path $HostDir '*') -Destination $SeatDir -Recurse -Force
-            @{ ok = $true; mode = 'import' } | ConvertTo-Json -Compress
+            if ($Mode -eq 'apply') {
+                $answer = Invoke-Command -Session $session -ArgumentList $Player, $SeatDir -ScriptBlock {
+                    param($p, $d)
+                    powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\ProgramData\LumaArcade\profiles.ps1 -Action import -Player $p -Dir $d
+                }
+                $line = @($answer)[-1]
+                if ($line -notmatch '"imported"') { throw "the seat couldn't import: $line" }
+            }
+            @{ ok = $true; mode = $Mode } | ConvertTo-Json -Compress
         }
     }
     finally { Remove-PSSession $session }

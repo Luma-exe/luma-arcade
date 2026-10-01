@@ -1,5 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
-import { arrive, arrived, MAIN } from "../saveSync.js";
+import { arrive, arrived, fetchTo, lastPc, MAIN } from "../saveSync.js";
+import { requireAuth } from "../session.js";
+import { streamUser } from "../streamUser.js";
 import { listSeats, seatAt, seatHolder } from "../seats.js";
 import { currentPlayer } from "../sessions.js";
 
@@ -65,6 +67,36 @@ export async function registerProfileRoutes(app: FastifyInstance) {
       request.log.warn({ player: asking.player.name, to: asking.pc, err: (err as Error).message }, "couldn't move saves");
       return reply.code(502).send({ error: (err as Error).message });
     }
+  });
+
+  // The stream page, before it connects: the signed-in player's latest saves
+  // brought to the PC they're about to play on (saveSync.ts fetchTo), so the
+  // move happens on the connect screen, not in the middle of the launch.
+  app.post<{ Body: { hostId?: number | string } }>("/api/saves/fetch", { preHandler: requireAuth }, async (request, reply) => {
+    const user = await streamUser(request);
+    if (!user) return reply.code(401).send({ error: "unauthorized" });
+    const hostId = Number(request.body?.hostId);
+    const seat = hostId ? listSeats().find((s) => s.hostId === hostId) : undefined;
+    const pc = seat ? seat.name : MAIN;
+    try {
+      const answer = await fetchTo({ id: user.id, name: user.name }, pc, listSeats());
+      if (answer.moved) request.log.info({ player: user.name, from: answer.from, to: pc }, "saves moved");
+      return answer;
+    } catch (err) {
+      request.log.warn({ player: user.name, to: pc, err: (err as Error).message }, "couldn't move saves");
+      return reply.code(502).send({ error: (err as Error).message });
+    }
+  });
+
+  // Where would they come from? (The page says so while it waits.)
+  app.get<{ Querystring: { hostId?: string } }>("/api/saves/where", { preHandler: requireAuth, logLevel: "warn" }, async (request, reply) => {
+    const user = await streamUser(request);
+    if (!user) return reply.code(401).send({ error: "unauthorized" });
+    const hostId = Number(request.query.hostId);
+    const seat = hostId ? listSeats().find((s) => s.hostId === hostId) : undefined;
+    const pc = seat ? seat.name : MAIN;
+    const last = lastPc(user.id);
+    return { here: pc, last, needsMove: last !== pc, lastName: last === MAIN ? "MainServer" : last };
   });
 
   app.post<{ Body: { player?: string | number; ok?: boolean } }>("/api/saves/arrived", async (request, reply) => {
