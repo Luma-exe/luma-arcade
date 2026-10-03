@@ -37,10 +37,21 @@ Start-Service SunshineService -ErrorAction SilentlyContinue
 $appsFile = Join-Path $configDir 'apps.json'
 for ($i = 0; $i -lt 30 -and -not (Test-Path $appsFile); $i++) { Start-Sleep -Seconds 1 }
 
+# ES-DE's box art (its logo, 1200x1600) for the arcade's ES-DE tile, in
+# Sunshine's own images folder. A picture someone put there is kept.
+$esdeArt = Join-Path $sunshineDir 'assets\es-de.png'
+$shippedArt = Join-Path $PSScriptRoot 'es-de.png'
+if (-not (Test-Path $esdeArt) -and (Test-Path $shippedArt)) {
+    Copy-Item $shippedArt $esdeArt -Force
+}
+$hasArt = Test-Path $esdeArt
+
 $changed = $false
 if ($EsDeExe -and (Test-Path $appsFile)) {
     $apps = Get-Content -Raw $appsFile | ConvertFrom-Json
-    if (-not ($apps.apps | Where-Object { $_.name -eq 'ES-DE' })) {
+    $existing = $apps.apps | Where-Object { $_.name -eq 'ES-DE' } | Select-Object -First 1
+    $appsChanged = $false
+    if (-not $existing) {
         Write-Step 'Adding ES-DE to Sunshine''s apps'
         $entry = [pscustomobject]@{
             name          = 'ES-DE'
@@ -50,7 +61,15 @@ if ($EsDeExe -and (Test-Path $appsFile)) {
             'wait-all'    = 'true'
             'exit-timeout'= '5'
         }
+        if ($hasArt) { $entry | Add-Member 'image-path' 'es-de.png' }
         $apps.apps = @($apps.apps) + $entry
+        $appsChanged = $true
+    } elseif ($hasArt -and -not $existing.'image-path') {
+        Write-Step 'Giving ES-DE its picture in Sunshine''s apps'
+        $existing | Add-Member -Force 'image-path' 'es-de.png'
+        $appsChanged = $true
+    }
+    if ($appsChanged) {
         Copy-Item $appsFile "$appsFile.bak-luma-setup" -Force
         $apps | ConvertTo-Json -Depth 10 | Set-Content -Path $appsFile -Encoding UTF8
         $changed = $true

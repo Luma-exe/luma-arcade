@@ -645,6 +645,7 @@ Function .onInit
   File "scripts\*.ps1"
   File "scripts\*.mjs"
   File "scripts\versions.json"
+  File "scripts\es-de.png"
 
   ReadEnvStr $CurrentUser "USERNAME"
   StrCpy $SetupType 0
