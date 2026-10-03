@@ -2,7 +2,7 @@
 
 # Luma Arcade
 
-### Your own Stadia, for your friends.
+### Your own Cloud Gaming, for you and your friends.
 
 **Send a link, and seconds later they're playing your PC's games in their browser.**<br>
 No app to install, no account needed - like a Jackbox room code, but for any game on your PC.
