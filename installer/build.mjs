@@ -130,6 +130,7 @@ mkdirSync(outputDir, { recursive: true });
 if (!existsSync(MAKENSIS)) {
   throw new Error(`makensis not found at ${MAKENSIS} — is NSIS installed?`);
 }
-run(`"${MAKENSIS}" "${path.join(__dirname, "LumaArcade.nsi")}"`, __dirname);
+const { version } = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf-8"));
+run(`"${MAKENSIS}" /DAPP_VERSION=${version} "${path.join(__dirname, "LumaArcade.nsi")}"`, __dirname);
 
 console.log(`\nDone: ${path.join(outputDir, "LumaArcadeSetup.exe")}`);

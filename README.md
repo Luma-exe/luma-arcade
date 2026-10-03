@@ -9,6 +9,10 @@ No app to install, no account needed - like a Jackbox room code, but for any gam
 
 Free and open source. Runs on your own Windows gaming PC, set up by a one-click installer.
 
+<a href="https://github.com/Luma-exe/luma-arcade/releases/latest/download/LumaArcadeSetup.exe"><img src="https://img.shields.io/badge/Download_for_Windows-LumaArcadeSetup.exe-1f6fd1?style=for-the-badge&logo=windows&logoColor=white" alt="Download for Windows" height="44"></a>
+
+<sub>Windows 10, 11 or Server, 64-bit · [All releases](https://github.com/Luma-exe/luma-arcade/releases) · [What you need](#what-you-need)</sub>
+
 <img src="docs/luma-arcade-demo.gif" alt="Luma Arcade demo: starting a game from the browser, the quick controls, inviting a friend, and playing" width="720">
 
 <sub>&#9654; <a href="https://github.com/Luma-exe/luma-arcade/raw/main/docs/luma-arcade-demo.mp4">Download the demo in full quality</a> (0:55)</sub>
@@ -19,7 +23,7 @@ Free and open source. Runs on your own Windows gaming PC, set up by a one-click 
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6)
 [![License: GPL v3](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
 
-[Install](#install) · [Features](#features) · [How it works](#how-it-works) · [Development](#development) · [Troubleshooting](#troubleshooting)
+[What you need](#what-you-need) · [Install](#install) · [Features](#features) · [How it works](#how-it-works) · [Development](#development) · [Troubleshooting](#troubleshooting)
 
 </div>
 
@@ -38,9 +42,31 @@ Free and open source. Runs on your own Windows gaming PC, set up by a one-click 
 | **Game tracking** | Play history per person and per game, a weekly summary and Discord alerts. |
 | **Host health** | One screen that checks Sunshine, encoders, drivers, the virtual display, saves and backups - with fixes where it can. |
 
+## What you need
+
+**The gaming PC** (the host)
+
+| | |
+|---|---|
+| **Windows** | Windows 10 or 11 (Home or Pro), or Windows Server 2019, 2022 or 2025 - 64-bit. Admin rights to install. Sunshine officially lists Windows 11. |
+| **Graphics** | A hardware video encoder: an NVIDIA card with NVENC, an AMD card with VCE/VCN, or Intel 6th-gen Core (Skylake) or newer with Quick Sync. Almost every gaming PC has one. |
+| **Processor and memory** | Core i3 or Ryzen 3 or better, 4 GB of RAM or more ([Sunshine's minimums](https://github.com/LizardByte/Sunshine)). |
+| **Monitor** | Not needed - Setup can add a virtual display for a PC with nothing plugged in. |
+| **Network** | A wired connection is best. About **10-15 Mbps of upload per player** for 1080p at 60 fps - check your upload speed if friends will play from outside your home. |
+| **Disk** | About 210 MB for Luma Arcade, plus the emulators you pick and your games. |
+| **Internet during setup** | Setup downloads Sunshine, ES-DE and the emulators from their official releases. |
+
+**The players**
+
+| | |
+|---|---|
+| **Device** | Anything with a modern browser - TV, laptop, phone or tablet. Nothing to install. Chrome and Edge work best, especially with controllers. |
+| **Controllers** | Optional: a USB or Bluetooth controller on their device, or on-screen touch controls on a phone. |
+| **From outside your home** | A free [Cloudflare](https://www.cloudflare.com/) account and a domain name for the tunnel - Setup asks for its token. No ports to open. |
+
 ## Install
 
-Download **`LumaArcadeSetup.exe`** and run it. Setup walks you through everything and leaves nothing to configure by hand afterwards.
+[Download **`LumaArcadeSetup.exe`**](https://github.com/Luma-exe/luma-arcade/releases/latest/download/LumaArcadeSetup.exe) and run it. Setup walks you through everything and leaves nothing to configure by hand afterwards.
 
 | Step | What Setup does |
 |---|---|

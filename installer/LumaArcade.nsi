@@ -3,6 +3,11 @@ Unicode true
 !define APP_NAME "LumaArcade"
 !define APP_TITLE "Luma Arcade"
 !define APP_PUBLISHER "LumaArcade"
+; build.mjs passes the version from package.json.
+!ifndef APP_VERSION
+  !define APP_VERSION "0.0.0"
+!endif
+!define APP_URL "https://github.com/Luma-exe/luma-arcade"
 !define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"
 ; What was picked, so an upgrade (or the uninstaller) knows.
 !define SETTINGS_KEY "Software\${APP_NAME}"
@@ -14,6 +19,14 @@ Unicode true
 !define HTTPS_PORT 7778
 
 Name "${APP_TITLE}"
+; The exe's Properties > Details.
+VIProductVersion "${APP_VERSION}.0"
+VIAddVersionKey "ProductName" "${APP_TITLE}"
+VIAddVersionKey "ProductVersion" "${APP_VERSION}"
+VIAddVersionKey "FileVersion" "${APP_VERSION}"
+VIAddVersionKey "FileDescription" "${APP_TITLE} Setup"
+VIAddVersionKey "CompanyName" "${APP_PUBLISHER}"
+VIAddVersionKey "LegalCopyright" "GPL-3.0-or-later"
 OutFile "output\LumaArcadeSetup.exe"
 InstallDir "$PROGRAMFILES64\${APP_NAME}"
 ; Admin: Sunshine, Windows accounts, drivers, the Server fixes and the
@@ -320,6 +333,9 @@ Section "Luma Arcade" SEC_LUMA
   WriteRegStr HKLM "${UNINST_KEY}" "QuietUninstallString" '"$INSTDIR\Uninstall.exe" /S'
   WriteRegStr HKLM "${UNINST_KEY}" "InstallLocation" "$INSTDIR"
   WriteRegStr HKLM "${UNINST_KEY}" "Publisher" "${APP_PUBLISHER}"
+  WriteRegStr HKLM "${UNINST_KEY}" "DisplayVersion" "${APP_VERSION}"
+  WriteRegStr HKLM "${UNINST_KEY}" "DisplayIcon" '"$INSTDIR\Uninstall.exe"'
+  WriteRegStr HKLM "${UNINST_KEY}" "URLInfoAbout" "${APP_URL}"
   WriteRegDWORD HKLM "${UNINST_KEY}" "NoModify" 1
   WriteRegDWORD HKLM "${UNINST_KEY}" "NoRepair" 1
 SectionEnd
