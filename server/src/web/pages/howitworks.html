@@ -474,6 +474,15 @@
     .reveal { opacity: 1; transform: none; transition: none; }
     .feature, .btn { transition: none; }
   }
+
+  /* Support Luma Arcade on Ko-fi: bottom centre on every page but the stream
+     (the same pill as moonlight-web-stream's styles/support.css). */
+  .lt-support { position: fixed; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 20; display: inline-flex; align-items: center; gap: 8px; padding: 7px 15px 7px 11px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.16); background: rgba(11, 23, 48, 0.78); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28); color: #fff; font: 600 13px/1.2 system-ui, -apple-system, "Segoe UI", sans-serif; text-decoration: none; white-space: nowrap; opacity: 0.9; transition: opacity 0.15s ease, background 0.15s ease, border-color 0.15s ease, transform 0.15s ease; }
+  .lt-support:hover, .lt-support:focus-visible { opacity: 1; background: #ff5e5b; border-color: #ff5e5b; transform: translateX(-50%) translateY(-1px); }
+  .lt-support-cup { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: #ff5e5b; font-size: 12px; }
+  .lt-support:hover .lt-support-cup { background: rgba(255, 255, 255, 0.22); }
+  body { padding-bottom: 58px; }
+  @media (max-width: 480px) { .lt-support { font-size: 12px; padding: 6px 13px 6px 9px; } .lt-support-long { display: none; } }
 </style>
 </head>
 <body>
@@ -1087,5 +1096,6 @@
   if (!reduced) setInterval(() => { if (!document.hidden) { at = (at + 1) % script.length; showStep(); } }, 2200);
 })();
 </script>
+<a class="lt-support" href="https://ko-fi.com/lumaexe" target="_blank" rel="noopener"><span class="lt-support-cup" aria-hidden="true">☕</span><span>Support Luma Arcade<span class="lt-support-long"> on Ko-fi</span></span></a>
 </body>
 </html>
