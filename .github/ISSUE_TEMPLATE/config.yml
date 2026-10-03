@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Question or help setting up
-    url: https://github.com/Luma-exe/luma-arcade/discussions
+    url: https://github.com/Luma-exe/luma-arcade/discussions/categories/q-a
     about: Ask in Discussions - someone may have hit the same thing.
+  - name: Show off your setup
+    url: https://github.com/Luma-exe/luma-arcade/discussions/categories/show-and-tell
+    about: Game nights, setups, screenshots - we'd love to see them.

@@ -1,0 +1,52 @@
+name: Setup didn't work
+description: The installer stopped, showed a warning, or Luma Arcade won't open afterwards
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Sorry it didn't go smoothly - the installer's details list tells us exactly which step broke.
+  - type: dropdown
+    id: host
+    attributes:
+      label: The gaming PC runs
+      options:
+        - Windows 11 Home
+        - Windows 11 Pro
+        - Windows 10 Home
+        - Windows 10 Pro
+        - Windows Server
+        - Linux (early beta)
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Luma Arcade version
+      description: Shown in the installer's title. Not sure? Say when you downloaded it.
+      placeholder: "1.3.0"
+  - type: input
+    id: gpu
+    attributes:
+      label: Graphics card
+      placeholder: NVIDIA RTX 3060 / AMD RX 6700 XT / Intel UHD 770
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Which step it got to, and any message it showed.
+      placeholder: 'Near the end it said "Sunshine couldn''t be installed - see the details list."'
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Installer details
+      description: |
+        **Windows:** in the installer, click **Show details**, right-click the list and choose **Copy Details To Clipboard**, then paste here.
+        (Already closed it? Run the installer again - it upgrades in place - and copy the list at the end.)
+        **Linux:** paste the output of `install.sh`, and of `journalctl --user -u luma-arcade -n 100`.
+        Have a quick look for names or addresses before you post.
+      render: text
+    validations:
+      required: true

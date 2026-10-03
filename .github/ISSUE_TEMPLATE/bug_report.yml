@@ -6,12 +6,24 @@ body:
     attributes:
       value: |
         Thanks for reporting it! The diagnostics below usually show what's wrong straight away.
+        **Setup itself failed?** Use [Setup didn't work](https://github.com/Luma-exe/luma-arcade/issues/new?template=setup_problem.yml) instead.
   - type: textarea
     id: what
     attributes:
       label: What happened?
       description: What you did, what you expected, and what happened instead.
       placeholder: I opened a guest link on my phone and got a black screen with sound.
+    validations:
+      required: true
+  - type: dropdown
+    id: host
+    attributes:
+      label: The gaming PC runs
+      options:
+        - Windows 11
+        - Windows 10
+        - Windows Server
+        - Linux (early beta)
     validations:
       required: true
   - type: dropdown
@@ -22,7 +34,6 @@ body:
         - The same home network as the PC
         - Away from home (through the Cloudflare Tunnel)
         - On the PC itself
-        - Setup / installing
     validations:
       required: true
   - type: input
@@ -37,7 +48,7 @@ body:
       description: |
         In Luma Arcade: **Settings → Host health → Copy diagnostics**, then paste here.
         Names and IP addresses are taken out, but have a quick look before you post.
-        (Can't get that far? Say which step of Setup you reached.)
+        (Can't sign in or open Settings? Write that here, and what you see instead.)
       render: markdown
     validations:
       required: true
