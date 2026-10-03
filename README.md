@@ -2,16 +2,18 @@
 
 # Luma Arcade
 
-**Turn a Windows gaming PC into a console anyone can play from a web browser.**
+### Your own Stadia, for your friends.
 
-Sign-in, fair turns, co-op, play time limits and per-player saves on top of
-[Sunshine](https://github.com/LizardByte/Sunshine), [ES-DE](https://es-de.org/) and
-[moonlight-web-stream](https://github.com/MrCreativ3001/moonlight-web-stream), with a one-click installer.
+**Send a link, and seconds later they're playing your PC's games in their browser.**<br>
+No app to install, no account needed - like a Jackbox room code, but for any game on your PC.
+
+Free and open source. Runs on your own Windows gaming PC, set up by a one-click installer.
 
 [![Tests](https://github.com/Luma-exe/luma-arcade/actions/workflows/test.yml/badge.svg)](https://github.com/Luma-exe/luma-arcade/actions/workflows/test.yml)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20%7C%20Server-0078D4)
 ![Node](https://img.shields.io/badge/node-24-339933)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6)
+[![License: GPL v3](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
 
 [Install](#install) · [Features](#features) · [How it works](#how-it-works) · [Development](#development) · [Troubleshooting](#troubleshooting)
 
@@ -248,3 +250,11 @@ The detail line under that status says whether the process isn't running or isn'
 ## Performance
 
 Streaming quality depends on the host's GPU encoder (NVENC, AMF or Quick Sync) and the network, not on Luma Arcade. 1080p60 at 10-15 Mbps is comfortable on a wired connection with a modern GPU. Wi-Fi and internet routes add latency and loss that matter more than bitrate, so wire the host where you can. A browser client is a step behind a native Moonlight app on latency, which suits slower-paced games best.
+
+## License
+
+Luma Arcade is free software under the [GNU General Public License v3.0 or later](LICENSE). You can use, change and share it; if you share a changed version, share its source under the same license.
+
+It's built on [Sunshine](https://github.com/LizardByte/Sunshine) (GPL-3.0), [moonlight-web-stream](https://github.com/MrCreativ3001/moonlight-web-stream) (GPL-3.0) and [ES-DE](https://es-de.org/) (MIT) - thank you to their authors.
+
+Luma Arcade doesn't include or download any games, BIOS or firmware. Play only games you own.
