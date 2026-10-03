@@ -31,7 +31,7 @@ async function main() {
   if (bundled) console.log(`Using the bundled moonlight-web-stream at ${bundled}`);
   if (!IS_WINDOWS) {
     console.log(
-      "Linux support is in very early testing: streaming, accounts, turns and guest links should work but are barely tested; " +
+      "Linux support is an early beta: streaming, accounts, turns and guest links should work but are barely tested; " +
         "the PC-side helpers (Home button, lockdown, per-player saves, game tracking) are Windows-only for now."
     );
   }

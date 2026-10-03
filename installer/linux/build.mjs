@@ -1,4 +1,4 @@
-// Builds the Linux bundle (Linux support is in early testing):
+// Builds the Linux bundle (Linux support is an early beta):
 //   installer/output/LumaArcade-linux.tar.gz
 // It holds the built server, Luma Arcade's moonlight-web-stream web files
 // and config, first-run.mjs and the install scripts. install.sh downloads
@@ -74,4 +74,4 @@ rmSync(out, { force: true });
 // (Built on Windows, files lose their "executable" bit: install.sh sets it again.)
 // Relative paths: GNU tar would read "C:" as a remote host.
 run("tar -czf output/LumaArcade-linux.tar.gz -C staging-linux luma-arcade", path.join(__dirname, ".."));
-console.log(`\nDone: ${out} (Luma Arcade ${version} for Linux - early testing)`);
+console.log(`\nDone: ${out} (Luma Arcade ${version} for Linux - early beta)`);

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Luma Arcade for Linux - EARLY TESTING.
+# Luma Arcade for Linux - EARLY BETA.
 #
 # Installs Luma Arcade for the signed-in user (no root needed): the server,
 # moonlight-web-stream and a portable Node, under ~/.local/opt/luma-arcade,
@@ -10,7 +10,7 @@
 #
 # Options:
 #   --bundle FILE   install from a local LumaArcade-linux.tar.gz
-#   --yes           don't ask before installing (early-testing notice)
+#   --yes           don't ask before installing (early-beta notice)
 #   --no-admin      skip creating the admin account (the first sign-in creates it)
 #   --no-service    don't set up the systemd user service
 #   --allow-root    install as root anyway (containers, testing)
@@ -65,7 +65,7 @@ done
 
 cat <<'EOF'
 
-  Luma Arcade for Linux is in VERY EARLY TESTING.
+  Luma Arcade for Linux is an EARLY BETA.
 
   Tested so far: installing, upgrading, signing in and Host health on
   Ubuntu 24.04. Streaming, accounts, turns, co-op, guest links, time limits
@@ -85,7 +85,7 @@ if [ "$YES" -ne 1 ]; then
     read -r answer </dev/tty
     case "$answer" in y|Y|yes|YES) ;; *) echo "Nothing installed."; exit 0 ;; esac
   else
-    die "Run it again with --yes to accept the early-testing notice."
+    die "Run it again with --yes to accept the early-beta notice."
   fi
 fi
 
@@ -189,7 +189,7 @@ if [ "$SERVICE" -eq 1 ] && systemctl --user show-environment >/dev/null 2>&1; th
   mkdir -p "$UNIT_DIR"
   cat > "$UNIT_DIR/luma-arcade.service" <<EOF
 [Unit]
-Description=Luma Arcade (Linux early testing)
+Description=Luma Arcade (Linux early beta)
 After=network-online.target
 
 [Service]
@@ -210,7 +210,7 @@ else
 fi
 
 echo
-say "Luma Arcade $VERSION is installed (Linux early testing)"
+say "Luma Arcade $VERSION is installed (Linux early beta)"
 if [ "$STARTED" -eq 1 ]; then
   note "Open http://localhost:$PORT on this PC, or http://<this PC's address>:$PORT on your network."
   note "It starts whenever you sign in. Logs: journalctl --user -u luma-arcade -f"

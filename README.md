@@ -7,11 +7,11 @@
 **Send a link, and seconds later they're playing your PC's games in their browser.**<br>
 No app to install, no account needed - like a Jackbox room code, but for any game on your PC.
 
-Free and open source. Runs on your own Windows gaming PC, set up by a one-click installer.
+Free and open source. Runs on your own Windows gaming PC, set up by a one-click installer - and now on Linux, as an early beta.
 
 <a href="https://github.com/Luma-exe/luma-arcade/releases/latest/download/LumaArcadeSetup.exe"><img src="https://img.shields.io/badge/Download_for_Windows-LumaArcadeSetup.exe-1f6fd1?style=for-the-badge&logo=windows&logoColor=white" alt="Download for Windows" height="44"></a>
 
-<sub>Windows 10, 11 or Server, 64-bit · [Linux (early testing)](#linux-very-early-testing) · [All releases](https://github.com/Luma-exe/luma-arcade/releases) · [What you need](#what-you-need)</sub>
+<sub>Windows 10, 11 or Server, 64-bit · [Linux (early beta)](#linux-early-beta) · [All releases](https://github.com/Luma-exe/luma-arcade/releases) · [What you need](#what-you-need)</sub>
 
 <img src="docs/luma-arcade-demo.gif" alt="Luma Arcade demo: starting a game from the browser, the quick controls, inviting a friend, and playing" width="720">
 
@@ -19,6 +19,7 @@ Free and open source. Runs on your own Windows gaming PC, set up by a one-click 
 
 [![Tests](https://github.com/Luma-exe/luma-arcade/actions/workflows/test.yml/badge.svg)](https://github.com/Luma-exe/luma-arcade/actions/workflows/test.yml)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20%7C%20Server-0078D4)
+[![Linux](https://img.shields.io/badge/Linux-early_beta-FCC624?logo=linux&logoColor=black)](#linux-early-beta)
 ![Node](https://img.shields.io/badge/node-24-339933)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6)
 [![License: GPL v3](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
@@ -92,10 +93,10 @@ Everything is downloaded from official releases at **versions tested with Luma A
 > [!TIP]
 > **Upgrading** is the same: run the new `LumaArcadeSetup.exe`. It stops Luma Arcade, keeps your accounts, settings, saves and certificate, skips emulators you already have, and starts it again.
 
-### Linux (very early testing)
+### Linux (early beta)
 
 > [!WARNING]
-> **Linux support is in very early testing.** Installing, upgrading, signing in and Host health have been tested on Ubuntu 24.04; streaming a game from a real Linux gaming PC hasn't been confirmed yet. Streaming, accounts, turns, co-op, guest links, time limits and play history use the same code as on Windows, so they should work. The Home button, lockdown, per-player saves, game tracking and the Steam/Epic import are **Windows-only for now**. Expect rough edges, and please [report what you find](https://github.com/Luma-exe/luma-arcade/issues/new?template=bug_report.yml).
+> **Linux support is an early beta.** Installing, upgrading, signing in and Host health have been tested on Ubuntu 24.04; streaming a game from a real Linux gaming PC hasn't been confirmed yet. Streaming, accounts, turns, co-op, guest links, time limits and play history use the same code as on Windows, so they should work. The Home button, lockdown, per-player saves, game tracking and the Steam/Epic import are **Windows-only for now**. Expect rough edges, and please [report what you find](https://github.com/Luma-exe/luma-arcade/issues/new?template=bug_report.yml).
 
 You need [Sunshine](https://github.com/LizardByte/Sunshine/releases) installed and set up first (x86_64 or ARM64). Then, as the user who plays (not root):
 
@@ -304,7 +305,7 @@ Streaming quality depends on the host's GPU encoder (NVENC, AMF or Quick Sync) a
 
 ## Roadmap
 
-- **Linux hosts** - in very early testing (see [Install](#linux-very-early-testing)); next are the PC-side helpers. See the [plan](docs/linux-host-plan.md).
+- **Linux hosts** - early beta (see [Install](#linux-early-beta)); next are the PC-side helpers. See the [plan](docs/linux-host-plan.md).
 - Ideas and votes welcome in [Discussions](https://github.com/Luma-exe/luma-arcade/discussions).
 
 ## Support Luma Arcade

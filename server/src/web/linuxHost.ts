@@ -5,7 +5,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import type { HealthCheck } from "./routes/health.js";
 
-// The Linux side of Host health (Linux support is in early testing): Sunshine
+// The Linux side of Host health (Linux support is an early beta): Sunshine
 // as a systemd user service, its config in ~/.config/sunshine, controllers
 // through /dev/uinput.
 
@@ -37,7 +37,7 @@ export function earlyTestingCheck(): HealthCheck {
     label: "Linux support",
     status: "warn",
     detail:
-      "Very early testing: streaming, accounts, turns, co-op and guest links should work but are barely tested on Linux. The Home button, lockdown, per-player saves, " +
+      "Early beta: streaming, accounts, turns, co-op and guest links should work but are barely tested on Linux. The Home button, lockdown, per-player saves, " +
       "game tracking and PC games import are Windows-only for now. Please report what you find.",
   };
 }

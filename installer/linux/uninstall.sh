@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Removes Luma Arcade for Linux (early testing). Keeps its accounts, settings
+# Removes Luma Arcade for Linux (early beta). Keeps its accounts, settings
 # and play history, so installing again picks up where it left off, unless
 # --purge is given.
 set -euo pipefail

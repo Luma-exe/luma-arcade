@@ -6,10 +6,10 @@ import path from "node:path";
 import { earlyTestingCheck, uinputCheck } from "./linuxHost.js";
 
 describe("Linux host health", () => {
-  it("says Linux support is early testing", () => {
+  it("says Linux support is an early beta", () => {
     const c = earlyTestingCheck();
     assert.equal(c.status, "warn");
-    assert.match(c.detail, /early testing/);
+    assert.match(c.detail, /early beta/i);
   });
 
   it("explains a missing uinput device", () => {
