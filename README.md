@@ -9,6 +9,10 @@ No app to install, no account needed - like a Jackbox room code, but for any gam
 
 Free and open source. Runs on your own Windows gaming PC, set up by a one-click installer.
 
+<a href="docs/demo.mp4"><img src="docs/demo.jpg" alt="Luma Arcade demo: a game streaming in the browser, with the quick controls open" width="720"></a>
+
+<sub>&#9654; <a href="docs/demo.mp4">Watch the demo</a> (1:13)</sub>
+
 [![Tests](https://github.com/Luma-exe/luma-arcade/actions/workflows/test.yml/badge.svg)](https://github.com/Luma-exe/luma-arcade/actions/workflows/test.yml)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20%7C%20Server-0078D4)
 ![Node](https://img.shields.io/badge/node-24-339933)
