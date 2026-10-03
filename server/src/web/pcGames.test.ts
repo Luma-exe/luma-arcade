@@ -26,6 +26,11 @@ describe("PC games in Host health", () => {
     assert.equal(c.detail, "4 Steam and 2 Epic games in ES-DE, checked (30 min ago): added Portal 2");
   });
 
+  it("counts the other launchers' games too", () => {
+    const c = pcGamesCheck({ at: "2026-10-03T11:30:00Z", steam: 4, epic: 2, other: 3, launchers: { "Xbox app": 2, GOG: 1 } }, true, now);
+    assert.equal(c.detail, "4 Steam, 2 Epic and 2 Xbox app, 1 GOG games in ES-DE, checked (30 min ago)");
+  });
+
   it("shows a failed import", () => {
     const c = pcGamesCheck({ at: "2026-10-03T11:59:30Z", error: "host.json has no ES-DE folder" }, true, now);
     assert.equal(c.status, "warn");

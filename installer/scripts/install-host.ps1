@@ -43,6 +43,9 @@ if ($TestRoot) { $dataDir = Join-Path $TestRoot 'LumaArcade'; $sunshineApps = Jo
 Write-Step "Luma Arcade's helper scripts ($dataDir)"
 foreach ($dir in $dataDir, "$dataDir\home", "$dataDir\profiles") { New-Item -ItemType Directory -Force $dir | Out-Null }
 Get-ChildItem $source -Filter *.ps1 | Where-Object { $_.Name -notlike '*.tests.ps1' } | Copy-Item -Destination $dataDir -Force
+# The Luma star, the picture for "Luma Arcade on GitHub" in ES-DE (sync-pc-games.ps1).
+$star = if ($LumaDir) { Join-Path $LumaDir 'moonlight-web-stream\static\resources\luma-star-512.png' } else { '' }
+if ($star -and (Test-Path $star)) { Copy-Item $star (Join-Path $dataDir 'luma-star.png') -Force }
 # The account writes requests, results, logs and save state here.
 foreach ($dir in "$dataDir\home", "$dataDir\profiles") {
     & icacls.exe $dir /grant "${Account}:(OI)(CI)M" /T /C /Q | Out-Null
@@ -105,11 +108,12 @@ foreach ($t in $tasks) {
     $scheduler.GetFolder('\LumaArcade').GetTask($t.Name).SetSecurityDescriptor("D:(A;;FA;;;BA)(A;;FA;;;SY)(A;;FRFX;;;$sidAccount)", 0)
 }
 
-# Steam and Epic games into ES-DE (sync-pc-games.ps1): when the account signs
+# PC games into ES-DE (sync-pc-games.ps1): Steam, Epic, Xbox app, EA, GOG,
+# Ubisoft, and the Luma Arcade on GitHub shortcut. When the account signs
 # in, and early each morning (hourly until 9:30, in case someone was playing),
 # plus Host health's "Import now".
 if ($esDeData -and -not $TestRoot) {
-    Write-Step "Scheduled task \LumaArcade\PC Games: Steam and Epic games show up in ES-DE"
+    Write-Step "Scheduled task \LumaArcade\PC Games: this PC's games (Steam, Epic, Xbox app, EA, GOG, Ubisoft) show up in ES-DE"
     $action = New-ScheduledTaskAction -Execute 'conhost.exe' -Argument "--headless powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $dataDir\sync-pc-games.ps1"
     $morning = New-ScheduledTaskTrigger -Daily -At '4:30am'
     $morning.Repetition = (New-ScheduledTaskTrigger -Once -At '4:30am' -RepetitionInterval (New-TimeSpan -Hours 1) -RepetitionDuration (New-TimeSpan -Hours 5)).Repetition

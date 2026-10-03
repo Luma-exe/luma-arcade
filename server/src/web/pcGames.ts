@@ -4,7 +4,8 @@ import { promisify } from "node:util";
 import type { HealthCheck } from "./routes/health.js";
 import { dataPath } from "../platform.js";
 
-// This PC's Steam and Epic games in ES-DE: host/sync-pc-games.ps1 does the
+// This PC's games in ES-DE (Steam, Epic, and the Xbox app, EA app, GOG and
+// Ubisoft Connect under "Microsoft Windows"): host/sync-pc-games.ps1 does the
 // work as the games account (scheduled task \LumaArcade\PC Games, at sign-in
 // and early each morning) and leaves its result in pc-games.json. Host
 // health shows it, with "Import now".
@@ -19,6 +20,9 @@ export interface PcGamesStatus {
   at?: string;
   steam?: number;
   epic?: number;
+  /** Games from the other launchers, in ES-DE's "Microsoft Windows". */
+  other?: number;
+  launchers?: Record<string, number>;
   added?: string[];
   removed?: string[];
   waiting?: string | null;
@@ -46,12 +50,15 @@ function ago(iso: string, now: number): string {
 export function pcGamesCheck(status: PcGamesStatus | null, hasTask: boolean, now = Date.now()): HealthCheck {
   const base = { id: "pc-games", label: "PC games", action: hasTask ? IMPORT_PC_GAMES : undefined };
   if (!hasTask) {
-    return { ...base, status: "warn", detail: "Steam and Epic games aren't imported into ES-DE automatically - run Setup again to set it up" };
+    return { ...base, status: "warn", detail: "PC games (Steam, Epic, Xbox app, EA, GOG, Ubisoft) aren't imported into ES-DE automatically - run Setup again to set it up" };
   }
   if (!status) return { ...base, status: "warn", detail: "Not imported yet - it runs when the games account signs in, or press Import now" };
   const when = status.at ? ` (${ago(status.at, now)})` : "";
   if (status.error) return { ...base, status: "warn", detail: `The last import failed${when}: ${status.error}` };
-  const counts = `${status.steam ?? 0} Steam and ${status.epic ?? 0} Epic games in ES-DE`;
+  const others = Object.entries(status.launchers ?? {}).map(([name, n]) => `${n} ${name}`);
+  const counts = others.length
+    ? `${status.steam ?? 0} Steam, ${status.epic ?? 0} Epic and ${others.join(", ")} games in ES-DE`
+    : `${status.steam ?? 0} Steam and ${status.epic ?? 0} Epic games in ES-DE`;
   if (status.waiting) return { ...base, status: "ok", detail: `${counts}; waiting: ${status.waiting}` };
   const changes = [
     status.added?.length ? `added ${status.added.join(", ")}` : "",

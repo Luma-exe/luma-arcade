@@ -612,6 +612,28 @@ Section "-Finish"
     WriteRegDWORD HKLM "${SETTINGS_KEY}" "Https" $HttpsOn
   ${EndIf}
 
+  ; This PC's games into ES-DE straight away: Steam, Epic, and the Xbox
+  ; app, EA app, GOG and Ubisoft games under "Microsoft Windows", plus the
+  ; Luma Arcade on GitHub shortcut. With Luma Arcade it's the games
+  ; account's PC Games task (if that account isn't signed in yet, the task
+  ; runs when it is); ES-DE on its own gets the same scan run here.
+  ${If} $EsDeExe != ""
+  ${AndIf} ${FileExists} "$EsDeExe"
+    DetailPrint "Looking for this PC's games (Steam, Epic, Xbox app, EA, GOG, Ubisoft) to add to ES-DE..."
+    ${If} ${SectionIsSelected} ${SEC_LUMA}
+      nsExec::Exec 'schtasks.exe /run /tn "\LumaArcade\PC Games"'
+      Pop $0
+    ${Else}
+      SetOutPath "$PLUGINSDIR\pcgames"
+      File "staging\host\sync-pc-games.ps1"
+      File /oname=luma-star.png "staging\moonlight-web-stream\static\resources\luma-star-512.png"
+      ${GetParent} $EsDeExe $1
+      nsExec::ExecToLog '"${POWERSHELL}" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\pcgames\sync-pc-games.ps1" -EsDeDir "$1"'
+      Pop $0
+      SetOutPath "$TEMP"
+    ${EndIf}
+  ${EndIf}
+
   ; Start Luma Arcade again after an upgrade (or now, for a games account
   ; that's already signed in). The task only runs while its account is.
   ${If} ${SectionIsSelected} ${SEC_LUMA}

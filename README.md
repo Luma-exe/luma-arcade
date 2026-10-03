@@ -39,7 +39,7 @@ Free and open source. Runs on your own Windows gaming PC, set up by a one-click 
 | **Accounts and fair turns** | One player at a time, with hand-over requests, a waiting line, idle hand-over and admin take-over. |
 | **Co-op** | Invite up to three more players onto the same screen, or let people watch. |
 | **Guest links** | Share a link that gives someone without an account a turn, or a seat in your game, for a set time. Pick a game and the link opens straight into it - no menus. |
-| **Your PC games** | Installed Steam and Epic games show up in the library by themselves, with their artwork, and stay in step as you install and uninstall. |
+| **Your PC games** | Installed Steam, Epic, Xbox app (Game Pass), EA app, GOG and Ubisoft Connect games show up in the library by themselves - Steam with its artwork - and stay in step as you install and uninstall. |
 | **Per-player saves** | Everyone keeps their own emulator saves and ES-DE favorites, with snapshots they can restore. |
 | **House rules** | Daily and weekly play time limits, announcements, messages, and a lockdown that keeps guests out of the PC's settings. |
 | **Game tracking** | Play history per person and per game, a weekly summary and Discord alerts. |
