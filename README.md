@@ -22,6 +22,7 @@ Free and open source. Runs on your own Windows gaming PC, set up by a one-click 
 ![Node](https://img.shields.io/badge/node-24-339933)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6)
 [![License: GPL v3](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
+[![Support on Ko-fi](https://img.shields.io/badge/Ko--fi-support_Luma_Arcade-FF5E5B?logo=kofi&logoColor=white)](https://ko-fi.com/lumaexe)
 
 [What you need](#what-you-need) · [Install](#install) · [Features](#features) · [How it works](#how-it-works) · [Development](#development) · [Troubleshooting](#troubleshooting)
 
@@ -305,6 +306,14 @@ Streaming quality depends on the host's GPU encoder (NVENC, AMF or Quick Sync) a
 
 - **Linux hosts** - in very early testing (see [Install](#linux-very-early-testing)); next are the PC-side helpers. See the [plan](docs/linux-host-plan.md).
 - Ideas and votes welcome in [Discussions](https://github.com/Luma-exe/luma-arcade/discussions).
+
+## Support Luma Arcade
+
+Luma Arcade is free and open source, built in spare time. If it brought your friends together for a game night, you can say thanks with a coffee - it keeps the work going (Linux support is next).
+
+<a href="https://ko-fi.com/lumaexe"><img src="https://img.shields.io/badge/Buy_me_a_coffee-ko--fi.com%2Flumaexe-FF5E5B?style=for-the-badge&logo=kofi&logoColor=white" alt="Support Luma Arcade on Ko-fi" height="36"></a>
+
+Starring the repo and telling a friend helps just as much.
 
 ## License
 
