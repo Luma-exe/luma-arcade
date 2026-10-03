@@ -13,6 +13,7 @@
 #                       streamed at
 #   esde-keepalive.ps1  what Sunshine's ES-DE app runs: starts ES-DE again
 #                       when a player quits it from its menu
+#   sync-pc-games.ps1   puts the PC's installed Steam and Epic games in ES-DE
 # They go in C:\ProgramData\LumaArcade (the website looks for them there),
 # with host.json saying where ES-DE, the emulators and the saves are.
 #  -LumaDir   Luma Arcade's install folder (the scripts are in its host\)
@@ -102,6 +103,20 @@ foreach ($t in $tasks) {
     # The website starts these with schtasks /run; when it runs as the
     # account itself, the account needs to be allowed to run them.
     $scheduler.GetFolder('\LumaArcade').GetTask($t.Name).SetSecurityDescriptor("D:(A;;FA;;;BA)(A;;FA;;;SY)(A;;FRFX;;;$sidAccount)", 0)
+}
+
+# Steam and Epic games into ES-DE (sync-pc-games.ps1): when the account signs
+# in, and early each morning (hourly until 9:30, in case someone was playing),
+# plus Host health's "Import now".
+if ($esDeData -and -not $TestRoot) {
+    Write-Step "Scheduled task \LumaArcade\PC Games: Steam and Epic games show up in ES-DE"
+    $action = New-ScheduledTaskAction -Execute 'conhost.exe' -Argument "--headless powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $dataDir\sync-pc-games.ps1"
+    $morning = New-ScheduledTaskTrigger -Daily -At '4:30am'
+    $morning.Repetition = (New-ScheduledTaskTrigger -Once -At '4:30am' -RepetitionInterval (New-TimeSpan -Hours 1) -RepetitionDuration (New-TimeSpan -Hours 5)).Repetition
+    $triggers = @((New-ScheduledTaskTrigger -AtLogOn -User $Account), $morning)
+    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 10) -MultipleInstances IgnoreNew
+    Register-ScheduledTask -TaskName 'PC Games' -TaskPath '\LumaArcade\' -Action $action -Trigger $triggers -Principal $principal -Settings $settings -Force | Out-Null
+    $scheduler.GetFolder('\LumaArcade').GetTask('PC Games').SetSecurityDescriptor("D:(A;;FA;;;BA)(A;;FA;;;SY)(A;;FRFX;;;$sidAccount)", 0)
 }
 
 # ES-DE: the event scripts, and the two settings they rely on.

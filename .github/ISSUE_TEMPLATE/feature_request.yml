@@ -1,0 +1,11 @@
+name: Idea
+description: Something Luma Arcade could do
+labels: [idea]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like it to do?
+      description: And what you'd use it for - the "why" helps most.
+    validations:
+      required: true

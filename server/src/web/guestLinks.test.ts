@@ -12,6 +12,8 @@ import { playEnded, playStarted } from "./playLog.js";
 import { registerGuestLinkRoutes } from "./routes/guestLinks.js";
 import { recordStream, resetSessions, streamStarted, decide } from "./sessions.js";
 import { clearStreamUserCache } from "./streamUser.js";
+import { takeQueuedLaunch } from "./games.js";
+import { gameStreams } from "./routes/games.js";
 
 // A stand-in moonlight-web-stream: who each cookie is, user create/delete,
 // and login (which hands out a cookie for the new account).
@@ -74,7 +76,7 @@ beforeEach(() => {
   mock.timers.enable({ apis: ["Date", "setTimeout"], now: new Date(2026, 8, 30, 12, 0, 0).getTime() });
   resetSessions();
   clearStreamUserCache();
-  getDb().exec("DELETE FROM guest_links; DELETE FROM play_sessions; DELETE FROM user_access; DELETE FROM settings WHERE key = 'guestLinkDefaults';");
+  getDb().exec("DELETE FROM guest_links; DELETE FROM play_sessions; DELETE FROM user_access; DELETE FROM game_plays; DELETE FROM settings WHERE key = 'guestLinkDefaults';");
   calls.length = 0;
 });
 afterEach(() => mock.timers.reset());
@@ -149,6 +151,51 @@ describe("guest links", () => {
     assert.match(String(res.headers.location), /stream\.html\?hostId=7&appId=3&coop=/);
     const d = decide({ id: link.userId, name: "Pal (guest)", roleId: 2, admin: false });
     assert.equal(d.guest, true);
+  });
+
+  describe("opening straight into a game", () => {
+    const realFind = gameStreams.find;
+    after(() => (gameStreams.find = realFind));
+
+    function played(title: string, rom: string | null) {
+      return Number(
+        getDb()
+          .prepare("INSERT INTO game_plays (launch_id, user_id, user_name, app, title, system, rom, started_at) VALUES (?, 1, 'admin', 'ES-DE', ?, 'steam', ?, ?)")
+          .run(`l-${title}-${Math.random()}`, title, rom, Date.now()).lastInsertRowid
+      );
+    }
+
+    it("goes into the game's stream and starts it once that's up", async () => {
+      gameStreams.find = async () => ({ hostId: 4, appId: 11 });
+      const gameId = played("Portal 2", "C:\Games\ROMs\steam\Portal 2.url");
+      const link = (await create({ name: "Sam", hours: 5, gameId })) as Awaited<ReturnType<typeof create>> & { game: { title: string } };
+      assert.equal(link.game.title, "Portal 2");
+      const res = await app.inject({ method: "GET", url: link.path });
+      assert.equal(res.statusCode, 302);
+      assert.equal(res.headers.location, "/stream/stream.html?hostId=4&appId=11&continue=1");
+      assert.equal(takeQueuedLaunch(link.userId)?.title, "Portal 2");
+      // Only once.
+      assert.equal(takeQueuedLaunch(link.userId), null);
+    });
+
+    it("lets them start the game's app even when their apps are limited", async () => {
+      const gameId = played("Portal 2", "C:\Games\ROMs\steam\Portal 2.url");
+      const link = await create({ name: "Sam", hours: 5, gameId, apps: ["Desktop"] });
+      assert.deepEqual(getAccess(link.userId).apps, ["Desktop", "ES-DE"]);
+    });
+
+    it("lands in the arcade when the game's app is gone", async () => {
+      gameStreams.find = async () => null;
+      const link = await create({ name: "Sam", hours: 5, gameId: played("Portal 2", "C:\Games\ROMs\steam\Portal 2.url") });
+      const res = await app.inject({ method: "GET", url: link.path });
+      assert.equal(res.headers.location, "/stream/");
+      assert.equal(takeQueuedLaunch(link.userId), null);
+    });
+
+    it("refuses a game that can't be started again", async () => {
+      const res = await app.inject({ method: "POST", url: "/api/admin/guest-links", headers: { cookie: ADMIN }, payload: { name: "Sam", gameId: played("Menu", null) } });
+      assert.equal(res.statusCode, 400);
+    });
   });
 
   it("lists links with their state for admins", async () => {

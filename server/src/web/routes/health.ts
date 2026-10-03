@@ -10,6 +10,8 @@ import { requireAdmin } from "../streamUser.js";
 import { HOME_SCRIPT, HOME_TASK } from "./home.js";
 import { SUNSHINE_HTTPS_PORT, sunshineHttps } from "../sunshine.js";
 import { getActiveInput } from "./input.js";
+import { diagnosticsReport } from "../diagnostics.js";
+import { IMPORT_PC_GAMES, checkPcGames, importPcGames } from "../pcGames.js";
 
 const run = promisify(execFile);
 
@@ -587,7 +589,41 @@ async function checkHomeHelper(): Promise<HealthCheck> {
 
 /** One-shot diagnosis of everything outside LumaArcade that has to be right
  * for a stream to work - the checks that used to mean digging through
- * Sunshine/ES-DE logs and Device Manager by hand. */
+ * Sunshine/ES-DE logs and Device Manager by hand. In the order the settings
+ * screen shows them (also in the diagnostics report, web/diagnostics.ts). */
+export async function hostChecks(): Promise<HealthCheck[]> {
+  const results = await Promise.all([
+    checkSunshine(),
+    checkMoonlight(),
+    checkConsoleSession(),
+    checkEsDe(),
+    checkTurn(),
+    checkVirtualDisplay(),
+    checkHomeHelper(),
+    checkSaveBackup(),
+    checkScreenSize(),
+    checkPcGames(),
+  ]);
+  const [sunshine, moonlight, consoleSession, esde, turn, virtualDisplay, home, backup, screenSize, pcGames] = results;
+  return [
+    checkStream(),
+    ...sunshine,
+    moonlight,
+    virtualDisplay,
+    screenSize,
+    checkControllers(),
+    consoleSession,
+    esde,
+    pcGames,
+    home,
+    turn,
+    checkBiosFiles(),
+    checkDiskSpace(),
+    backup,
+    checkPlayerSaves(),
+  ];
+}
+
 export async function registerHealthRoutes(app: FastifyInstance) {
   // For uptime monitors (the glitch-dashboard checks every 15 s): cheap, no
   // sign-in, and kept out of the log - loading the whole arcade page for
@@ -597,41 +633,21 @@ export async function registerHealthRoutes(app: FastifyInstance) {
     return reply.code(stream ? 200 : 503).send({ ok: stream });
   });
 
-  app.get("/api/health/host", { preHandler: requireAdmin }, async () => {
-    const results = await Promise.all([
-      checkSunshine(),
-      checkMoonlight(),
-      checkConsoleSession(),
-      checkEsDe(),
-      checkTurn(),
-      checkVirtualDisplay(),
-      checkHomeHelper(),
-      checkSaveBackup(),
-      checkScreenSize(),
-    ]);
-    const [sunshine, moonlight, consoleSession, esde, turn, virtualDisplay, home, backup, screenSize] = results;
-    return {
-      checks: [
-        checkStream(),
-        ...sunshine,
-        moonlight,
-        virtualDisplay,
-        screenSize,
-        checkControllers(),
-        consoleSession,
-        esde,
-        home,
-        turn,
-        checkBiosFiles(),
-        checkDiskSpace(),
-        backup,
-        checkPlayerSaves(),
-      ],
-    };
-  });
+  app.get("/api/health/host", { preHandler: requireAdmin }, async () => ({ checks: await hostChecks() }));
+
+  /** Host health's "Copy diagnostics": text to paste into a GitHub issue. */
+  app.get("/api/health/diagnostics", { preHandler: requireAdmin }, async () => ({ text: await diagnosticsReport(hostChecks) }));
 
   // Fixes offered next to a check (HealthCheck.action).
   app.post<{ Params: { id: string } }>("/api/health/action/:id", { preHandler: requireAdmin }, async (req, reply) => {
+    if (req.params.id === IMPORT_PC_GAMES.id) {
+      try {
+        await importPcGames();
+        return { ok: true, message: "Importing PC games - Check again in a minute" };
+      } catch (err) {
+        return reply.code(500).send({ error: `Couldn't start the import: ${(err as Error).message}` });
+      }
+    }
     if (req.params.id !== RESTART_SUNSHINE.id) return reply.code(404).send({ error: "No such action" });
     if (sessionStatus(null).streaming) {
       return reply.code(409).send({ error: "Someone is streaming right now; restarting Sunshine would drop them. Try again when they're done." });

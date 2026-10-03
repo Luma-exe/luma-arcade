@@ -29,10 +29,12 @@ import { answerInvite, createInvite, endInvitesFrom, endInvitesTo, joinableStrea
 import { clearStreamUserCache, requireAdmin, streamUser, type StreamUser } from "../streamUser.js";
 import { MOONLIGHT_PATH_PREFIX } from "../../remote/moonlightWebStream.js";
 import { sturdySetCookieHeader } from "../sessionCookie.js";
+import { coverFile, launchableGame, queueLaunch } from "../games.js";
+import { gameStreams } from "./games.js";
 
 // Guest links (guestLinks.ts): /g/<token> signs the visitor in as the
-// link's own account and sends them to the arcade, or straight into the
-// creator's game as player 2. Admins make, watch, message, extend, kick and
+// link's own account and sends them to the arcade, straight into a game
+// the admin picked, or into the creator's game as player 2. Admins make, watch, message, extend, kick and
 // revoke them; anyone can be sent a message.
 
 function page(reply: FastifyReply, status: number, title: string, text: string, retry = false) {
@@ -54,6 +56,11 @@ a{display:inline-block;padding:10px 20px;border-radius:10px;background:var(--acc
 
 function guestUser(link: GuestLinkRow): StreamUser {
   return { id: link.user_id, name: link.user_name, roleId: 0, admin: false };
+}
+
+function linkGame(link: GuestLinkRow) {
+  const game = link.game_play_id ? launchableGame(link.game_play_id) : null;
+  return game ? { id: game.id, title: game.title, system: game.system, coverId: coverFile(game) ? game.id : null } : null;
 }
 
 function view(link: GuestLinkRow, playing: Set<number>, now = Date.now()) {
@@ -81,6 +88,7 @@ function view(link: GuestLinkRow, playing: Set<number>, now = Date.now()) {
     convertedTo: link.converted_at ? link.converted_to_name : null,
     convertedToId: link.converted_at ? link.converted_to_user_id : null,
     access: getAccess(link.user_id),
+    game: linkGame(link),
   };
 }
 
@@ -97,7 +105,17 @@ function parseNew(body: unknown, mode?: GuestMode) {
   const b = (body ?? {}) as Record<string, unknown>;
   const name = typeof b.name === "string" && b.name.trim() ? b.name.trim().slice(0, 40) : "Guest";
   const choices = cleanDefaults(mode ? { ...b, mode } : b, getGuestDefaults());
-  return { ...choices, name, apps: choices.mode === "coop" ? null : choices.apps };
+  if (choices.mode === "coop") return { ...choices, name, apps: null, gameId: null };
+  // A game to open straight into; its app (ES-DE) has to be one they may start.
+  let apps = choices.apps;
+  let gameId: number | null = null;
+  if (b.gameId != null && b.gameId !== "") {
+    const game = launchableGame(Number(b.gameId));
+    if (!game) throw new Error("That game can't be started from a link - pick another");
+    gameId = game.id;
+    if (apps && !apps.includes(game.app)) apps = [...apps, game.app];
+  }
+  return { ...choices, name, apps, gameId };
 }
 
 async function adminAction(request: FastifyRequest, reply: FastifyReply, run: (admin: StreamUser, cookie: string) => Promise<unknown> | unknown) {
@@ -127,7 +145,18 @@ export async function registerGuestLinkRoutes(app: FastifyInstance) {
     }
 
     let target = `${MOONLIGHT_PATH_PREFIX}/`;
-    if (link.mode === "coop") {
+    const game = link.mode === "play" && link.game_play_id ? launchableGame(link.game_play_id) : null;
+    if (game) {
+      // Straight into its stream; once that's up, the stream page's
+      // ?continue=1 starts the game (POST /api/continue). If ES-DE is gone,
+      // they just land in the arcade.
+      const stream = await gameStreams.find(game);
+      if (stream) {
+        queueLaunch(link.user_id, game.id);
+        const query = new URLSearchParams({ hostId: String(stream.hostId), appId: String(stream.appId), continue: "1" });
+        target = `${MOONLIGHT_PATH_PREFIX}/stream.html?${query}`;
+      }
+    } else if (link.mode === "coop") {
       // Straight into the creator's game, if they're playing.
       const stream = joinableStream(link.created_by_id);
       if (!stream) {

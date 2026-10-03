@@ -1,0 +1,43 @@
+name: Something isn't working
+description: A black screen, a game that won't start, a controller that does nothing...
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting it! The diagnostics below usually show what's wrong straight away.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+      placeholder: I opened a guest link on my phone and got a black screen with sound.
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where were you playing from?
+      options:
+        - The same home network as the PC
+        - Away from home (through the Cloudflare Tunnel)
+        - On the PC itself
+        - Setup / installing
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device and browser
+      placeholder: iPhone 15, Safari / Samsung TV, built-in browser / Windows laptop, Chrome
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: |
+        In Luma Arcade: **Settings → Host health → Copy diagnostics**, then paste here.
+        Names and IP addresses are taken out, but have a quick look before you post.
+        (Can't get that far? Say which step of Setup you reached.)
+      render: markdown
+    validations:
+      required: true

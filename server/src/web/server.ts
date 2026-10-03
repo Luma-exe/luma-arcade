@@ -20,11 +20,13 @@ import { registerStreamSetupRoutes } from "./routes/streamSetup.js";
 import { MOONLIGHT_PATH_PREFIX } from "../remote/moonlightWebStream.js";
 import { TRUSTED_PROXIES, httpsUpgradeUrl } from "./requestOrigin.js";
 import { registerHttpsRoutes, startHttps } from "./https.js";
+import { problemLogHook } from "./diagnostics.js";
 
 /** serverDir: the server folder (luma-arcade.db, https.json). */
 export async function createServer(opts: { port: number; serverDir: string }) {
   const app = Fastify({
-    logger: { level: process.env.LUMA_LOG_LEVEL || "info" },
+    // Warnings and errors are also kept for Host health's "Copy diagnostics".
+    logger: { level: process.env.LUMA_LOG_LEVEL || "info", hooks: { logMethod: problemLogHook } },
     // cloudflared (and the Vite dev proxy) connect from loopback; trusting
     // them makes request.ip/request.protocol reflect the real visitor.
     trustProxy: TRUSTED_PROXIES,

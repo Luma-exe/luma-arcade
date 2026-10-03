@@ -349,3 +349,40 @@ export function playById(id: number): GamePlay | null {
   const row = getDb().prepare("SELECT * FROM game_plays WHERE id = ?").get(id) as Row | undefined;
   return row ? toPlay(row) : null;
 }
+
+// --- games that can be started again (for guest links that open straight into one)
+
+/** Every game played here that can be started again: the newest play of
+ * each, newest first. Its id is what a link stores (playById). */
+export function launchableGames(): { id: number; app: string; title: string; system: string | null; coverId: number | null }[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT * FROM game_plays WHERE id IN (
+         SELECT MAX(id) FROM game_plays WHERE rom IS NOT NULL OR exe IS NOT NULL GROUP BY app, title, COALESCE(system, '')
+       ) ORDER BY started_at DESC`
+    )
+    .all() as Row[];
+  return rows.map(toPlay).map((p) => ({ id: p.id, app: p.app, title: p.title, system: p.system, coverId: coverFile(p) ? p.id : null }));
+}
+
+/** A play that can be started again, else null. */
+export function launchableGame(id: number): GamePlay | null {
+  const play = playById(id);
+  return play && (play.rom || play.exe) ? play : null;
+}
+
+/** Games to start for someone once their stream is up (a guest link that
+ * opens straight into a game): the stream page's ?continue=1 asks
+ * POST /api/continue, which takes this before their own last game. */
+const queued = new Map<number, { playId: number; until: number }>();
+const QUEUE_MS = 10 * 60_000;
+
+export function queueLaunch(userId: number, playId: number, now = Date.now()): void {
+  queued.set(userId, { playId, until: now + QUEUE_MS });
+}
+
+export function takeQueuedLaunch(userId: number, now = Date.now()): GamePlay | null {
+  const q = queued.get(userId);
+  queued.delete(userId);
+  return q && q.until > now ? launchableGame(q.playId) : null;
+}

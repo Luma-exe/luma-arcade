@@ -3,11 +3,11 @@ import { readData } from "../../remote/moonlightData.js";
 import { createReadStream } from "node:fs";
 import path from "node:path";
 import { getDb } from "../../db/index.js";
-import { coverFile, currentGame, gamesByUser, lastGameFor, playById } from "../games.js";
+import { coverFile, currentGame, gamesByUser, lastGameFor, launchableGames, playById, takeQueuedLaunch, type GamePlay } from "../games.js";
 import { playSummary } from "../playLog.js";
 import { requireAuth } from "../session.js";
 import { currentPlayer, isPlayingNow, nowStreaming } from "../sessions.js";
-import { streamUser, type StreamUser } from "../streamUser.js";
+import { requireAdmin, streamUser, type StreamUser } from "../streamUser.js";
 import { sunshineAppId } from "../sunshine.js";
 import { runHome } from "./home.js";
 
@@ -24,15 +24,23 @@ function localHostId(): number | null {
   return null;
 }
 
+/** The stream a game is played in: this PC, and the app (ES-DE) it was
+ * started from. Null when that app is gone. (An object, so tests can swap it.) */
+export const gameStreams = {
+  async find(game: Pick<GamePlay, "app">): Promise<{ hostId: number; appId: number } | null> {
+    const hostId = localHostId();
+    const appId = await sunshineAppId(game.app).catch(() => null);
+    return hostId !== null && appId !== null ? { hostId, appId } : null;
+  },
+};
+
 /** What this person can continue, and the stream to start it in (also a part of /api/poll). */
 export async function continueFor(user: StreamUser) {
   const game = lastGameFor(user);
   if (!game) return { game: null, stream: null };
-  const hostId = localHostId();
-  const appId = await sunshineAppId(game.app).catch(() => null);
   return {
     game: { title: game.title, system: game.system, playedAt: game.startedAt, coverId: coverFile(game) ? game.id : null },
-    stream: hostId !== null && appId !== null ? { hostId, appId } : null,
+    stream: await gameStreams.find(game),
   };
 }
 
@@ -99,6 +107,9 @@ export async function registerGameRoutes(app: FastifyInstance) {
     return { playing: publicPlaying() };
   });
 
+  /** Games a guest link can open straight into (anything played here before). */
+  app.get("/api/admin/games", { preHandler: requireAdmin, logLevel: "warn" }, async () => ({ games: launchableGames() }));
+
   app.get("/api/continue", { preHandler: requireAuth, logLevel: "warn" }, async (request, reply) => {
     const user = await streamUser(request);
     if (!user) return reply.code(401).send({ error: "unauthorized" });
@@ -109,7 +120,8 @@ export async function registerGameRoutes(app: FastifyInstance) {
     const user = await streamUser(request);
     if (!user) return reply.code(401).send({ error: "unauthorized" });
     if (!isPlayingNow(user.id)) return reply.code(409).send({ error: "Start streaming first" });
-    const game = lastGameFor(user);
+    // A guest link's game first (routes/guestLinks.ts), else their own last one.
+    const game = takeQueuedLaunch(user.id) ?? lastGameFor(user);
     if (!game) return reply.code(404).send({ error: "Nothing to continue" });
     request.log.info({ player: user.name, game: game.title }, "continue playing");
     try {

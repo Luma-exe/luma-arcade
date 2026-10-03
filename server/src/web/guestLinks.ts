@@ -38,6 +38,8 @@ export interface GuestLinkRow {
   converted_to_user_id: number | null;
   converted_to_name: string | null;
   converted_at: number | null;
+  /** the game it opens straight into (game_plays.id), else null */
+  game_play_id: number | null;
 }
 
 /** Links whose account can go once they've been expired this long. */
@@ -113,6 +115,8 @@ export interface NewLink {
   minutes: number | null;
   /** how long the link works */
   hours: number;
+  /** a game to open straight into (game_plays.id), own-turn links only */
+  gameId?: number | null;
 }
 
 export async function createLink(cookie: string, by: { id: number; name: string }, link: NewLink, now = Date.now()): Promise<GuestLinkRow> {
@@ -129,12 +133,13 @@ export async function createLink(cookie: string, by: { id: number; name: string 
     created_by_id: by.id,
     created_by: by.name,
     created_at: now,
+    game_play_id: link.mode === "play" ? (link.gameId ?? null) : null,
   };
   const id = Number(
     getDb()
       .prepare(
-        `INSERT INTO guest_links (token, name, mode, user_id, user_name, password, minutes, expires_at, created_by_id, created_by, created_at)
-         VALUES (@token, @name, @mode, @user_id, @user_name, @password, @minutes, @expires_at, @created_by_id, @created_by, @created_at)`
+        `INSERT INTO guest_links (token, name, mode, user_id, user_name, password, minutes, expires_at, created_by_id, created_by, created_at, game_play_id)
+         VALUES (@token, @name, @mode, @user_id, @user_name, @password, @minutes, @expires_at, @created_by_id, @created_by, @created_at, @game_play_id)`
       )
       .run(row).lastInsertRowid
   );

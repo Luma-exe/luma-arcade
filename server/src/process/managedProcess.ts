@@ -1,6 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import path from "node:path";
 import { LineFilter } from "./logFilter.js";
+import { looksLikeError, recordProblem } from "../web/diagnostics.js";
 
 /** Generic spawn/log/stop wrapper reused for every long-lived child process
  * this app manages (currently just moonlight-web-stream). */
@@ -59,7 +60,10 @@ export class ManagedProcess {
     });
     this.child.stderr.setEncoding("utf8").on("data", (chunk: string) => {
       const kept = err.push(chunk);
-      if (kept) process.stderr.write(tagged(kept));
+      if (kept) {
+        process.stderr.write(tagged(kept));
+        for (const line of kept.split(/\r?\n/)) if (looksLikeError(line)) recordProblem(this.logTag, line);
+      }
     });
 
     // An unhandled 'error' event on a ChildProcess (e.g. ENOENT — the binary
@@ -69,6 +73,7 @@ export class ManagedProcess {
     // logged failure, not a server crash.
     this.child.on("error", (err) => {
       console.error(`[${this.logTag}] failed to start:`, err.message);
+      recordProblem(this.logTag, `failed to start: ${err.message}`);
       this.lastError = err.message;
       this.child = undefined;
     });

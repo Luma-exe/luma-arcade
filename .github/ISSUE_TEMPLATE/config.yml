@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or help setting up
+    url: https://github.com/Luma-exe/luma-arcade/discussions
+    about: Ask in Discussions - someone may have hit the same thing.
