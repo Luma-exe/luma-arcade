@@ -6,6 +6,7 @@ dist/
 *.db-shm
 turnserver.generated.conf
 installer/staging/
+installer/staging-linux/
 installer/output/
 *.log
 .env

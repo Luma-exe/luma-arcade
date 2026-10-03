@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { readData } from "../remote/moonlightData.js";
+import { IS_WINDOWS } from "../platform.js";
 import type { HealthCheck } from "./routes/health.js";
 
 // "Copy diagnostics" on the Host health screen: one block of text to paste
@@ -112,7 +113,36 @@ export interface PcFacts {
   sunshine: string;
 }
 
+async function shell(file: string, args: string[]): Promise<string> {
+  try {
+    const { stdout } = await run(file, args, { timeout: 10_000 });
+    return stdout.trim();
+  } catch {
+    return "";
+  }
+}
+
+/** Linux (early testing): the distro, graphics from lspci, Sunshine's version. */
+async function linuxFacts(): Promise<PcFacts> {
+  let distro = "";
+  try {
+    distro = /^PRETTY_NAME="?([^"\n]+)"?/m.exec(readFileSync("/etc/os-release", "utf-8"))?.[1] ?? "";
+  } catch {}
+  const [graphics, sunshine] = await Promise.all([shell("lspci", []), shell("sunshine", ["--version"])]);
+  return {
+    windows: `${distro || "Linux"} (kernel ${os.release()}) - Linux support is in early testing`,
+    cpu: os.cpus()[0]?.model?.trim() ?? "?",
+    ramGb: Math.round(os.totalmem() / 1024 ** 3),
+    graphics: graphics
+      .split("\n")
+      .filter((l) => /VGA|3D controller|Display controller/.test(l))
+      .map((l) => l.replace(/^\S+\s+[^:]+:\s*/, "").trim()),
+    sunshine: sunshine.split("\n")[0] || "not found",
+  };
+}
+
 async function pcFacts(): Promise<PcFacts> {
+  if (!IS_WINDOWS) return linuxFacts();
   const [windows, graphics, sunshine] = await Promise.all([
     powershell(
       "$o = Get-CimInstance Win32_OperatingSystem; $d = (Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion').DisplayVersion; \"$($o.Caption) $d (build $($o.BuildNumber))\""
@@ -139,7 +169,7 @@ export function formatReport(
     "### Luma Arcade diagnostics",
     "",
     `- **Luma Arcade** ${info.version} (${info.commit.slice(0, 7)}), Node ${info.node}, running ${info.uptimeMin} min`,
-    `- **Windows** ${info.pc.windows}`,
+    `- **System** ${info.pc.windows}`,
     `- **Processor** ${info.pc.cpu}, ${info.pc.ramGb} GB RAM`,
     `- **Graphics** ${info.pc.graphics.join("; ") || "none found"}`,
     `- **Sunshine** ${info.pc.sunshine}`,

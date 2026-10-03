@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { promisify } from "node:util";
 import type { HealthCheck } from "./routes/health.js";
+import { dataPath } from "../platform.js";
 
 // This PC's Steam and Epic games in ES-DE: host/sync-pc-games.ps1 does the
 // work as the games account (scheduled task \LumaArcade\PC Games, at sign-in
@@ -11,7 +12,7 @@ import type { HealthCheck } from "./routes/health.js";
 const run = promisify(execFile);
 
 export const PC_GAMES_TASK = "\\LumaArcade\\PC Games";
-export const PC_GAMES_STATUS = process.env.LUMA_PC_GAMES_STATUS || "C:\\ProgramData\\LumaArcade\\home\\pc-games.json";
+export const PC_GAMES_STATUS = process.env.LUMA_PC_GAMES_STATUS || dataPath("home", "pc-games.json");
 export const IMPORT_PC_GAMES = { id: "import-pc-games", label: "Import now" };
 
 export interface PcGamesStatus {

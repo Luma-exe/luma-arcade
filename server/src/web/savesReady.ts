@@ -4,6 +4,7 @@ import { MAIN, savesElsewhere } from "./saveSync.js";
 import { decide, gameEnded } from "./sessions.js";
 import { sunshineAppName } from "./sunshine.js";
 import type { StreamUser } from "./streamUser.js";
+import { dataPath } from "../platform.js";
 
 // Per-player saves (host/profiles.ps1) are swapped by Sunshine's prep-cmd,
 // which only runs when Sunshine STARTS the ES-DE app. A stream into an
@@ -13,7 +14,7 @@ import type { StreamUser } from "./streamUser.js";
 // else's saves in, that session is closed and Sunshine starts it fresh -
 // with this player's saves - when they connect.
 
-export const PROFILES_STATE = process.env.LUMA_PROFILES_STATE || "C:\ProgramData\LumaArcade\profiles\state.json";
+export const PROFILES_STATE = process.env.LUMA_PROFILES_STATE || dataPath("profiles", "state.json");
 const SERVERINFO = "http://127.0.0.1:47989/serverinfo";
 const FREE_WAIT_MS = 15_000;
 const FREE_POLL_MS = 500;

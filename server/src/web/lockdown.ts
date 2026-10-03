@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import type { FastifyBaseLogger } from "fastify";
 import { connectedUsers } from "./sessions.js";
 import type { StreamUser } from "./streamUser.js";
+import { dataPath } from "../platform.js";
 
 // While anyone without the admin role is streaming, the PC's admin tools
 // (File Explorer, Task Manager, Settings, browsers, Disk Management...)
@@ -12,7 +13,7 @@ import type { StreamUser } from "./streamUser.js";
 // state expires HOLD_MS after it was last written, so if LumaArcade stops,
 // the PC unlocks by itself instead of staying locked.
 
-export const STATE_FILE = process.env.LUMA_LOCKDOWN_FILE || "C:\\ProgramData\\LumaArcade\\home\\lockdown.json";
+export const STATE_FILE = process.env.LUMA_LOCKDOWN_FILE || dataPath("home", "lockdown.json");
 const TASK = "\\LumaArcade\\Lockdown";
 const TICK_MS = 2000;
 const HOLD_MS = 60_000;

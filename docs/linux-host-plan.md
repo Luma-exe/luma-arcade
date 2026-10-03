@@ -1,6 +1,6 @@
 # Plan: Luma Arcade on a Linux host
 
-**Status:** plan, not started. **Goal:** a Linux gaming PC can host Luma Arcade with the same promise as Windows: send a link, and your friend is playing in their browser.
+**Status:** phase 1 is in **very early testing**: `installer/linux/install.sh` installs the server, moonlight-web-stream (upstream v2.10.0's Linux build with Luma Arcade's web files) and a portable Node as a systemd user service; installing, upgrading, signing in and Host health are tested on Ubuntu 24.04; streaming from a real Linux gaming PC is not confirmed yet. Server tests run on Ubuntu in CI. **Goal:** a Linux gaming PC can host Luma Arcade with the same promise as Windows: send a link, and your friend is playing in their browser.
 
 Why it matters: most self-hosters run Linux (r/selfhosted, Bazzite, ChimeraOS, Steam Deck owners), and Sunshine already runs well there.
 

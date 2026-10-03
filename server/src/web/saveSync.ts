@@ -4,6 +4,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { runProfiles } from "./profilesScript.js";
 import type { Seat } from "./seats.js";
+import { dataPath } from "../platform.js";
 
 const run = promisify(execFile);
 
@@ -18,11 +19,11 @@ const run = promisify(execFile);
 
 /** The main PC, as a "where they last played". Seats go by their name. */
 export const MAIN = "main";
-const HOME_FILE = process.env.LUMA_SAVES_HOME || "C:\\ProgramData\\LumaArcade\\saves-home.json";
+const HOME_FILE = process.env.LUMA_SAVES_HOME || dataPath("saves-home.json");
 const STAGING = process.env.LUMA_SAVES_STAGING || "E:\\LumaArcade\\sync";
 /** Where a seat keeps a player's saves on the move. */
-const SEAT_DIR = "C:\\ProgramData\\LumaArcade\\sync";
-const SEAT_SYNC_SCRIPT = process.env.LUMA_SEAT_SYNC_SCRIPT || "C:\\ProgramData\\LumaArcade\\seat-sync.ps1";
+const SEAT_DIR = dataPath("sync");
+const SEAT_SYNC_SCRIPT = process.env.LUMA_SEAT_SYNC_SCRIPT || dataPath("seat-sync.ps1");
 
 export interface Player {
   id: number;

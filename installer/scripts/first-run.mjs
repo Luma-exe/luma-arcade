@@ -112,7 +112,7 @@ async function main() {
   const port = await freePort();
   const base = `http://127.0.0.1:${port}/stream/api`;
   const child = spawn(
-    path.join(moonlightDir, "web-server.exe"),
+    path.join(moonlightDir, process.platform === "win32" ? "web-server.exe" : "web-server"),
     ["--bind-address", `127.0.0.1:${port}`, "--path-prefix", "/stream"],
     { cwd: moonlightDir, stdio: "ignore", windowsHide: true }
   );

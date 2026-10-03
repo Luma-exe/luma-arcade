@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { requireAuth } from "../session.js";
+import { IS_WINDOWS } from "../../platform.js";
 
 const run = promisify(execFile);
 
@@ -59,6 +60,8 @@ const PS_QUERY =
   "ConvertTo-Json -Compress";
 
 async function listProcesses(): Promise<ProcessRow[]> {
+  // (Windows only so far: on Linux nothing is detected.)
+  if (!IS_WINDOWS) return [];
   const { stdout } = await run(
     "powershell.exe",
     ["-NoProfile", "-NonInteractive", "-Command", PS_QUERY],

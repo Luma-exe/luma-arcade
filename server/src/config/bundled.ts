@@ -1,10 +1,11 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { getSetting, setSetting } from "./settings.js";
+import { MOONLIGHT_BINARY } from "../platform.js";
 
-/** Where the Windows installer puts moonlight-web-stream, next to server\. */
+/** Where the installer puts moonlight-web-stream, next to the server folder. */
 export function bundledMoonlightPath(installRoot: string): string {
-  return path.join(installRoot, "moonlight-web-stream", "web-server.exe");
+  return path.join(installRoot, "moonlight-web-stream", MOONLIGHT_BINARY);
 }
 
 /**

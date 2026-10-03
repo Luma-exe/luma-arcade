@@ -1,12 +1,17 @@
-# Runs the server's tests on every push and pull request. Windows, because
-# the server is Windows-only (paths, PowerShell helpers, the service).
+# Runs the server's tests on every push and pull request: on Windows (the
+# full product) and on Linux (early testing), plus a check of the Linux
+# install scripts.
 name: Tests
 on:
   push:
   pull_request:
 jobs:
   test:
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -16,3 +21,9 @@ jobs:
       - run: npm ci
       - run: npx tsc -p server/tsconfig.json --noEmit
       - run: npm test
+      - name: Linux install scripts
+        if: runner.os == 'Linux'
+        run: |
+          bash -n installer/linux/install.sh
+          bash -n installer/linux/uninstall.sh
+          shellcheck -S warning installer/linux/install.sh installer/linux/uninstall.sh

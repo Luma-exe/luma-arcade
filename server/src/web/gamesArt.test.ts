@@ -36,6 +36,13 @@ describe("cover art", () => {
     );
   });
 
+  it("reads Linux ROM paths too", () => {
+    assert.equal(
+      coverFile({ rom: "/home/sam/ES-DE/ROMs/xbox360/Disc Games/Halo 3.iso", system: "xbox360" }, media),
+      path.join(media, "xbox360", "covers", "Disc Games", "Halo 3.png")
+    );
+  });
+
   it("finds nothing for games without art, or paths that climb out", () => {
     assert.equal(coverFile({ rom: String.raw`G:\ES-DE\ROMs\xbox360\Forza.iso`, system: "xbox360" }, media), null);
     assert.equal(coverFile({ rom: String.raw`G:\ES-DE\ROMs\xbox360\..\..\x.png`, system: "xbox360" }, media), null);

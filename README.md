@@ -11,7 +11,7 @@ Free and open source. Runs on your own Windows gaming PC, set up by a one-click 
 
 <a href="https://github.com/Luma-exe/luma-arcade/releases/latest/download/LumaArcadeSetup.exe"><img src="https://img.shields.io/badge/Download_for_Windows-LumaArcadeSetup.exe-1f6fd1?style=for-the-badge&logo=windows&logoColor=white" alt="Download for Windows" height="44"></a>
 
-<sub>Windows 10, 11 or Server, 64-bit · [All releases](https://github.com/Luma-exe/luma-arcade/releases) · [What you need](#what-you-need)</sub>
+<sub>Windows 10, 11 or Server, 64-bit · [Linux (early testing)](#linux-very-early-testing) · [All releases](https://github.com/Luma-exe/luma-arcade/releases) · [What you need](#what-you-need)</sub>
 
 <img src="docs/luma-arcade-demo.gif" alt="Luma Arcade demo: starting a game from the browser, the quick controls, inviting a friend, and playing" width="720">
 
@@ -90,6 +90,19 @@ Everything is downloaded from official releases at **versions tested with Luma A
 
 > [!TIP]
 > **Upgrading** is the same: run the new `LumaArcadeSetup.exe`. It stops Luma Arcade, keeps your accounts, settings, saves and certificate, skips emulators you already have, and starts it again.
+
+### Linux (very early testing)
+
+> [!WARNING]
+> **Linux support is in very early testing.** Installing, upgrading, signing in and Host health have been tested on Ubuntu 24.04; streaming a game from a real Linux gaming PC hasn't been confirmed yet. Streaming, accounts, turns, co-op, guest links, time limits and play history use the same code as on Windows, so they should work. The Home button, lockdown, per-player saves, game tracking and the Steam/Epic import are **Windows-only for now**. Expect rough edges, and please [report what you find](https://github.com/Luma-exe/luma-arcade/issues/new?template=bug_report.yml).
+
+You need [Sunshine](https://github.com/LizardByte/Sunshine/releases) installed and set up first (x86_64 or ARM64). Then, as the user who plays (not root):
+
+```bash
+curl -fsSL https://github.com/Luma-exe/luma-arcade/releases/latest/download/install.sh | bash
+```
+
+It installs to `~/.local/opt/luma-arcade` with its own Node, asks for your admin account (and pairs with Sunshine if its web UI uses the same sign-in), and runs as the systemd user service `luma-arcade`. Run it again to upgrade; `~/.local/opt/luma-arcade/uninstall.sh` removes it and keeps your accounts (`--purge` deletes them too). What's planned next: [Linux host plan](docs/linux-host-plan.md).
 
 <details>
 <summary><b>Silent install</b> (scripted setups)</summary>
@@ -290,7 +303,7 @@ Streaming quality depends on the host's GPU encoder (NVENC, AMF or Quick Sync) a
 
 ## Roadmap
 
-- **Linux hosts** - Sunshine already runs there; the work is the PC-side helpers. See the [plan](docs/linux-host-plan.md).
+- **Linux hosts** - in very early testing (see [Install](#linux-very-early-testing)); next are the PC-side helpers. See the [plan](docs/linux-host-plan.md).
 - Ideas and votes welcome in [Discussions](https://github.com/Luma-exe/luma-arcade/discussions).
 
 ## License

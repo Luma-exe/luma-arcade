@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { promisify } from "node:util";
+import { dataPath } from "../platform.js";
 
 const run = promisify(execFile);
 
@@ -10,7 +11,7 @@ const run = promisify(execFile);
 
 // LUMA_PROFILES_SCRIPT points it elsewhere (tests: somewhere that doesn't
 // exist, so they never touch the real saves).
-export const PROFILES_SCRIPT = process.env.LUMA_PROFILES_SCRIPT || "C:\\ProgramData\\LumaArcade\\profiles.ps1";
+export const PROFILES_SCRIPT = process.env.LUMA_PROFILES_SCRIPT || dataPath("profiles.ps1");
 
 export function profilesInstalled(): boolean {
   return existsSync(PROFILES_SCRIPT);

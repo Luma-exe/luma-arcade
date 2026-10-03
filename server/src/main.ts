@@ -17,6 +17,7 @@ import { startIdleChecks } from "./web/idle.js";
 import { runHome } from "./web/routes/home.js";
 import { timestampStderr } from "./process/stderrTimestamps.js";
 import { useBundledMoonlight } from "./config/bundled.js";
+import { IS_WINDOWS, openCommand } from "./platform.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -25,9 +26,15 @@ async function main() {
   const serverDir = path.join(__dirname, "..");
   const dbPath = path.join(serverDir, "luma-arcade.db");
   initDb(dbPath);
-  // Installed with the Windows installer: server\dist\main.js -> the install folder.
+  // Installed by an installer: server/dist/main.js -> the install folder.
   const bundled = useBundledMoonlight(path.join(__dirname, "..", ".."));
   if (bundled) console.log(`Using the bundled moonlight-web-stream at ${bundled}`);
+  if (!IS_WINDOWS) {
+    console.log(
+      "Linux support is in very early testing: streaming, accounts, turns and guest links should work but are barely tested; " +
+        "the PC-side helpers (Home button, lockdown, per-player saves, game tracking) are Windows-only for now."
+    );
+  }
   const owner = restoreOwner();
   if (owner) console.log(`Game on the PC still belongs to ${owner.name}`);
 
@@ -43,7 +50,8 @@ async function main() {
     const server = await createServer({ port, serverDir });
     httpsPort = server.httpsPort;
     startWatchdog(server.app.log);
-    startLockdown(server.app.log);
+    // Lockdown runs a helper on the games desktop (Windows only so far).
+    if (IS_WINDOWS) startLockdown(server.app.log);
     startIdleChecks(server.app.log);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "EADDRINUSE") {
@@ -60,8 +68,11 @@ async function main() {
 
   // What's played inside ES-DE; closes a game nobody came back to by
   // closing its window (emulators save on a normal exit) and going back to
-  // ES-DE, like the stream page's Home button.
-  startGameTracking((pid) => runHome({ action: "go", launcher: "es-de", close: true, pid, hwnd: null }, 75_000));
+  // ES-DE, like the stream page's Home button. (Windows only so far: ES-DE's
+  // event scripts and the Home helper are PowerShell.)
+  if (IS_WINDOWS) {
+    startGameTracking((pid) => runHome({ action: "go", launcher: "es-de", close: true, pid, hwnd: null }, 75_000));
+  }
 
   // Double-clicking the Start Menu shortcut only starts this background
   // server with no window — open the portal automatically so it doesn't
@@ -71,10 +82,11 @@ async function main() {
   // autostart), nobody asked for it: on a streamed desktop it would pop up
   // in front of the game.
   if (process.env.LUMA_DEV !== "1" && !process.argv.includes("--background")) {
-    exec(`start ${portalUrl}`);
+    exec(openCommand(portalUrl), () => {});
   }
 
-  startTray({
+  // The tray icon is Windows-only; a Linux install runs as a service.
+  if (IS_WINDOWS) startTray({
     portalUrl,
     onQuit: () => {
       moonlightProcess.stop();
@@ -83,10 +95,13 @@ async function main() {
   });
 }
 
-process.on("SIGINT", () => {
-  moonlightProcess.stop();
-  process.exit(0);
-});
+// Ctrl+C, and systemd stopping the Linux service.
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.on(signal, () => {
+    moonlightProcess.stop();
+    process.exit(0);
+  });
+}
 
 main().catch((err) => {
   console.error(err);

@@ -7,6 +7,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { requireOwnerOrFree } from "../session.js";
 import { getActiveInput } from "./input.js";
+import { IS_WINDOWS, WINDOWS_ONLY, dataPath } from "../../platform.js";
 
 const run = promisify(execFile);
 
@@ -15,8 +16,8 @@ const run = promisify(execFile);
 // can't see or move the stream's windows. It reads the request file and
 // answers with result-<id>.json next to it.
 export const HOME_TASK = "\\LumaArcade\\Home";
-export const HOME_SCRIPT = "C:\\ProgramData\\LumaArcade\\home.ps1";
-const HOME_DIR = "C:\\ProgramData\\LumaArcade\\home";
+export const HOME_SCRIPT = dataPath("home.ps1");
+const HOME_DIR = dataPath("home");
 
 type Launcher = "es-de" | "steam";
 
@@ -53,6 +54,8 @@ export interface HomeGoResult {
 let queue: Promise<unknown> = Promise.resolve();
 
 export function runHome<T>(request: Record<string, unknown>, timeoutMs: number): Promise<T> {
+  // The Home helper is PowerShell on the games desktop.
+  if (!IS_WINDOWS) return Promise.reject(new Error(WINDOWS_ONLY));
   const job = queue.then(async () => {
     const id = randomUUID();
     const resultPath = path.join(HOME_DIR, `result-${id}.json`);

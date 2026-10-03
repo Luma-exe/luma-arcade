@@ -5,6 +5,7 @@ import { notify } from "./notify.js";
 import { profilesInstalled, runProfiles } from "./profilesScript.js";
 import { currentPlayer, nobodyStreamingFor } from "./sessions.js";
 import type { StreamUser } from "./streamUser.js";
+import { dataPath } from "../platform.js";
 
 // Which games are played inside ES-DE. Its game-start event script
 // (moonlight host/esde-game-events.ps1, run by ES-DE and by "Continue
@@ -16,7 +17,7 @@ import type { StreamUser } from "./streamUser.js";
 //  - closing a game nobody has streamed for IDLE_CLOSE_MS (it keeps the
 //    GPU busy for nothing).
 
-export const EVENTS_FILE = process.env.LUMA_GAMES_FILE || "C:\\ProgramData\\LumaArcade\\home\\games.jsonl";
+export const EVENTS_FILE = process.env.LUMA_GAMES_FILE || dataPath("home", "games.jsonl");
 const POLL_MS = 5000;
 /** A game left running with nobody streaming is closed after this. */
 export const IDLE_CLOSE_MS = 30 * 60_000;
@@ -330,15 +331,16 @@ const ART_TYPES = [".png", ".jpg", ".jpeg", ".webp"];
  * name as the ROM>.<png|jpg>. Null when it has none. */
 export function coverFile(play: Pick<GamePlay, "rom" | "system">, mediaDir = MEDIA_DIR): string | null {
   if (!play.rom) return null;
-  const m = /\\ROMs\\([^\\]+)\\(.+)$/i.exec(play.rom);
+  // (ES-DE writes \ on Windows and / on Linux)
+  const m = /[\\/]ROMs[\\/]([^\\/]+)[\\/](.+)$/i.exec(play.rom);
   if (!m) return null;
   const system = m[1];
-  const rel = m[2].replace(/\.[^.\\]+$/, "");
+  const parts = m[2].replace(/\.[^.\\/]+$/, "").split(/[\\/]/);
   // (never outside the media folder, whatever the ROM path says)
-  if ([system, ...rel.split(/[\\/]/)].some((part) => part === ".." || part === ".")) return null;
+  if ([system, ...parts].some((part) => part === ".." || part === ".")) return null;
   for (const kind of ART_KINDS) {
     for (const ext of ART_TYPES) {
-      const file = path.join(mediaDir, system, kind, rel + ext);
+      const file = path.join(mediaDir, system, kind, ...parts.slice(0, -1), parts[parts.length - 1] + ext);
       if (existsSync(file)) return file;
     }
   }

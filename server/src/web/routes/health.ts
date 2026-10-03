@@ -12,11 +12,13 @@ import { SUNSHINE_HTTPS_PORT, sunshineHttps } from "../sunshine.js";
 import { getActiveInput } from "./input.js";
 import { diagnosticsReport } from "../diagnostics.js";
 import { IMPORT_PC_GAMES, checkPcGames, importPcGames } from "../pcGames.js";
+import { IS_WINDOWS, dataPath } from "../../platform.js";
+import { LINUX_DISKS, LINUX_SUNSHINE_CONFIG_DIR, earlyTestingCheck, encoderCheckLinux, restartSunshineLinux, sunshineRunningLinux, uinputCheck } from "../linuxHost.js";
 
 const run = promisify(execFile);
 
 // Sunshine's default install location; its config and log live here.
-const SUNSHINE_CONFIG_DIR = "C:\\Program Files\\Sunshine\\config";
+const SUNSHINE_CONFIG_DIR = IS_WINDOWS ? "C:\\Program Files\\Sunshine\\config" : LINUX_SUNSHINE_CONFIG_DIR;
 const SUNSHINE_HTTP_PORT = 47989;
 // The Xbox 360 controller driver: xusb22.sys ships with Windows 10/11 client,
 // xusb21.sys comes from Microsoft's standalone package (what Windows Server
@@ -66,8 +68,9 @@ function readSunshineConf(): Record<string, string> {
 }
 
 export async function checkSunshine(): Promise<HealthCheck[]> {
-  const svc = await output("sc.exe", ["query", "SunshineService"]);
-  const running = /STATE\s*:\s*\d+\s+RUNNING/.test(svc);
+  const running = IS_WINDOWS
+    ? /STATE\s*:\s*\d+\s+RUNNING/.test(await output("sc.exe", ["query", "SunshineService"]))
+    : await sunshineRunningLinux();
 
   let reachable = false;
   try {
@@ -86,7 +89,7 @@ export async function checkSunshine(): Promise<HealthCheck[]> {
       label: "Sunshine",
       status: running && reachable && https !== "hung" ? "ok" : "error",
       detail: !running
-        ? "SunshineService isn't running"
+        ? IS_WINDOWS ? "SunshineService isn't running" : "Sunshine isn't running (systemctl --user start sunshine, or start it from your desktop)"
         : !reachable
           ? `Service running but not answering on port ${SUNSHINE_HTTP_PORT}`
           : https === "hung"
@@ -398,10 +401,13 @@ const DISKS = [
   { root: "E:\\", use: "save backups" },
 ];
 
-export function checkDiskSpace(): HealthCheck {
+/** "C:" on Windows, the folder on Linux. */
+const diskName = (root: string) => (IS_WINDOWS ? root.slice(0, 2) : root);
+
+export function checkDiskSpace(disks = IS_WINDOWS ? DISKS : LINUX_DISKS): HealthCheck {
   const parts: string[] = [];
   let status: Status = "ok";
-  for (const { root, use } of DISKS) {
+  for (const { root, use } of disks) {
     try {
       const s = statfsSync(root);
       const free = s.bavail * s.bsize;
@@ -410,9 +416,9 @@ export function checkDiskSpace(): HealthCheck {
       // drive shows up as crashes, not as a clear "disk full" error.
       if (free < 5 * GB || pct < 3) status = "error";
       else if ((pct < 10 || free < 20 * GB) && status === "ok") status = "warn";
-      parts.push(`${root.slice(0, 2)} (${use}) ${Math.round(free / GB)} GB free, ${Math.round(pct)}%`);
+      parts.push(`${diskName(root)} (${use}) ${Math.round(free / GB)} GB free, ${Math.round(pct)}%`);
     } catch {
-      parts.push(`${root.slice(0, 2)} (${use}) not found`);
+      parts.push(`${diskName(root)} (${use}) not found`);
       if (status === "ok") status = "warn";
     }
   }
@@ -528,8 +534,8 @@ function readBackupStatus(): HealthCheck {
 }
 
 // Per-player saves (host/profiles.ps1, a prep-cmd on Sunshine's ES-DE app).
-const PROFILES_SCRIPT = "C:\\ProgramData\\LumaArcade\\profiles.ps1";
-const PROFILES_DIR = "C:\\ProgramData\\LumaArcade\\profiles";
+const PROFILES_SCRIPT = dataPath("profiles.ps1");
+const PROFILES_DIR = dataPath("profiles");
 
 function checkPlayerSaves(): HealthCheck {
   const label = "Player saves";
@@ -592,6 +598,7 @@ async function checkHomeHelper(): Promise<HealthCheck> {
  * Sunshine/ES-DE logs and Device Manager by hand. In the order the settings
  * screen shows them (also in the diagnostics report, web/diagnostics.ts). */
 export async function hostChecks(): Promise<HealthCheck[]> {
+  if (!IS_WINDOWS) return linuxHostChecks();
   const results = await Promise.all([
     checkSunshine(),
     checkMoonlight(),
@@ -622,6 +629,12 @@ export async function hostChecks(): Promise<HealthCheck[]> {
     backup,
     checkPlayerSaves(),
   ];
+}
+
+/** Host health on Linux (early testing): what applies there so far. */
+async function linuxHostChecks(): Promise<HealthCheck[]> {
+  const [sunshine, moonlight, encoder] = await Promise.all([checkSunshine(), checkMoonlight(), encoderCheckLinux()]);
+  return [earlyTestingCheck(), checkStream(), ...sunshine, moonlight, encoder, uinputCheck(), checkDiskSpace()];
 }
 
 export async function registerHealthRoutes(app: FastifyInstance) {
@@ -664,6 +677,7 @@ export async function registerHealthRoutes(app: FastifyInstance) {
 /** Restarts SunshineService (anything open on the PC stays open). */
 export async function restartSunshine(): Promise<void> {
   try {
+    if (!IS_WINDOWS) return await restartSunshineLinux();
     await run("powershell.exe", ["-NoProfile", "-Command", "Restart-Service SunshineService -Force -ErrorAction Stop"], {
       windowsHide: true,
       timeout: 60_000,
