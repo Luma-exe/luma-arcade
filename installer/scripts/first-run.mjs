@@ -166,7 +166,15 @@ async function main() {
     const next = lineReader(res.body);
     const first = await next();
     if (!first?.Pin) throw new Error(`pairing didn't start: ${JSON.stringify(first)}`);
-    const pin = await sunshine("POST", "/api/pin", admin, { pin: first.Pin, name: "Luma Arcade" });
+    // moonlight shows the PIN before its pairing request has reached
+    // Sunshine, and until it has, Sunshine answers {"status":false} (no one
+    // waiting for a PIN): keep trying for a while.
+    let pin;
+    for (let i = 0; i < 40; i++) {
+      pin = await sunshine("POST", "/api/pin", admin, { pin: first.Pin, name: "Luma Arcade" });
+      if (pin.status !== 200 || !/"status"\s*:\s*false/.test(pin.text)) break;
+      await sleep(500);
+    }
     if (pin.status === 401) {
       pairing.abort();
       throw new Error("Sunshine already had another sign-in: in Luma Arcade, open the PC \"localhost\" and pair it (the PIN goes in https://localhost:47990 > PIN)");

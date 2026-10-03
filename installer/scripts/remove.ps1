@@ -63,8 +63,14 @@ function Get-UninstallEntry([string]$NamePattern) {
 # Runs a program's own uninstaller with no windows: an MSI by its product
 # code, anything else with the quiet switches given.
 function Invoke-Uninstaller($Entry, [string[]]$QuietArgs) {
-    if ($Entry.UninstallString -match '\{[0-9A-Fa-f-]{36}\}' -and $Entry.UninstallString -match 'msiexec') {
-        $p = Start-Process msiexec.exe -ArgumentList '/x', $Matches[0], '/qn', '/norestart' -Wait -PassThru
+    # An MSI's product code: its registry key's name (WindowsInstaller = 1),
+    # else the {GUID} in an msiexec command (often /I, which would open its
+    # maintenance window, so it's always run as /x here).
+    $product = $null
+    if ($Entry.WindowsInstaller -eq 1 -and $Entry.PSChildName -match '^\{[0-9A-Fa-f-]{36}\}$') { $product = $Entry.PSChildName }
+    elseif ($Entry.UninstallString -match 'msiexec' -and $Entry.UninstallString -match '(\{[0-9A-Fa-f-]{36}\})') { $product = $Matches[1] }
+    if ($product) {
+        $p = Start-Process msiexec.exe -ArgumentList '/x', $product, '/qn', '/norestart' -Wait -PassThru
     } else {
         $cmd = if ($Entry.QuietUninstallString) { $Entry.QuietUninstallString } else { $Entry.UninstallString }
         if ($cmd -match '^\s*"([^"]+)"\s*(.*)$') { $exe = $Matches[1]; $rest = $Matches[2] }
