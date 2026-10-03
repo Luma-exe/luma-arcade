@@ -9,6 +9,7 @@
 # Asked for on the uninstaller's options page:
 #  -RemoveAutoLogon  stop signing -Account in when the PC starts
 #  -RemoveAccount    delete the -Account Windows account and its files
+#  -AccountOnly      only the two above (Luma Arcade itself stays)
 #  -TestRoot         testing: ProgramData and Sunshine's apps.json under this
 #                    folder instead; no tasks, services or accounts touched
 param(
@@ -16,6 +17,7 @@ param(
     [string]$Account = '',
     [switch]$RemoveAutoLogon,
     [switch]$RemoveAccount,
+    [switch]$AccountOnly,
     [string]$TestRoot = ''
 )
 . (Join-Path $PSScriptRoot 'common.ps1')
@@ -30,9 +32,12 @@ if ($TestRoot) {
 $hostFile = Join-Path $dataDir 'host.json'
 $hostConfig = if (Test-Path $hostFile) { Get-Content -Raw $hostFile | ConvertFrom-Json } else { $null }
 
+if (-not $AccountOnly) {
 Write-Step 'Removing the scheduled tasks'
-foreach ($name in $(if ($TestRoot) { @() } else { 'LumaArcade', 'Home', 'Lockdown' })) {
-    Unregister-ScheduledTask -TaskPath '\LumaArcade\' -TaskName $name -Confirm:$false -ErrorAction SilentlyContinue
+# Every task Setup made (LumaArcade, Home, Lockdown, PC Games), so the
+# \LumaArcade folder can go too.
+if (-not $TestRoot) {
+    Get-ScheduledTask -TaskPath '\LumaArcade\' -ErrorAction SilentlyContinue | Unregister-ScheduledTask -Confirm:$false -ErrorAction SilentlyContinue
 }
 if (-not $TestRoot) {
     try {
@@ -89,6 +94,7 @@ if ($tunnel -and $ourCloudflared -and $tunnel.PathName -like "*$ourCloudflared*"
     Write-Step 'Removing the Cloudflare Tunnel service'
     & $ourCloudflared service uninstall 2>&1 | Out-Null
 }
+} # -AccountOnly
 
 if ($RemoveAutoLogon -and $Account) {
     $winlogon = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'

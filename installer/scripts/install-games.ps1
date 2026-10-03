@@ -5,15 +5,39 @@
 # -ListOnly prints what would be downloaded (and checks every source) without
 # downloading anything. Downloads are the tested versions in versions.json
 # (checksums checked); -Latest takes each one's newest release instead.
+# -Repair (Setup's Repair): ES-DE and every emulator already in the folder
+# whose program has gone missing are downloaded again over their folder
+# (settings and saves in it stay); nothing new is added.
 param(
     [Parameter(Mandatory)] [string]$GamesDir,
     [switch]$WithEsDe,
     [string]$Emulators = '',
     [switch]$ListOnly,
-    [switch]$Latest
+    [switch]$Latest,
+    [switch]$Repair
 )
 . (Join-Path $PSScriptRoot 'common.ps1')
 . (Join-Path $PSScriptRoot 'catalog.ps1')
+
+if ($Repair) {
+    $esdeHere = Test-Path (Join-Path $GamesDir 'ES-DE')
+    $root = if ($esdeHere) { Join-Path $GamesDir 'ES-DE\Emulators' } else { Join-Path $GamesDir 'Emulators' }
+    $broken = @(foreach ($key in $Catalog.Keys) {
+        $dir = Join-Path $root $Catalog[$key].Folder
+        if ((Test-Path $dir) -and -not (Get-ChildItem -Path $dir -Filter $Catalog[$key].Exe -File -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1)) { $key }
+    })
+    $esdeBroken = $esdeHere -and -not (Test-Path (Join-Path $GamesDir 'ES-DE\ES-DE.exe'))
+    if (-not $broken -and -not $esdeBroken) {
+        Write-Step 'ES-DE and the emulators are all there: nothing to repair'
+        exit 0
+    }
+    Write-Step "Repairing: $((@($(if ($esdeBroken) { 'ES-DE' })) + $broken) -join ', ')"
+    $Emulators = $broken -join ','
+    # The emulators live in ES-DE's folder either way; only download ES-DE
+    # itself when it's the one missing.
+    $WithEsDe = [switch]$esdeHere
+    $script:SkipEsDe = -not $esdeBroken
+}
 
 $wanted = @($Emulators -split '[,\s]+' | Where-Object { $_ } | ForEach-Object { $_.ToLowerInvariant() })
 if ($wanted -contains 'all') { $wanted = @($Catalog.Keys) }
@@ -27,7 +51,7 @@ $installed = @()
 
 if (-not $ListOnly) { New-Item -ItemType Directory -Force $GamesDir | Out-Null }
 
-if ($WithEsDe) {
+if ($WithEsDe -and -not $script:SkipEsDe) {
     Write-Step 'ES-DE (the game library you browse with a controller)'
     try {
         $src = Get-CatalogDownload 'esde' -Latest:$Latest
@@ -78,6 +102,12 @@ foreach ($key in $wanted) {
 
 if ($ListOnly) {
     if ($failed) { Write-Output "Could not resolve: $($failed -join '; ')"; exit 1 }
+    exit 0
+}
+if ($Repair) {
+    # The shortcuts, setup copy and READ ME from the first install stay.
+    if ($failed) { Write-Step "Couldn't repair: $($failed -join '; ')"; exit 1 }
+    Write-Step 'Repaired'
     exit 0
 }
 

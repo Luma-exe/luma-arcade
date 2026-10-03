@@ -76,6 +76,7 @@ BrandingText " "
 Var SetupType        ; 0 = everything (streaming), 1 = ES-DE + emulators, 2 = emulators only
 Var SetupTypeApplied ; the type the component selection was last set up for
 Var IsUpgrade        ; 1 = Luma Arcade is already installed in $INSTDIR
+Var Mode             ; already installed: 0 = update or change, 1 = repair, 2 = uninstall
 Var LumaWasRunning   ; stop-luma.ps1's answer: 0 no, 2 yes, 3 yes and streaming
 Var IsServer         ; 1 = Windows Server
 Var DetectedServer
@@ -108,6 +109,9 @@ Var Str2
 Var Str3
 
 ; page controls
+Var hMode0
+Var hMode1
+Var hMode2
 Var hType0
 Var hType1
 Var hType2
@@ -135,15 +139,14 @@ Var hToken
 Var UnAccount
 Var UnSeparate
 Var UnAutoLogon
-Var UnRemoveAccount
-Var hUnAutoLogon
-Var hUnRemoveAccount
+Var UnGamesDir
 
 ; ---------------------------------------------------------------- pages
 !define MUI_WELCOMEPAGE_TITLE "Welcome to ${APP_TITLE}"
-!define MUI_WELCOMEPAGE_TEXT "Turn this PC into a game console you can play from any web browser - on your TV, laptop or phone, at home or away.$\r$\n$\r$\nNext, pick what to install: everything for streaming, just ES-DE and the emulators to play on this PC, or only the emulators.$\r$\n$\r$\nES-DE and the emulators are downloaded from their official releases (versions tested with Luma Arcade), so this PC needs to be online.$\r$\n$\r$\nAlready installed? Setup upgrades it and keeps your accounts, settings and games."
+!define MUI_WELCOMEPAGE_TEXT "Turn this PC into a game console you can play from any web browser - on your TV, laptop or phone, at home or away.$\r$\n$\r$\nNext, pick what to install: everything for streaming, just ES-DE and the emulators to play on this PC, or only the emulators.$\r$\n$\r$\nES-DE and the emulators are downloaded from their official releases (versions tested with Luma Arcade), so this PC needs to be online.$\r$\n$\r$\nAlready installed? Next you can update it, repair it, or remove some or all of it - your accounts, settings and games are kept unless you say otherwise."
 !define MUI_PAGE_CUSTOMFUNCTION_SHOW WelcomeShow
 !insertmacro MUI_PAGE_WELCOME
+Page custom MaintenancePage MaintenanceLeave
 Page custom SetupTypePage SetupTypeLeave
 !define MUI_PAGE_CUSTOMFUNCTION_PRE ComponentsPre
 !insertmacro MUI_PAGE_COMPONENTS
@@ -180,8 +183,11 @@ Page custom NetworkPage NetworkLeave
 !define MUI_PAGE_CUSTOMFUNCTION_SHOW FinishShow
 !insertmacro MUI_PAGE_FINISH
 
-!insertmacro MUI_UNPAGE_CONFIRM
-UninstPage custom un.OptionsPage un.OptionsLeave
+!define MUI_PAGE_HEADER_TEXT "What to remove"
+!define MUI_PAGE_HEADER_SUBTEXT "Tick exactly what should go. Only what this PC has is listed."
+!define MUI_COMPONENTSPAGE_TEXT_TOP "Pick a ready-made choice, or tick things one by one - just ES-DE, just Sunshine, just one emulator, or everything."
+!define MUI_PAGE_CUSTOMFUNCTION_LEAVE un.ComponentsLeave
+!insertmacro MUI_UNPAGE_COMPONENTS
 !insertmacro MUI_UNPAGE_INSTFILES
 
 !insertmacro MUI_LANGUAGE "English"
@@ -278,6 +284,13 @@ Function StrHas
   Pop $R1
   Pop $R0
 FunctionEnd
+
+; A repair or an uninstall skips every question page.
+!macro OnlyWhenChanging
+  ${If} $Mode != 0
+    Abort
+  ${EndIf}
+!macroend
 
 ; ---------------------------------------------------------------- sections
 ; Secrets for the steps below, written before anything runs.
@@ -404,6 +417,18 @@ SectionGroupEnd
 !macroend
 
 Section "-Games"
+  ; Repair: ES-DE or emulators whose program has gone missing come back.
+  ${If} $Mode == 1
+    ${If} ${FileExists} "$GamesDir\*.*"
+      DetailPrint "Checking ES-DE and the emulators..."
+      !insertmacro QuotablePath $2 $GamesDir
+      !insertmacro RunPs "install-games.ps1" '-GamesDir "$2" -Repair'
+      ${If} $0 != 0
+        MessageBox MB_ICONEXCLAMATION|MB_OK "Some of ES-DE or the emulators couldn't be put back - see the details list." /SD IDOK
+      ${EndIf}
+    ${EndIf}
+    Return
+  ${EndIf}
   StrCpy $EmuList ""
   !insertmacro AllEmus EmuArg3
   ${IfNot} ${SectionIsSelected} ${SEC_ESDE}
@@ -658,6 +683,7 @@ Function .onInit
   StrCpy $HttpsOn 1
   StrCpy $Latest 0
   StrCpy $IsUpgrade 0
+  StrCpy $Mode 0
   StrCpy $LumaWasRunning 0
 
   ; An earlier install: same folder, same choices.
@@ -898,6 +924,7 @@ FunctionEnd
 
 ; ---------------------------------------------------------------- setup type
 Function SetupTypePage
+  !insertmacro OnlyWhenChanging
   !insertmacro MUI_HEADER_TEXT "What do you want to install?" "You can change the exact list on the next page."
   nsDialogs::Create 1018
   Pop $0
@@ -987,6 +1014,7 @@ FunctionEnd
 ; Sets the component list up for the chosen type (only when it changed, so
 ; going Back and Next keeps someone's own ticks).
 Function ComponentsPre
+  !insertmacro OnlyWhenChanging
   ${If} $SetupType == $SetupTypeApplied
     Return
   ${EndIf}
@@ -1026,8 +1054,85 @@ Function MarkInstalledComponents
   !insertmacro AllEmus MarkPresent
 FunctionEnd
 
+
+; ---------------------------------------------------------------- already installed
+Function MaintenancePage
+  ${If} $IsUpgrade != 1
+    Abort
+  ${EndIf}
+  !insertmacro MUI_HEADER_TEXT "Luma Arcade is already installed" "Update it, repair it, or remove some or all of it."
+  nsDialogs::Create 1018
+  Pop $0
+
+  ${NSD_CreateRadioButton} 0 0 100% 12u "Update, or change what's installed"
+  Pop $hMode0
+  !insertmacro Strong $hMode0
+  ${NSD_CreateLabel} 12u 13u -12u 20u "Installs this version and lets you add things - ES-DE, emulators, drivers. Your accounts, settings and games are kept."
+  Pop $0
+  !insertmacro Muted $0
+
+  ${NSD_CreateRadioButton} 0 38u 100% 12u "Repair"
+  Pop $hMode1
+  !insertmacro Strong $hMode1
+  ${NSD_CreateLabel} 12u 51u -12u 36u "No questions: puts Luma Arcade's files, helper scripts, scheduled tasks, firewall rules and Sunshine's setup back as they should be, with your current choices, and downloads ES-DE or any emulator whose program has gone missing. Your accounts, settings, games and saves are kept."
+  Pop $0
+  !insertmacro Muted $0
+
+  ${NSD_CreateRadioButton} 0 92u 100% 12u "Uninstall"
+  Pop $hMode2
+  !insertmacro Strong $hMode2
+  ${NSD_CreateLabel} 12u 105u -12u 28u "Pick exactly what to remove: Luma Arcade, its accounts, Sunshine, ES-DE, single emulators, the drivers, the games account - or everything. Your games folder is only deleted if you tick it."
+  Pop $0
+  !insertmacro Muted $0
+
+  ${If} $Mode == 1
+    ${NSD_Check} $hMode1
+  ${ElseIf} $Mode == 2
+    ${NSD_Check} $hMode2
+  ${Else}
+    ${NSD_Check} $hMode0
+  ${EndIf}
+  nsDialogs::Show
+FunctionEnd
+
+!macro UnselectEmu SEC KEY FOLDER
+  !insertmacro UnselectSection ${SEC}
+!macroend
+
+Function MaintenanceLeave
+  StrCpy $Mode 0
+  ${NSD_GetState} $hMode1 $0
+  ${If} $0 == ${BST_CHECKED}
+    StrCpy $Mode 1
+  ${EndIf}
+  ${NSD_GetState} $hMode2 $0
+  ${If} $0 == ${BST_CHECKED}
+    StrCpy $Mode 2
+  ${EndIf}
+
+  ${If} $Mode == 2
+    ; This version's uninstaller (with the full "what to remove" list),
+    ; run in place for the install folder; Setup closes behind it.
+    WriteUninstaller "$PLUGINSDIR\Uninstall.exe"
+    HideWindow
+    ExecWait '"$PLUGINSDIR\Uninstall.exe" _?=$INSTDIR'
+    Quit
+  ${EndIf}
+
+  ${If} $Mode == 1
+    ; Repair: Luma Arcade and Sunshine's setup again, with the saved
+    ; choices; the games step only puts back what's missing.
+    !insertmacro Pick ${SEC_LUMA} 1
+    !insertmacro Pick ${SEC_SUNSHINE} 1
+    !insertmacro UnselectSection ${SEC_ESDE}
+    !insertmacro AllEmus UnselectEmu
+  ${EndIf}
+FunctionEnd
+
+
 ; ---------------------------------------------------------------- Windows edition
 Function WindowsPage
+  !insertmacro OnlyWhenChanging
   !insertmacro MUI_HEADER_TEXT "Which Windows is this?" "Windows Server needs a few extra fixes, which Setup can do."
   nsDialogs::Create 1018
   Pop $0
@@ -1067,6 +1172,7 @@ FunctionEnd
 
 ; ---------------------------------------------------------------- hardware
 Function HardwarePage
+  !insertmacro OnlyWhenChanging
   ; Without Sunshine none of this matters.
   ${IfNot} ${SectionIsSelected} ${SEC_SUNSHINE}
     StrCpy $WantVdd 0
@@ -1117,6 +1223,7 @@ FunctionEnd
 
 ; ---------------------------------------------------------------- controllers
 Function ControllersPage
+  !insertmacro OnlyWhenChanging
   ${IfNot} ${SectionIsSelected} ${SEC_SUNSHINE}
     StrCpy $WantVigem 0
     StrCpy $WantXusb 0
@@ -1208,6 +1315,7 @@ FunctionEnd
 
 ; ---------------------------------------------------------------- account
 Function AccountPage
+  !insertmacro OnlyWhenChanging
   ${IfNot} ${SectionIsSelected} ${SEC_LUMA}
     Abort
   ${EndIf}
@@ -1328,6 +1436,7 @@ FunctionEnd
 ; ---------------------------------------------------------------- admin
 ; Only on a fresh install: an upgrade keeps its accounts.
 Function AdminPage
+  !insertmacro OnlyWhenChanging
   ${IfNot} ${SectionIsSelected} ${SEC_LUMA}
   ${OrIf} ${FileExists} "$INSTDIR\moonlight-web-stream\server\data.json"
   ${OrIf} ${FileExists} "$PLUGINSDIR\admin.txt"
@@ -1379,6 +1488,7 @@ FunctionEnd
 
 ; ---------------------------------------------------------------- network
 Function NetworkPage
+  !insertmacro OnlyWhenChanging
   ${IfNot} ${SectionIsSelected} ${SEC_LUMA}
     Abort
   ${EndIf}
@@ -1419,6 +1529,7 @@ FunctionEnd
 
 ; ---------------------------------------------------------------- folders
 Function LumaDirPre
+  !insertmacro OnlyWhenChanging
   ${IfNot} ${SectionIsSelected} ${SEC_LUMA}
   ${OrIf} $IsUpgrade == 1
     Abort
@@ -1430,6 +1541,7 @@ FunctionEnd
 !macroend
 
 Function GamesDirPre
+  !insertmacro OnlyWhenChanging
   StrCpy $EmuList ""
   !insertmacro AllEmus EmuAny
   ${IfNot} ${SectionIsSelected} ${SEC_ESDE}
@@ -1479,12 +1591,163 @@ FunctionEnd
 
 ; ---------------------------------------------------------------- uninstall
 ; Silent: /REMOVEAUTOLOGON and /REMOVEACCOUNT (neither happens by default).
+; ---------------------------------------------------------------- uninstall
+; Two ready-made picks; anything else is "Custom".
+InstType "un.Just Luma Arcade"
+InstType "un.Everything (your games folder stays)"
+
+Section "un.Luma Arcade" UN_LUMA
+  SectionIn 1 2
+SectionEnd
+Section /o "un.Luma Arcade's accounts, settings and play history" UN_DATA
+  SectionIn 2
+SectionEnd
+Section /o "un.The games account" UN_ACCOUNT
+  SectionIn 2
+SectionEnd
+Section /o "un.Sunshine (with its settings and paired devices)" UN_SUNSHINE
+  SectionIn 2
+SectionEnd
+Section /o "un.ES-DE (your ROMs folder stays)" UN_ESDE
+  SectionIn 2
+SectionEnd
+SectionGroup "un.Emulators" UN_EMUS
+  Section /o "un.RetroArch" UN_RETROARCH
+    SectionIn 2
+  SectionEnd
+  Section /o "un.Dolphin" UN_DOLPHIN
+    SectionIn 2
+  SectionEnd
+  Section /o "un.PCSX2" UN_PCSX2
+    SectionIn 2
+  SectionEnd
+  Section /o "un.DuckStation" UN_DUCKSTATION
+    SectionIn 2
+  SectionEnd
+  Section /o "un.PPSSPP" UN_PPSSPP
+    SectionIn 2
+  SectionEnd
+  Section /o "un.RPCS3" UN_RPCS3
+    SectionIn 2
+  SectionEnd
+  Section /o "un.Xenia Canary" UN_XENIA
+    SectionIn 2
+  SectionEnd
+  Section /o "un.xemu" UN_XEMU
+    SectionIn 2
+  SectionEnd
+  Section /o "un.Cemu" UN_CEMU
+    SectionIn 2
+  SectionEnd
+  Section /o "un.Azahar" UN_AZAHAR
+    SectionIn 2
+  SectionEnd
+  Section /o "un.melonDS" UN_MELONDS
+    SectionIn 2
+  SectionEnd
+  Section /o "un.Vita3K" UN_VITA3K
+    SectionIn 2
+  SectionEnd
+  Section /o "un.Flycast" UN_FLYCAST
+    SectionIn 2
+  SectionEnd
+  Section /o "un.shadPS4 (PS4)" UN_SHADPS4
+    SectionIn 2
+  SectionEnd
+SectionGroupEnd
+Section /o "un.Virtual display driver" UN_VDD
+  SectionIn 2
+SectionEnd
+Section /o "un.ViGEmBus (virtual controllers)" UN_VIGEM
+  SectionIn 2
+SectionEnd
+Section /o "un.Your games folder: games, saves and BIOS files" UN_GAMES
+SectionEnd
+
+; Does the removing, in a safe order, once everything's been picked.
+Section "-un.Remove"
+  Call un.Remove
+SectionEnd
+
+!insertmacro MUI_UNFUNCTION_DESCRIPTION_BEGIN
+  !insertmacro MUI_DESCRIPTION_TEXT ${UN_LUMA} "The website, the streaming server, its helper scripts, scheduled tasks, firewall rules, the Cloudflare Tunnel Setup added, and its Start menu shortcuts."
+  !insertmacro MUI_DESCRIPTION_TEXT ${UN_DATA} "Everyone's Luma Arcade accounts, guest links, play history and settings, and the paired PCs. A copy goes to Documents\LumaArcade-backup first."
+  !insertmacro MUI_DESCRIPTION_TEXT ${UN_ACCOUNT} "The Windows account the games ran under, and everything in its user folder. It's signed out first, and no longer signs in by itself."
+  !insertmacro MUI_DESCRIPTION_TEXT ${UN_SUNSHINE} "Sunshine, the streaming host: the program, its settings, sign-in, paired devices and app pictures."
+  !insertmacro MUI_DESCRIPTION_TEXT ${UN_ESDE} "ES-DE, its desktop shortcut, and its settings, game lists and favorites in each account. Your ROMs folder is kept."
+  !insertmacro MUI_DESCRIPTION_TEXT ${UN_EMUS} "Each emulator goes with its settings and any saves kept in its own folder."
+  !insertmacro MUI_DESCRIPTION_TEXT ${UN_VDD} "The virtual screen Sunshine streams when no monitor is plugged in."
+  !insertmacro MUI_DESCRIPTION_TEXT ${UN_VIGEM} "The driver that turns players' controllers into Xbox or PlayStation pads on this PC. Other apps (like DS4Windows) may use it too."
+  !insertmacro MUI_DESCRIPTION_TEXT ${UN_GAMES} "Deletes the whole games folder: your games (ROMs), saves, BIOS files, ES-DE and the emulators. Can't be undone."
+!insertmacro MUI_UNFUNCTION_DESCRIPTION_END
+
+
+; Takes a component off the list (this PC doesn't have it).
+!macro UnHide SEC
+  SectionSetText ${SEC} ""
+  SectionSetInstTypes ${SEC} 0
+  !insertmacro UnselectSection ${SEC}
+!macroend
+
+!macro UnAllEmus MACRO
+  !insertmacro ${MACRO} ${UN_RETROARCH} "retroarch" "RetroArch-Win64"
+  !insertmacro ${MACRO} ${UN_DOLPHIN} "dolphin" "Dolphin-x64"
+  !insertmacro ${MACRO} ${UN_PCSX2} "pcsx2" "PCSX2-Qt"
+  !insertmacro ${MACRO} ${UN_DUCKSTATION} "duckstation" "duckstation"
+  !insertmacro ${MACRO} ${UN_PPSSPP} "ppsspp" "PPSSPP"
+  !insertmacro ${MACRO} ${UN_RPCS3} "rpcs3" "RPCS3"
+  !insertmacro ${MACRO} ${UN_XENIA} "xenia" "xenia_canary"
+  !insertmacro ${MACRO} ${UN_XEMU} "xemu" "xemu"
+  !insertmacro ${MACRO} ${UN_CEMU} "cemu" "cemu"
+  !insertmacro ${MACRO} ${UN_AZAHAR} "azahar" "azahar"
+  !insertmacro ${MACRO} ${UN_MELONDS} "melonds" "melonDS"
+  !insertmacro ${MACRO} ${UN_VITA3K} "vita3k" "Vita3K"
+  !insertmacro ${MACRO} ${UN_FLYCAST} "flycast" "flycast"
+  !insertmacro ${MACRO} ${UN_SHADPS4} "shadps4" "shadPS4"
+!macroend
+
+; An emulator in the games folder stays listed ($Str1 counts them).
+!macro UnHideAbsent SEC KEY FOLDER
+  StrCpy $R7 0
+  ${If} $UnGamesDir != ""
+    ${If} ${FileExists} "$UnGamesDir\ES-DE\Emulators\${FOLDER}\*.*"
+      StrCpy $R7 1
+    ${ElseIf} ${FileExists} "$UnGamesDir\Emulators\${FOLDER}\*.*"
+      StrCpy $R7 1
+    ${EndIf}
+  ${EndIf}
+  ${If} $R7 == 1
+    IntOp $Str1 $Str1 + 1
+  ${Else}
+    !insertmacro UnHide ${SEC}
+  ${EndIf}
+!macroend
+
+!macro UnCountSelected SEC KEY FOLDER
+  ${If} ${SectionIsSelected} ${SEC}
+    StrCpy $0 1
+  ${EndIf}
+!macroend
+
+!macro UnAnySelected
+  StrCpy $0 0
+  !insertmacro UnAllEmus UnCountSelected
+  !insertmacro UnCountSelected ${UN_LUMA} "" ""
+  !insertmacro UnCountSelected ${UN_DATA} "" ""
+  !insertmacro UnCountSelected ${UN_ACCOUNT} "" ""
+  !insertmacro UnCountSelected ${UN_SUNSHINE} "" ""
+  !insertmacro UnCountSelected ${UN_ESDE} "" ""
+  !insertmacro UnCountSelected ${UN_VDD} "" ""
+  !insertmacro UnCountSelected ${UN_VIGEM} "" ""
+  !insertmacro UnCountSelected ${UN_GAMES} "" ""
+!macroend
+
 Function un.onInit
   SetRegView 64
   ReadRegStr $UnAccount HKLM "${SETTINGS_KEY}" "Account"
   ReadRegDWORD $UnSeparate HKLM "${SETTINGS_KEY}" "SeparateAccount"
+  ReadRegStr $UnGamesDir HKLM "${SETTINGS_KEY}" "GamesDir"
   StrCpy $UnAutoLogon 1
-  StrCpy $UnRemoveAccount 0
   ${If} ${Silent}
     StrCpy $UnAutoLogon 0
     ${GetParameters} $0
@@ -1496,124 +1759,198 @@ Function un.onInit
     ClearErrors
     ${GetOptions} $0 "/REMOVEACCOUNT" $1
     ${IfNot} ${Errors}
-      StrCpy $UnRemoveAccount 1
+      !insertmacro SelectSection ${UN_ACCOUNT}
     ${EndIf}
   ${EndIf}
+
+  ; Only what this PC has is listed.
+  ${IfNot} ${FileExists} "$INSTDIR\server\luma-arcade.db"
+    !insertmacro UnHide ${UN_DATA}
+  ${EndIf}
+  ${If} $UnSeparate == 1
+  ${AndIf} $UnAccount != ""
+    SectionSetText ${UN_ACCOUNT} "The Windows account $UnAccount and its files"
+  ${Else}
+    !insertmacro UnHide ${UN_ACCOUNT}
+  ${EndIf}
+  ClearErrors
+  ReadRegStr $0 HKLM "SYSTEM\CurrentControlSet\Services\SunshineService" "ImagePath"
+  ${If} ${Errors}
+    !insertmacro UnHide ${UN_SUNSHINE}
+  ${EndIf}
+  ClearErrors
+  ReadRegStr $0 HKLM "SYSTEM\CurrentControlSet\Services\ViGEmBus" "ImagePath"
+  ${If} ${Errors}
+    !insertmacro UnHide ${UN_VIGEM}
+  ${EndIf}
+  ; The virtual display is a user-mode driver with no service of its own:
+  ; ask Windows for its device.
+  nsExec::ExecToStack `"${POWERSHELL}" -NoProfile -Command "[int][bool](Get-CimInstance Win32_PnPEntity | Where-Object { $$_.HardwareID -contains 'Root\MttVDD' })"`
+  Pop $0
+  Pop $1
+  StrCpy $1 $1 1
+  ${If} $1 != "1"
+  ${AndIfNot} ${FileExists} "C:\VirtualDisplayDriver\*.*"
+    !insertmacro UnHide ${UN_VDD}
+  ${EndIf}
+  ${If} $UnGamesDir == ""
+  ${OrIfNot} ${FileExists} "$UnGamesDir\*.*"
+    StrCpy $UnGamesDir ""
+    !insertmacro UnHide ${UN_GAMES}
+  ${EndIf}
+  ${IfNot} ${FileExists} "$UnGamesDir\ES-DE\ES-DE.exe"
+  ${OrIf} $UnGamesDir == ""
+    !insertmacro UnHide ${UN_ESDE}
+  ${EndIf}
+  StrCpy $Str1 0
+  !insertmacro UnAllEmus UnHideAbsent
+  ${If} $Str1 == 0
+    SectionSetText ${UN_EMUS} ""
+  ${EndIf}
 FunctionEnd
 
-Function un.OptionsPage
-  ${If} $UnSeparate != 1
-  ${OrIf} $UnAccount == ""
+; Ticking your games folder or the games account deletes things that can't
+; come back: ask first.
+Function un.ComponentsLeave
+  !insertmacro UnAnySelected
+  ${If} $0 == 0
+    MessageBox MB_ICONINFORMATION "Tick at least one thing to remove." /SD IDOK
     Abort
   ${EndIf}
-  !insertmacro MUI_HEADER_TEXT "The games account" "Luma Arcade ran its games under the Windows account $UnAccount."
-  nsDialogs::Create 1018
-  Pop $0
-  ${NSD_CreateCheckbox} 0 0 100% 12u "Stop signing $UnAccount in automatically when the PC starts"
-  Pop $hUnAutoLogon
-  ${If} $UnAutoLogon == 1
-    ${NSD_Check} $hUnAutoLogon
-  ${EndIf}
-  ${NSD_CreateCheckbox} 0 20u 100% 12u "Delete the $UnAccount account and everything in its user folder"
-  Pop $hUnRemoveAccount
-  ${NSD_CreateLabel} 12u 34u -12u 40u "Its desktop, documents and any game settings or saves kept in its profile are deleted for good. Your games folder isn't touched. If it's signed in, it's signed out first."
-  Pop $0
-  !insertmacro Muted $0
-  nsDialogs::Show
-FunctionEnd
-
-Function un.OptionsLeave
-  ${NSD_GetState} $hUnAutoLogon $0
-  StrCpy $UnAutoLogon 0
-  ${If} $0 == ${BST_CHECKED}
-    StrCpy $UnAutoLogon 1
-  ${EndIf}
-  ${NSD_GetState} $hUnRemoveAccount $0
-  StrCpy $UnRemoveAccount 0
-  ${If} $0 == ${BST_CHECKED}
-    MessageBox MB_YESNO|MB_ICONEXCLAMATION "Delete the $UnAccount account and its files? This can't be undone." IDYES +2
+  ${If} ${SectionIsSelected} ${UN_GAMES}
+    MessageBox MB_YESNO|MB_ICONEXCLAMATION|MB_DEFBUTTON2 "Delete EVERYTHING in $UnGamesDir - your games, saves, BIOS files, ES-DE and the emulators? This can't be undone." /SD IDYES IDYES +2
     Abort
-    StrCpy $UnRemoveAccount 1
+  ${EndIf}
+  ${If} ${SectionIsSelected} ${UN_ACCOUNT}
+    MessageBox MB_YESNO|MB_ICONEXCLAMATION|MB_DEFBUTTON2 "Delete the Windows account $UnAccount and everything in its user folder (desktop, documents, game settings and saves kept there)? This can't be undone." /SD IDYES IDYES +2
+    Abort
   ${EndIf}
 FunctionEnd
 
-Section "Uninstall"
+!macro UnEmuArg SEC KEY FOLDER
+  ${If} ${SectionIsSelected} ${SEC}
+    StrCpy $Str2 "$Str2${KEY},"
+  ${EndIf}
+!macroend
+
+Function un.Remove
   SetRegView 64
-  nsExec::Exec 'schtasks.exe /end /tn "\LumaArcade\LumaArcade"'
-  Pop $0
-  ; Everything running from the install folder, so its files can go.
-  nsExec::Exec `"${POWERSHELL}" -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $$_.ExecutablePath -like '$INSTDIR\*' -and $$_.Name -ne 'cloudflared.exe' } | ForEach-Object { Stop-Process -Id $$_.ProcessId -Force }"`
-  Pop $0
+  InitPluginsDir
+  SetOutPath "$PLUGINSDIR\scripts"
+  File "scripts\common.ps1"
+  File "scripts\catalog.ps1"
+  File "scripts\versions.json"
+  File "scripts\uninstall-host.ps1"
+  File "scripts\remove.ps1"
+  SetOutPath "$TEMP"
+
+  ${If} ${SectionIsSelected} ${UN_LUMA}
+    nsExec::Exec 'schtasks.exe /end /tn "\LumaArcade\LumaArcade"'
+    Pop $0
+    ; Everything running from the install folder, so its files can go.
+    nsExec::Exec `"${POWERSHELL}" -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $$_.ExecutablePath -like '$INSTDIR\*' -and $$_.Name -ne 'cloudflared.exe' } | ForEach-Object { Stop-Process -Id $$_.ProcessId -Force }"`
+    Pop $0
+  ${EndIf}
 
   ; The PC-side setup: tasks, helper scripts, Sunshine prep-cmds, ES-DE
-  ; event scripts, the tunnel, and what was ticked on the options page.
+  ; event scripts, the tunnel - and the games account, when it's ticked.
   StrCpy $1 '-LumaDir "$INSTDIR"'
   ${If} $UnSeparate == 1
   ${AndIf} $UnAccount != ""
     StrCpy $1 '$1 -Account "$UnAccount"'
     ${If} $UnAutoLogon == 1
+    ${OrIf} ${SectionIsSelected} ${UN_ACCOUNT}
       StrCpy $1 "$1 -RemoveAutoLogon"
     ${EndIf}
-    ${If} $UnRemoveAccount == 1
+    ${If} ${SectionIsSelected} ${UN_ACCOUNT}
       StrCpy $1 "$1 -RemoveAccount"
     ${EndIf}
   ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\setup\uninstall-host.ps1"
-    nsExec::ExecToLog '"${POWERSHELL}" -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\setup\uninstall-host.ps1" $1'
+  ${If} ${SectionIsSelected} ${UN_LUMA}
+    nsExec::ExecToLog '"${POWERSHELL}" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\scripts\uninstall-host.ps1" $1'
     Pop $0
-  ${Else}
-    nsExec::Exec 'schtasks.exe /delete /tn "\LumaArcade\LumaArcade" /f'
+  ${ElseIf} ${SectionIsSelected} ${UN_ACCOUNT}
+    nsExec::ExecToLog '"${POWERSHELL}" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\scripts\uninstall-host.ps1" $1 -AccountOnly'
     Pop $0
   ${EndIf}
-  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "LumaArcade"
-  nsExec::Exec `"${POWERSHELL}" -NoProfile -Command "Remove-NetFirewallRule -DisplayName 'Luma Arcade*' -ErrorAction SilentlyContinue"`
-  Pop $0
-  DeleteRegKey HKLM "${UNINST_KEY}"
-  DeleteRegKey HKLM "${SETTINGS_KEY}"
 
-  SetShellVarContext all
-  Delete "$SMPROGRAMS\${APP_TITLE}\${APP_TITLE}.lnk"
-  Delete "$SMPROGRAMS\${APP_TITLE}\Uninstall ${APP_TITLE}.lnk"
-  RMDir "$SMPROGRAMS\${APP_TITLE}"
+  ${If} ${SectionIsSelected} ${UN_LUMA}
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "LumaArcade"
+    nsExec::Exec `"${POWERSHELL}" -NoProfile -Command "Remove-NetFirewallRule -DisplayName 'Luma Arcade*' -ErrorAction SilentlyContinue"`
+    Pop $0
+    DeleteRegKey HKLM "${UNINST_KEY}"
+    DeleteRegKey HKLM "${SETTINGS_KEY}"
+    SetShellVarContext all
+    RMDir /r "$SMPROGRAMS\${APP_TITLE}"
 
-  ; /SD IDYES: under a silent uninstall (/S) there's no one to click the box,
-  ; so default to the safe choice (keep data).
-  IfFileExists "$INSTDIR\server\luma-arcade.db" 0 keepdata
-    MessageBox MB_YESNO|MB_ICONQUESTION "Keep your Luma Arcade accounts and settings?" /SD IDYES IDYES keepdata
-    ; Backed up to Documents either way - a deleted database can't come back.
-    CreateDirectory "$DOCUMENTS\LumaArcade-backup"
-    CopyFiles /SILENT "$INSTDIR\server\luma-arcade.db*" "$DOCUMENTS\LumaArcade-backup\"
-    CopyFiles /SILENT "$INSTDIR\moonlight-web-stream\server\data.json" "$DOCUMENTS\LumaArcade-backup\"
-    Delete "$INSTDIR\server\luma-arcade.db"
-    Delete "$INSTDIR\server\luma-arcade.db-wal"
-    Delete "$INSTDIR\server\luma-arcade.db-shm"
-    Delete "$INSTDIR\moonlight-web-stream\server\data.json"
-    Delete "$INSTDIR\moonlight-web-stream\server\config.json"
-    Delete "$INSTDIR\server\https.json"
-    RMDir /r "$INSTDIR\server\https"
-  keepdata:
+    ${If} ${SectionIsSelected} ${UN_DATA}
+      ; Backed up to Documents first - a deleted database can't come back.
+      CreateDirectory "$DOCUMENTS\LumaArcade-backup"
+      CopyFiles /SILENT "$INSTDIR\server\luma-arcade.db*" "$DOCUMENTS\LumaArcade-backup\"
+      CopyFiles /SILENT "$INSTDIR\moonlight-web-stream\server\data.json" "$DOCUMENTS\LumaArcade-backup\"
+      ; Nothing of Luma Arcade's is kept: the whole folder goes.
+      RMDir /r "$INSTDIR"
+    ${Else}
+      RMDir /r "$INSTDIR\server\dist"
+      RMDir /r "$INSTDIR\server\assets"
+      RMDir /r "$INSTDIR\server\node_modules"
+      Delete "$INSTDIR\server\package.json"
+      Delete "$INSTDIR\server\package-lock.json"
+      Delete "$INSTDIR\server\*.log"
+      RMDir /r "$INSTDIR\moonlight-web-stream\static"
+      Delete "$INSTDIR\moonlight-web-stream\*.exe"
+      Delete "$INSTDIR\moonlight-web-stream\*.log"
+      Delete "$INSTDIR\moonlight-web-stream\server\config.default.json"
+      Delete "$INSTDIR\moonlight-web-stream\server\turn_ice_script.*"
+      RMDir "$INSTDIR\moonlight-web-stream\server"
+      RMDir "$INSTDIR\moonlight-web-stream"
+      RMDir /r "$INSTDIR\host"
+      RMDir /r "$INSTDIR\setup"
+      RMDir /r "$INSTDIR\cloudflared"
+      Delete "$INSTDIR\node.exe"
+      Delete "$INSTDIR\LumaArcade.vbs"
+      Delete "$INSTDIR\NEXT-STEPS.txt"
+      Delete "$INSTDIR\Uninstall.exe"
+      RMDir "$INSTDIR\server"
+      RMDir "$INSTDIR"
+    ${EndIf}
+  ${EndIf}
 
-  RMDir /r "$INSTDIR\server\dist"
-  RMDir /r "$INSTDIR\server\assets"
-  RMDir /r "$INSTDIR\server\node_modules"
-  Delete "$INSTDIR\server\package.json"
-  Delete "$INSTDIR\server\package-lock.json"
-  RMDir /r "$INSTDIR\moonlight-web-stream\static"
-  Delete "$INSTDIR\moonlight-web-stream\*.exe"
-  Delete "$INSTDIR\moonlight-web-stream\*.log"
-  Delete "$INSTDIR\moonlight-web-stream\server\config.default.json"
-  Delete "$INSTDIR\moonlight-web-stream\server\turn_ice_script.*"
-  RMDir "$INSTDIR\moonlight-web-stream\server"
-  RMDir "$INSTDIR\moonlight-web-stream"
-  RMDir /r "$INSTDIR\host"
-  RMDir /r "$INSTDIR\setup"
-  RMDir /r "$INSTDIR\cloudflared"
-  Delete "$INSTDIR\node.exe"
-  Delete "$INSTDIR\LumaArcade.vbs"
-  Delete "$INSTDIR\NEXT-STEPS.txt"
-  Delete "$INSTDIR\Uninstall.exe"
-  RMDir "$INSTDIR\server"
-  RMDir "$INSTDIR"
+  ; Everything else Setup installed (remove.ps1).
+  StrCpy $1 ""
+  ${If} ${SectionIsSelected} ${UN_SUNSHINE}
+    StrCpy $1 "$1 -Sunshine"
+  ${EndIf}
+  ${If} ${SectionIsSelected} ${UN_ESDE}
+    StrCpy $1 "$1 -EsDe"
+  ${EndIf}
+  ${If} ${SectionIsSelected} ${UN_VDD}
+    StrCpy $1 "$1 -VirtualDisplay"
+  ${EndIf}
+  ${If} ${SectionIsSelected} ${UN_VIGEM}
+    StrCpy $1 "$1 -ViGEm"
+  ${EndIf}
+  ${If} ${SectionIsSelected} ${UN_GAMES}
+    StrCpy $1 "$1 -Games"
+  ${EndIf}
+  StrCpy $Str2 ""
+  !insertmacro UnAllEmus UnEmuArg
+  ${If} $Str2 != ""
+    StrCpy $1 '$1 -Emulators "$Str2"'
+  ${EndIf}
+  ${If} $1 != ""
+    ${If} $UnGamesDir != ""
+      StrCpy $1 '$1 -GamesDir "$UnGamesDir"'
+    ${EndIf}
+    nsExec::ExecToLog '"${POWERSHELL}" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\scripts\remove.ps1" $1'
+    Pop $0
+    ${If} $0 != 0
+      MessageBox MB_ICONEXCLAMATION|MB_OK "Some of it couldn't be removed - see the details list." /SD IDOK
+    ${EndIf}
+  ${EndIf}
 
-  MessageBox MB_ICONINFORMATION "Luma Arcade is removed. Sunshine, the drivers, ES-DE, the emulators and your games folder were left in place - remove them yourself if you don't need them." /SD IDOK
-SectionEnd
+  ${If} ${SectionIsSelected} ${UN_LUMA}
+  ${AndIfNot} ${SectionIsSelected} ${UN_GAMES}
+    MessageBox MB_ICONINFORMATION "Luma Arcade is removed. Anything you didn't tick (and your games folder) was left in place." /SD IDOK
+  ${EndIf}
+FunctionEnd
