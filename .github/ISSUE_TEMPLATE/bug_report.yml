@@ -32,7 +32,7 @@ body:
       label: Where were you playing from?
       options:
         - The same home network as the PC
-        - Away from home (through the Cloudflare Tunnel)
+        - Away from home
         - On the PC itself
     validations:
       required: true

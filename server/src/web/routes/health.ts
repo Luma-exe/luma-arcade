@@ -6,11 +6,12 @@ import { promisify } from "node:util";
 import { getSetting } from "../../config/settings.js";
 import { moonlightProcess } from "../../remote/moonlightWebStream.js";
 import { playerStream, status as sessionStatus } from "../sessions.js";
-import { requireAdmin } from "../streamUser.js";
+import { requireAdmin, streamUser } from "../streamUser.js";
+import { requireAuth } from "../session.js";
 import { HOME_SCRIPT, HOME_TASK } from "./home.js";
 import { SUNSHINE_HTTPS_PORT, sunshineHttps } from "../sunshine.js";
 import { getActiveInput } from "./input.js";
-import { diagnosticsReport } from "../diagnostics.js";
+import { diagnosticsReport, redact } from "../diagnostics.js";
 import { IMPORT_PC_GAMES, checkPcGames, importPcGames } from "../pcGames.js";
 import { IS_WINDOWS, dataPath } from "../../platform.js";
 import { LINUX_DISKS, LINUX_SUNSHINE_CONFIG_DIR, earlyTestingCheck, encoderCheckLinux, restartSunshineLinux, sunshineRunningLinux, uinputCheck } from "../linuxHost.js";
@@ -637,6 +638,13 @@ async function linuxHostChecks(): Promise<HealthCheck[]> {
   return [earlyTestingCheck(), checkStream(), ...sunshine, moonlight, encoder, uinputCheck(), checkDiskSpace()];
 }
 
+/** What a player sees on Host health: admins get it all, everyone else gets
+ * the checks with names and addresses taken out (like Copy diagnostics). */
+export function checksFor(checks: HealthCheck[], admin: boolean, names?: string[]): HealthCheck[] {
+  if (admin) return checks;
+  return checks.map((c) => ({ ...c, label: redact(c.label, names), detail: redact(c.detail, names) }));
+}
+
 export async function registerHealthRoutes(app: FastifyInstance) {
   // For uptime monitors (the glitch-dashboard checks every 15 s): cheap, no
   // sign-in, and kept out of the log - loading the whole arcade page for
@@ -646,10 +654,15 @@ export async function registerHealthRoutes(app: FastifyInstance) {
     return reply.code(stream ? 200 : 503).send({ ok: stream });
   });
 
-  app.get("/api/health/host", { preHandler: requireAdmin }, async () => ({ checks: await hostChecks() }));
+  // Everyone signed in can look (and copy diagnostics for a bug report);
+  // only admins can press the fixes, and only admins see names and addresses.
+  app.get("/api/health/host", { preHandler: requireAuth }, async (req) => {
+    const admin = !!(await streamUser(req))?.admin;
+    return { checks: checksFor(await hostChecks(), admin), canFix: admin };
+  });
 
   /** Host health's "Copy diagnostics": text to paste into a GitHub issue. */
-  app.get("/api/health/diagnostics", { preHandler: requireAdmin }, async () => ({ text: await diagnosticsReport(hostChecks) }));
+  app.get("/api/health/diagnostics", { preHandler: requireAuth }, async () => ({ text: await diagnosticsReport(hostChecks) }));
 
   // Fixes offered next to a check (HealthCheck.action).
   app.post<{ Params: { id: string } }>("/api/health/action/:id", { preHandler: requireAdmin }, async (req, reply) => {
