@@ -19,8 +19,22 @@ InstallDir "$PROGRAMFILES64\${APP_NAME}"
 ; Admin: Sunshine, Windows accounts, drivers, the Server fixes and the
 ; shared games folder all need it.
 RequestExecutionLevel admin
-ShowInstDetails show
-ShowUninstDetails show
+ShowInstDetails hide
+ShowUninstDetails hide
+
+; ---------------------------------------------------------------- look
+; Current Windows controls (not the Windows 95 ones), sharp on high-DPI
+; screens, in Windows' own font. The artwork comes from art\make-art.ps1.
+XPStyle on
+ManifestDPIAware true
+ManifestSupportedOS all
+SetFont "Segoe UI" 9
+BrandingText " "
+; The website's colours (server/src/web/pages/howitworks.html).
+!define NAVY 0B1730      ; page header (art\header.bmp's background)
+!define INK 10233B       ; text
+!define MUTED 5B6B80     ; explanations under an option
+!define SOFT_BLUE A9C4EA ; the header's second line
 
 !include "MUI2.nsh"
 !include "nsDialogs.nsh"
@@ -30,6 +44,20 @@ ShowUninstDetails show
 !include "FileFunc.nsh"
 
 !define MUI_ABORTWARNING
+!define MUI_ICON "art\setup.ico"
+!define MUI_UNICON "art\setup.ico"
+!define MUI_HEADERIMAGE
+!define MUI_HEADERIMAGE_RIGHT
+!define MUI_HEADERIMAGE_BITMAP "art\header.bmp"
+!define MUI_HEADERIMAGE_UNBITMAP "art\header.bmp"
+!define MUI_WELCOMEFINISHPAGE_BITMAP "art\side.bmp"
+!define MUI_UNWELCOMEFINISHPAGE_BITMAP "art\side.bmp"
+; Welcome and finish pages: white, like the pages in between.
+!define MUI_BGCOLOR FFFFFF
+!define MUI_TEXTCOLOR ${INK}
+!define MUI_COMPONENTSPAGE_SMALLDESC
+!define MUI_CUSTOMFUNCTION_GUIINIT StyleWindow
+!define MUI_CUSTOMFUNCTION_UNGUIINIT un.StyleWindow
 
 ; ---------------------------------------------------------------- state
 Var SetupType        ; 0 = everything (streaming), 1 = ES-DE + emulators, 2 = emulators only
@@ -99,8 +127,9 @@ Var hUnAutoLogon
 Var hUnRemoveAccount
 
 ; ---------------------------------------------------------------- pages
-!define MUI_WELCOMEPAGE_TITLE "Welcome to ${APP_TITLE} Setup"
-!define MUI_WELCOMEPAGE_TEXT "Luma Arcade turns this PC into a game console you can play from any web browser - on your TV, laptop or phone, at home or away.$\r$\n$\r$\nYou don't have to install all of it. The next page lets you pick:$\r$\n  - everything, for streaming games to a browser,$\r$\n  - just ES-DE and emulators, to play on this PC, or$\r$\n  - just the emulators.$\r$\n$\r$\nEmulators and ES-DE are downloaded from their official releases (versions tested with Luma Arcade), so this PC needs to be online.$\r$\n$\r$\nAlready installed? Setup upgrades it and keeps your accounts, settings and games.$\r$\n$\r$\nClick Next to continue."
+!define MUI_WELCOMEPAGE_TITLE "Welcome to ${APP_TITLE}"
+!define MUI_WELCOMEPAGE_TEXT "Turn this PC into a game console you can play from any web browser - on your TV, laptop or phone, at home or away.$\r$\n$\r$\nNext, pick what to install: everything for streaming, just ES-DE and the emulators to play on this PC, or only the emulators.$\r$\n$\r$\nES-DE and the emulators are downloaded from their official releases (versions tested with Luma Arcade), so this PC needs to be online.$\r$\n$\r$\nAlready installed? Setup upgrades it and keeps your accounts, settings and games."
+!define MUI_PAGE_CUSTOMFUNCTION_SHOW WelcomeShow
 !insertmacro MUI_PAGE_WELCOME
 Page custom SetupTypePage SetupTypeLeave
 !define MUI_PAGE_CUSTOMFUNCTION_PRE ComponentsPre
@@ -127,6 +156,7 @@ Page custom NetworkPage NetworkLeave
 
 !insertmacro MUI_PAGE_INSTFILES
 
+!define MUI_FINISHPAGE_TITLE "You're all set"
 !define MUI_FINISHPAGE_TEXT "Setup is done. The next steps (signing in, playing from other devices, where games and BIOS files go) are in the file below."
 !define MUI_FINISHPAGE_SHOWREADME ""
 !define MUI_FINISHPAGE_SHOWREADME_TEXT "Show the next steps"
@@ -142,6 +172,48 @@ UninstPage custom un.OptionsPage un.OptionsLeave
 !insertmacro MUI_UNPAGE_INSTFILES
 
 !insertmacro MUI_LANGUAGE "English"
+
+; ---------------------------------------------------------------- styling
+Var FontStrong       ; an option's name
+Var FontHeader       ; the page header's title
+Var FontWelcome      ; the welcome and finish pages' title
+
+; A navy header with white text, without the lines and the empty branding
+; line around it. Runs once, when the window opens.
+!macro StyleWindow
+  CreateFont $FontStrong "Segoe UI Semibold" 9 600
+  CreateFont $FontHeader "Segoe UI Semibold" 10 600
+  CreateFont $FontWelcome "Segoe UI Semibold" 15 600
+  SetCtlColors $mui.Header.Background "" ${NAVY}
+  SetCtlColors $mui.Header.Image "" ${NAVY}
+  SetCtlColors $mui.Header.Text FFFFFF ${NAVY}
+  SetCtlColors $mui.Header.SubText ${SOFT_BLUE} ${NAVY}
+  SendMessage $mui.Header.Text ${WM_SETFONT} $FontHeader 1
+  GetDlgItem $0 $HWNDPARENT 1035 ; the line under the header
+  ShowWindow $0 ${SW_HIDE}
+  GetDlgItem $0 $HWNDPARENT 1028 ; branding text
+  ShowWindow $0 ${SW_HIDE}
+  GetDlgItem $0 $HWNDPARENT 1256 ; branding text's shadow
+  ShowWindow $0 ${SW_HIDE}
+!macroend
+Function StyleWindow
+  !insertmacro StyleWindow
+FunctionEnd
+Function un.StyleWindow
+  !insertmacro StyleWindow
+FunctionEnd
+
+; An option's name in semibold, and the explanation under it in grey.
+!macro Strong HWND
+  SendMessage ${HWND} ${WM_SETFONT} $FontStrong 1
+!macroend
+!macro Muted HWND
+  SetCtlColors ${HWND} ${MUTED} transparent
+!macroend
+
+Function WelcomeShow
+  SendMessage $mui.WelcomePage.Title ${WM_SETFONT} $FontWelcome 1
+FunctionEnd
 
 ; ---------------------------------------------------------------- helpers
 !macro RunPs SCRIPT ARGS
@@ -802,18 +874,24 @@ Function SetupTypePage
 
   ${NSD_CreateRadioButton} 0 0 100% 12u "Everything: stream games to a web browser (recommended)"
   Pop $hType0
+  !insertmacro Strong $hType0
   ${NSD_CreateLabel} 12u 13u -12u 26u "Luma Arcade + Sunshine + ES-DE + emulators. Play this PC's games from a browser on any device, share it with friends, with sign-in, play time limits and co-op."
   Pop $0
+  !insertmacro Muted $0
 
   ${NSD_CreateRadioButton} 0 44u 100% 12u "ES-DE and emulators: play on this PC"
   Pop $hType1
+  !insertmacro Strong $hType1
   ${NSD_CreateLabel} 12u 57u -12u 26u "A console-style game library for this PC, with a TV and controller. No streaming: no Sunshine, no website."
   Pop $0
+  !insertmacro Muted $0
 
   ${NSD_CreateRadioButton} 0 88u 100% 12u "Just the emulators"
   Pop $hType2
+  !insertmacro Strong $hType2
   ${NSD_CreateLabel} 12u 101u -12u 26u "Only the emulators, in one folder with Start menu shortcuts. For people who already use another front-end (or none)."
   Pop $0
+  !insertmacro Muted $0
 
   ${If} $SetupType == 1
     ${NSD_Check} $hType1
@@ -905,8 +983,10 @@ Function WindowsPage
   ${EndIf}
   ${NSD_CreateRadioButton} 0 0 100% 12u "Windows 10 or 11 (Home, Pro)$1"
   Pop $hClient
+  !insertmacro Strong $hClient
   ${NSD_CreateRadioButton} 0 13u 100% 12u "Windows Server (2019, 2022, 2025)$2"
   Pop $hServer
+  !insertmacro Strong $hServer
   ${If} $IsServer == 1
     ${NSD_Check} $hServer
   ${Else}
@@ -915,6 +995,7 @@ Function WindowsPage
 
   ${NSD_CreateLabel} 0 30u 100% 108u "Most people should use normal Windows 10 or 11. Windows Server is worth it for a PC that does nothing but host games, 24/7: it doesn't force feature updates or restart on its own, has no ads or consumer apps running in the background, lets several people be signed in at once over Remote Desktop, and can give virtual machines a slice of the graphics card (GPU partitioning) for more players at once.$\r$\n$\r$\nThe catch: its sound is switched off, it has no Xbox 360 controller driver (so players' controllers can't reach games as Xbox pads), some games' anti-cheat and Microsoft Store / Game Pass games won't run, and it costs more to license. On Server, Setup turns the sound on, and a later page offers the controller drivers: Xbox 360, or PlayStation 4 controllers, which work without it."
   Pop $0
+  !insertmacro Muted $0
   nsDialogs::Show
 FunctionEnd
 
@@ -943,9 +1024,13 @@ Function HardwarePage
     ${NSD_CreateLabel} 0 0 100% 28u "WARNING: no NVIDIA, AMD or Intel graphics found. Sunshine would have to encode the video on the processor: slow, laggy, and not enough for more than one player. A graphics card (or a processor with Intel graphics) is strongly recommended."
   ${EndIf}
   Pop $0
+  ${If} $HwEncoder == ""
+    SetCtlColors $0 B45309 transparent
+  ${EndIf}
 
   ${NSD_CreateCheckbox} 0 34u 100% 12u "Install a virtual display (for a PC with no monitor plugged in)"
   Pop $hVdd
+  !insertmacro Strong $hVdd
   ${If} $HwVdd == 1
     ${NSD_SetText} $hVdd "Virtual display: already installed"
     EnableWindow $hVdd 0
@@ -959,6 +1044,7 @@ Function HardwarePage
   ${EndIf}
   ${NSD_CreateLabel} 12u 47u -12u 26u "$1Sunshine can only stream a screen that's switched on. The virtual display (Virtual Display Driver) gives it one, and switches to each player's own size and frame rate."
   Pop $0
+  !insertmacro Muted $0
   nsDialogs::Show
 FunctionEnd
 
@@ -987,20 +1073,25 @@ Function ControllersPage
   Pop $0
   ${NSD_CreateRadioButton} 0 22u 100% 12u "Xbox 360 controllers (recommended)"
   Pop $hPadX360
+  !insertmacro Strong $hPadX360
   ${NSD_CreateLabel} 12u 34u -12u 10u "Work in nearly every PC game and emulator. They need the Xbox 360 driver below."
   Pop $0
+  !insertmacro Muted $0
   ${NSD_CreateRadioButton} 0 46u 100% 12u "PlayStation 4 controllers (DualShock 4)"
   Pop $hPadDs4
+  !insertmacro Strong $hPadDs4
   ${NSD_CreateLabel} 12u 58u -12u 18u "PlayStation button prompts, touchpad and motion where games support them, and no Xbox 360 driver needed. Xbox-only PC games won't see them."
   Pop $0
+  !insertmacro Muted $0
   ${If} $Ds4 == 1
     ${NSD_Check} $hPadDs4
   ${Else}
     ${NSD_Check} $hPadX360
   ${EndIf}
 
-  ${NSD_CreateLabel} 0 82u 100% 10u "Controller drivers:"
+  ${NSD_CreateLabel} 0 82u 100% 10u "Controller drivers"
   Pop $0
+  !insertmacro Strong $0
   ${NSD_CreateCheckbox} 0 93u 100% 18u "Install ViGEmBus, the virtual controller driver (needed for either kind; Sunshine may already have added it)"
   Pop $hVigem
   ${If} $HwVigem == 1
@@ -1066,11 +1157,12 @@ Function AccountPage
   nsDialogs::Create 1018
   Pop $0
 
-  ${NSD_CreateLabel} 0 0 100% 42u "Anyone who streams from this PC sees and controls that account's desktop: whatever is open on it, its files, its browser sessions and saved passwords. A separate account has only the games on it and can't change the PC, so your own account stays private. It can also sign in by itself when the PC starts - Sunshine can only stream a signed-in desktop - without leaving your own account signed in."
+  ${NSD_CreateLabel} 0 0 100% 42u "Anyone streaming from this PC sees and controls that account's desktop: its open windows, files and saved passwords. A separate account has only the games, can't change the PC, and can sign in by itself when the PC starts (Sunshine can only stream a signed-in desktop)."
   Pop $0
 
   ${NSD_CreateRadioButton} 0 44u 100% 12u "A separate account just for games (recommended)"
   Pop $hSeparate
+  !insertmacro Strong $hSeparate
   ${NSD_CreateLabel} 12u 58u 50u 10u "Name"
   Pop $0
   ${NSD_CreateText} 64u 57u 120u 12u $AccountName
@@ -1091,6 +1183,7 @@ Function AccountPage
 
   ${NSD_CreateRadioButton} 0 114u 100% 12u "This account ($CurrentUser)"
   Pop $hCurrent
+  !insertmacro Strong $hCurrent
   ${NSD_CreateCheckbox} 0 128u 100% 12u "Start Luma Arcade whenever the account signs in"
   Pop $hStartAtLogon
   ${If} $StartAtLogon == 1
@@ -1237,11 +1330,13 @@ Function NetworkPage
 
   ${NSD_CreateCheckbox} 0 0 100% 12u "HTTPS on the home network (https://<this PC>:${HTTPS_PORT})"
   Pop $hHttps
+  !insertmacro Strong $hHttps
   ${If} $HttpsOn == 1
     ${NSD_Check} $hHttps
   ${EndIf}
   ${NSD_CreateLabel} 12u 13u -12u 34u "A TV or laptop at home can then use controllers. The certificate is made for this PC, so each device warns about it once (continue anyway), or installs it from http://<this PC>:${LUMA_PORT}/luma-arcade.cer to trust it for good."
   Pop $0
+  !insertmacro Muted $0
 
   ${NSD_CreateLabel} 0 54u 100% 42u "Away from home: a Cloudflare Tunnel gives Luma Arcade a secure address on your own domain, without opening ports. In the Cloudflare dashboard (Zero Trust > Networks > Tunnels) create a tunnel, copy its token (the long text after --token in its install command) and paste it here. Then give the tunnel a public hostname pointing at http://localhost:${LUMA_PORT}."
   Pop $0
@@ -1251,6 +1346,7 @@ Function NetworkPage
   Pop $hToken
   ${NSD_CreateLabel} 64u 114u -64u 10u "Optional - leave it empty to skip."
   Pop $0
+  !insertmacro Muted $0
   nsDialogs::Show
 FunctionEnd
 
@@ -1286,6 +1382,7 @@ FunctionEnd
 
 ; ---------------------------------------------------------------- finish
 Function FinishShow
+  SendMessage $mui.FinishPage.Title ${WM_SETFONT} $FontWelcome 1
   ; "Open now" only when Luma Arcade was installed for this account (a
   ; separate account starts it when it signs in).
   ${IfNot} ${SectionIsSelected} ${SEC_LUMA}
@@ -1363,6 +1460,7 @@ Function un.OptionsPage
   Pop $hUnRemoveAccount
   ${NSD_CreateLabel} 12u 34u -12u 40u "Its desktop, documents and any game settings or saves kept in its profile are deleted for good. Your games folder isn't touched. If it's signed in, it's signed out first."
   Pop $0
+  !insertmacro Muted $0
   nsDialogs::Show
 FunctionEnd
 
