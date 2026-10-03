@@ -36,11 +36,18 @@ Free and open source. Runs on your own Windows gaming PC, set up by a one-click 
 | **Play anywhere** | Stream the PC's games to any browser - TV, laptop or phone - with controllers, touch controls and automatic quality that adapts to the connection. |
 | **Accounts and fair turns** | One player at a time, with hand-over requests, a waiting line, idle hand-over and admin take-over. |
 | **Co-op** | Invite up to three more players onto the same screen, or let people watch. |
-| **Guest links** | Share a link that gives someone without an account a turn, or a seat in your game, for a set time. |
+| **Guest links** | Share a link that gives someone without an account a turn, or a seat in your game, for a set time. Pick a game and the link opens straight into it - no menus. |
+| **Your PC games** | Installed Steam and Epic games show up in the library by themselves, with their artwork, and stay in step as you install and uninstall. |
 | **Per-player saves** | Everyone keeps their own emulator saves and ES-DE favorites, with snapshots they can restore. |
 | **House rules** | Daily and weekly play time limits, announcements, messages, and a lockdown that keeps guests out of the PC's settings. |
 | **Game tracking** | Play history per person and per game, a weekly summary and Discord alerts. |
-| **Host health** | One screen that checks Sunshine, encoders, drivers, the virtual display, saves and backups - with fixes where it can. |
+| **Host health** | One screen that checks Sunshine, encoders, drivers, the virtual display, saves and backups - with fixes where it can, and a **Copy diagnostics** button for bug reports. |
+
+## Play on your phone
+
+No controller? Phones and tablets get **on-screen controls**, with layouts for Xbox, PlayStation and more, and special ones for racing (analog pedals, tilt to steer) and shooters (swipe to look). Drag any button to where your thumbs want it, and save your own layouts.
+
+<p align="center"><img src="docs/touch-controls.png" alt="Luma Arcade's on-screen controls on a phone: a standard pad, and a racing layout with gas and brake pedals" width="900"></p>
 
 ## What you need
 
@@ -169,7 +176,7 @@ Because the server can't reach the games desktop itself, PC-side PowerShell help
 | **Auth** | `web/streamUser.ts` | Pages under `/stream` call `/stream/luma-api/...` (rewritten to `/api/...`) because moonlight's cookie is scoped to `/stream`. Access rules live in Luma Arcade's database (`web/access.ts`, `web/appAccess.ts`). |
 | **Turns** | `web/sessions.ts`, `routes/handover.ts` | Whoever streams has the PC. Hand-over requests lapse after 10 s; idle players (15 min) hand over when asked; an abandoned game is released after 10 min (3 with someone waiting); the line holds a free PC for 90 s. |
 | **Co-op** | `sessions.ts`, `routes/coop.ts` | Up to 4 players on one screen at the host's size and frame rate; needs `channels = 2` in `sunshine.conf`. Guests can't go Home or close the game. |
-| **Guest links** | `web/guestLinks.ts` | `/g/<token>` signs a visitor in as a throwaway moonlight account whose time and expiry act as a play limit. |
+| **Guest links** | `web/guestLinks.ts` | `/g/<token>` signs a visitor in as a throwaway moonlight account whose time and expiry act as a play limit. A link with a game goes straight to its stream with `?continue=1`, and `POST /api/continue` starts that game (`games.ts` `queueLaunch`). |
 | **Saves** | `host/profiles.ps1`, `routes/saves.ts` | A Sunshine prep-command swaps save folders and ES-DE stats to the incoming player; snapshots are kept per player. |
 | **Limits and messages** | `web/limits.ts`, `web/announcements.ts`, `web/messages.ts` | Daily/weekly minutes, announcements and direct messages, delivered through one poll. |
 | **Play history** | `web/playLog.ts`, `web/games.ts` | Every stream and every game played in ES-DE, with connection quality. |
@@ -210,7 +217,7 @@ The **Tested versions** workflow runs `update-versions.ps1` every Monday and ope
 
 ## Troubleshooting
 
-Start with **Settings > Host health** - most problems show up there, often with a fix.
+Start with **Settings > Host health** - most problems show up there, often with a fix. Reporting a bug? Use **Copy diagnostics** there and paste it into the [bug report](https://github.com/Luma-exe/luma-arcade/issues/new?template=bug_report.yml); names and IP addresses are taken out.
 
 <details>
 <summary><b>Controllers do nothing in games (Windows Server)</b></summary>
@@ -280,6 +287,11 @@ The detail line under that status says whether the process isn't running or isn'
 ## Performance
 
 Streaming quality depends on the host's GPU encoder (NVENC, AMF or Quick Sync) and the network, not on Luma Arcade. 1080p60 at 10-15 Mbps is comfortable on a wired connection with a modern GPU. Wi-Fi and internet routes add latency and loss that matter more than bitrate, so wire the host where you can. A browser client is a step behind a native Moonlight app on latency, which suits slower-paced games best.
+
+## Roadmap
+
+- **Linux hosts** - Sunshine already runs there; the work is the PC-side helpers. See the [plan](docs/linux-host-plan.md).
+- Ideas and votes welcome in [Discussions](https://github.com/Luma-exe/luma-arcade/discussions).
 
 ## License
 
