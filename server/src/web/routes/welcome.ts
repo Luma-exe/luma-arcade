@@ -6,6 +6,7 @@ import { getDb } from "../../db/index.js";
 import { MOONLIGHT_PATH_PREFIX } from "../../remote/moonlightWebStream.js";
 import { notify } from "../notify.js";
 import { clientIp } from "../requestOrigin.js";
+import { PITCH, SLOGAN, withPreview } from "../linkPreview.js";
 import { requireAdmin, streamUser } from "../streamUser.js";
 
 // arcade.lumaplayground.com's front page: what this is, Sign in, and for
@@ -65,18 +66,24 @@ export async function registerWelcomeRoutes(app: FastifyInstance) {
     } catch {
       return reply.redirect(`${MOONLIGHT_PATH_PREFIX}/`);
     }
-    return reply.header("cache-control", "no-cache").type("text/html; charset=utf-8").send(page);
+    return reply
+      .header("cache-control", "no-cache")
+      .type("text/html; charset=utf-8")
+      .send(withPreview(page, request, `Luma Arcade - ${SLOGAN}`, PITCH));
   });
 
   // Public, like the welcome page: no sign-in needed to read it.
   app.get("/howitworks", async (_request, reply) => reply.redirect("/howitworks/"));
-  app.get("/howitworks/", async (_request, reply) => {
+  app.get("/howitworks/", async (request, reply) => {
     try {
       howPage ??= readFileSync(HOW_PAGE, "utf8");
     } catch {
       return reply.redirect("/");
     }
-    return reply.header("cache-control", "no-cache").type("text/html; charset=utf-8").send(howPage);
+    return reply
+      .header("cache-control", "no-cache")
+      .type("text/html; charset=utf-8")
+      .send(withPreview(howPage, request, "How Luma Arcade works", `${SLOGAN} How it streams a real gaming PC to your browser, and everything it does for the people playing.`));
   });
 
   /** Has this visitor asked already? */

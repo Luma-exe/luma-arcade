@@ -31,6 +31,7 @@ import { MOONLIGHT_PATH_PREFIX } from "../../remote/moonlightWebStream.js";
 import { sturdySetCookieHeader } from "../sessionCookie.js";
 import { coverFile, launchableGame, queueLaunch } from "../games.js";
 import { gameStreams } from "./games.js";
+import { PITCH, SLOGAN, isPreviewBot, previewPage, siteOrigin } from "../linkPreview.js";
 
 // Guest links (guestLinks.ts): /g/<token> signs the visitor in as the
 // link's own account and sends them to the arcade, straight into a game
@@ -132,6 +133,23 @@ export async function registerGuestLinkRoutes(app: FastifyInstance) {
   // --- opening a link
 
   app.get<{ Params: { token: string } }>("/g/:token", async (request, reply) => {
+    // Discord, WhatsApp and the like open the link to draw its preview:
+    // show them the invite, without signing in, using up the link or
+    // starting the game.
+    if (isPreviewBot(request.headers["user-agent"])) {
+      const link = /^[A-Za-z0-9_-]{16,64}$/.test(request.params.token) ? linkByToken(request.params.token) : null;
+      const game = link?.mode === "play" && link.game_play_id ? launchableGame(link.game_play_id) : null;
+      const title = game
+        ? `Play ${game.title} on Luma Arcade`
+        : link?.mode === "coop"
+          ? `Join ${link.created_by}'s game on Luma Arcade`
+          : "You're invited to Luma Arcade";
+      const origin = siteOrigin(request);
+      return reply
+        .header("cache-control", "no-store")
+        .type("text/html; charset=utf-8")
+        .send(previewPage({ title, description: `${SLOGAN} ${PITCH}`, url: origin + request.url, origin }));
+    }
     const ip = clientIp(request);
     if (isRateLimited(ip)) return page(reply, 429, "Slow down", "Too many tries. Wait a minute and open the link again.");
     const link = /^[A-Za-z0-9_-]{16,64}$/.test(request.params.token) ? linkByToken(request.params.token) : null;

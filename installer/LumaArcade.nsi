@@ -613,10 +613,22 @@ FunctionEnd
 
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_LUMA} "The Luma Arcade website: sign-in, the browser game streaming client (moonlight-web-stream), who may play when, and its helper scripts on this PC."
-  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_SUNSHINE} "Sunshine captures this PC's screen, sound and controllers for streaming. Skipped if it's already installed."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_SUNSHINE} "Sunshine captures this PC's screen, sound and controllers for streaming. Already installed? Setup keeps yours and only adds what Luma Arcade needs to it."
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_ESDE} "ES-DE: a game library you browse with a controller. Finds and starts the emulators below."
-  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_EMUS} "Emulators, downloaded from their official releases. BIOS and firmware files are not included."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_EMUS} "Emulators, downloaded from their official releases. Ones already in the games folder start unticked - tick one to update it. BIOS and firmware files are not included."
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_RETROARCH} "RetroArch with cores for NES, SNES, Mega Drive, Master System, Game Boy (Color/Advance), N64, PC Engine, Atari 2600 and arcade."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_DOLPHIN} "Dolphin: GameCube and Wii, in HD. Very mature - nearly every game runs."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_PCSX2} "PCSX2: PlayStation 2, upscaled to HD. Needs a PS2 BIOS dumped from your console."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_DUCKSTATION} "DuckStation: the original PlayStation, sharper than the real thing. Needs a PS1 BIOS dumped from your console."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_PPSSPP} "PPSSPP: PSP, light enough for almost any PC. No BIOS needed."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_RPCS3} "RPCS3: PlayStation 3. Many games run well on a strong processor. Needs the PS3 firmware from Sony's website."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_XENIA} "Xenia Canary: Xbox 360. A good share of games run; some still have glitches."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_XEMU} "xemu: the original Xbox. Needs BIOS and hard drive files dumped from your console."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_CEMU} "Cemu: Wii U, in HD. Most of the big games run well."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_AZAHAR} "Azahar: Nintendo 3DS, with both screens side by side or stacked. The successor to Citra."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_MELONDS} "melonDS: Nintendo DS, with both screens. Light and accurate."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_VITA3K} "Vita3K: PS Vita, experimental - a growing list of games run. Needs the Vita firmware from Sony's website."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_FLYCAST} "Flycast: Dreamcast, plus the Naomi and Atomiswave arcade boards. Runs on almost any PC."
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_SHADPS4} "shadPS4: PlayStation 4, experimental - many games don't run yet."
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
 
@@ -705,6 +717,7 @@ Function .onInit
 
   ${GetParameters} $Opts
   Call ReadOptions
+  Call MarkInstalledComponents
   ${If} ${Silent}
     Call SilentSetup
   ${ElseIf} $IsUpgrade == 1
@@ -945,12 +958,28 @@ FunctionEnd
   !insertmacro SetSectionFlag ${SEC} ${SF_RO}
 !macroend
 
-; On an upgrade, emulators already in the games folder start unticked
-; (tick one to update it) - no downloading gigabytes again.
+; Emulators already in the games folder (from an earlier Setup, or put
+; there by hand) start unticked - tick one to update it - and say so in the
+; list, so nobody downloads gigabytes again.
 !macro UntickPresent SEC KEY FOLDER
   ${If} ${FileExists} "$GamesDir\ES-DE\Emulators\${FOLDER}\*.*"
   ${OrIf} ${FileExists} "$GamesDir\Emulators\${FOLDER}\*.*"
     !insertmacro UnselectSection ${SEC}
+  ${EndIf}
+!macroend
+
+!macro MarkInstalled SEC
+  SectionGetText ${SEC} $R9
+  StrCpy $R8 $R9 "" -20
+  ${If} $R8 != " (already installed)"
+    SectionSetText ${SEC} "$R9 (already installed)"
+  ${EndIf}
+!macroend
+
+!macro MarkPresent SEC KEY FOLDER
+  ${If} ${FileExists} "$GamesDir\ES-DE\Emulators\${FOLDER}\*.*"
+  ${OrIf} ${FileExists} "$GamesDir\Emulators\${FOLDER}\*.*"
+    !insertmacro MarkInstalled ${SEC}
   ${EndIf}
 !macroend
 
@@ -965,8 +994,7 @@ Function ComponentsPre
     !insertmacro Pick ${SEC_LUMA} 1
     !insertmacro Pick ${SEC_SUNSHINE} 1
     !insertmacro Pick ${SEC_ESDE} 1
-    ${If} $IsUpgrade == 1
-    ${AndIf} ${FileExists} "$GamesDir\ES-DE\ES-DE.exe"
+    ${If} ${FileExists} "$GamesDir\ES-DE\ES-DE.exe"
       !insertmacro UnselectSection ${SEC_ESDE}
     ${EndIf}
   ${ElseIf} $SetupType == 1
@@ -979,9 +1007,22 @@ Function ComponentsPre
     !insertmacro Lock ${SEC_SUNSHINE}
     !insertmacro Lock ${SEC_ESDE}
   ${EndIf}
-  ${If} $IsUpgrade == 1
-    !insertmacro AllEmus UntickPresent
+  !insertmacro AllEmus UntickPresent
+FunctionEnd
+
+; "(already installed)" on what this PC has already: Sunshine (Setup keeps
+; it and only adds what it needs), ES-DE and the emulators in the games folder.
+Function MarkInstalledComponents
+  SetRegView 64
+  ClearErrors
+  ReadRegStr $0 HKLM "SYSTEM\CurrentControlSet\Services\SunshineService" "ImagePath"
+  ${IfNot} ${Errors}
+    !insertmacro MarkInstalled ${SEC_SUNSHINE}
   ${EndIf}
+  ${If} ${FileExists} "$GamesDir\ES-DE\ES-DE.exe"
+    !insertmacro MarkInstalled ${SEC_ESDE}
+  ${EndIf}
+  !insertmacro AllEmus MarkPresent
 FunctionEnd
 
 ; ---------------------------------------------------------------- Windows edition
@@ -1009,7 +1050,7 @@ Function WindowsPage
     ${NSD_Check} $hClient
   ${EndIf}
 
-  ${NSD_CreateLabel} 0 30u 100% 108u "Most people should use normal Windows 10 or 11. Windows Server is worth it for a PC that does nothing but host games, 24/7: it doesn't force feature updates or restart on its own, has no ads or consumer apps running in the background, lets several people be signed in at once over Remote Desktop, and can give virtual machines a slice of the graphics card (GPU partitioning) for more players at once.$\r$\n$\r$\nThe catch: its sound is switched off, it has no Xbox 360 controller driver (so players' controllers can't reach games as Xbox pads), some games' anti-cheat and Microsoft Store / Game Pass games won't run, and it costs more to license. On Server, Setup turns the sound on, and a later page offers the controller drivers: Xbox 360, or PlayStation 4 controllers, which work without it."
+  ${NSD_CreateLabel} 0 30u 100% 108u "Most people should use normal Windows 10 or 11. Windows Server is worth it for a PC that does nothing but host games, 24/7: it doesn't force feature updates or restart on its own, has no ads or consumer apps running in the background, lets several people be signed in at once over Remote Desktop, and can give virtual machines a slice of the graphics card (GPU partitioning) for more players at once.$\r$\n$\r$\nThe catch: its sound is switched off, some games' anti-cheat and Microsoft Store / Game Pass games won't run, and it costs more to license. On Server, Setup turns the sound on."
   Pop $0
   !insertmacro Muted $0
   nsDialogs::Show
@@ -1116,7 +1157,7 @@ Function ControllersPage
   ${ElseIf} $WantVigem == 1
     ${NSD_Check} $hVigem
   ${EndIf}
-  ${NSD_CreateCheckbox} 0 113u 100% 18u "Install the Xbox 360 controller driver, from Microsoft (Windows 10 and 11 have it; Windows Server doesn't)"
+  ${NSD_CreateCheckbox} 0 113u 100% 18u "Install the Xbox 360 controller driver, from Microsoft"
   Pop $hXusb
   ${If} $HwXusb == 1
     ${NSD_SetText} $hXusb "Xbox 360 controller driver: already installed"
