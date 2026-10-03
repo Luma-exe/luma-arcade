@@ -46,6 +46,11 @@ $OtherDownloads = [ordered]@{
                                       $link = $release.assets.links | Where-Object { $_.name -match 'x64_Portable\.zip$' } | Select-Object -First 1
                                       if (-not $link) { throw "No Windows portable download in ES-DE $($release.tag_name)" }
                                       @{ Url = $link.url; Name = 'ES-DE-portable.zip'; Version = $release.tag_name } } }
+    # ES-DE's Iconic theme (the one the arcade uses): GitHub's archive of
+    # its newest commit, about 190 MB.
+    iconic            = @{ Name = 'Iconic theme for ES-DE'; Check = 'theme.xml'
+                           Source = { $sha = (Invoke-RestMethod 'https://api.github.com/repos/Siddy212/iconic-es-de/commits?per_page=1' -Headers (Get-GitHubApiHeaders))[0].sha
+                                      @{ Url = "https://codeload.github.com/Siddy212/iconic-es-de/zip/$sha"; Name = "iconic-es-de-$($sha.Substring(0, 7)).zip"; Version = $sha.Substring(0, 7) } } }
     sunshine          = @{ Name = 'Sunshine'; Check = 'msi'; Repo = 'LizardByte/Sunshine'; Pattern = 'Windows-AMD64-installer\.msi$' }
     cloudflared       = @{ Name = 'cloudflared (Cloudflare Tunnel)'; Check = 'exe'; Repo = 'cloudflare/cloudflared'; Pattern = '^cloudflared-windows-amd64\.exe$' }
     # "x86" in the name, but it holds the 64-bit (NTamd64) driver.

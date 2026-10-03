@@ -86,6 +86,9 @@ Var HwMonitors       ; physical monitors plugged in
 Var HwVdd            ; 1 = virtual display driver installed
 Var HwXusb           ; 1 = Xbox 360 controller driver installed
 Var HwVigem          ; 1 = ViGEmBus (virtual controllers) installed
+Var HwSunshineUser   ; 1 = Sunshine already has a web page sign-in
+Var ReplaceSignIn    ; 1 = give it the admin's sign-in anyway (so pairing works)
+Var hReplaceSignIn
 Var WantVdd
 Var WantXusb
 Var WantVigem
@@ -357,6 +360,8 @@ SectionEnd
 ; section below; these only record what was picked.
 Section "ES-DE" SEC_ESDE
 SectionEnd
+Section "Iconic theme for ES-DE (about 190 MB)" SEC_THEME
+SectionEnd
 
 SectionGroup "Emulators" SEC_EMUS
   Section "RetroArch - retro consoles" SEC_RETROARCH
@@ -433,12 +438,16 @@ Section "-Games"
   !insertmacro AllEmus EmuArg3
   ${IfNot} ${SectionIsSelected} ${SEC_ESDE}
   ${AndIf} $EmuList == ""
+  ${AndIfNot} ${SectionIsSelected} ${SEC_THEME}
     Return
   ${EndIf}
   DetailPrint "Downloading ES-DE and emulators (this can take a while)..."
   StrCpy $1 ""
   ${If} ${SectionIsSelected} ${SEC_ESDE}
     StrCpy $1 "-WithEsDe"
+  ${EndIf}
+  ${If} ${SectionIsSelected} ${SEC_THEME}
+    StrCpy $1 "$1 -Theme"
   ${EndIf}
   ${If} $Latest == 1
     StrCpy $1 "$1 -Latest"
@@ -460,6 +469,10 @@ Section "Sunshine (streaming host)" SEC_SUNSHINE
   ${EndIf}
   ${If} ${FileExists} "$PLUGINSDIR\admin.txt"
     StrCpy $1 '$1 -AdminFile "$PLUGINSDIR\admin.txt"'
+    ${If} $HwSunshineUser == 1
+    ${AndIf} $ReplaceSignIn == 1
+      StrCpy $1 "$1 -ReplaceSignIn"
+    ${EndIf}
   ${EndIf}
   ${If} $Latest == 1
     StrCpy $1 "$1 -Latest"
@@ -661,6 +674,7 @@ FunctionEnd
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_LUMA} "The Luma Arcade website: sign-in, the browser game streaming client (moonlight-web-stream), who may play when, and its helper scripts on this PC."
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_SUNSHINE} "Sunshine captures this PC's screen, sound and controllers for streaming. Already installed? Setup keeps yours and only adds what Luma Arcade needs to it."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_THEME} "Iconic, the clean look the arcade uses (by Siddy212 and Matt S), set as ES-DE's theme - unless you've already picked another. About 190 MB to download."
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_ESDE} "ES-DE: a game library you browse with a controller. Finds and starts the emulators below."
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_EMUS} "Emulators, downloaded from their official releases. Ones already in the games folder start unticked - tick one to update it. BIOS and firmware files are not included."
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_RETROARCH} "RetroArch with cores for NES, SNES, Mega Drive, Master System, Game Boy (Color/Advance), N64, PC Engine, Atari 2600 and arcade."
@@ -742,6 +756,8 @@ Function .onInit
   ReadINIStr $HwVdd "$PLUGINSDIR\hardware.ini" "hw" "vdd"
   ReadINIStr $HwXusb "$PLUGINSDIR\hardware.ini" "hw" "xusb"
   ReadINIStr $HwVigem "$PLUGINSDIR\hardware.ini" "hw" "vigem"
+  ReadINIStr $HwSunshineUser "$PLUGINSDIR\hardware.ini" "hw" "sunshineuser"
+  StrCpy $ReplaceSignIn 1
   ${If} $HwMonitors == ""
     ; The check couldn't run: assume a normal PC.
     StrCpy $HwMonitors 1
@@ -789,6 +805,7 @@ FunctionEnd
 ;   /VDD  /NOVDD  /XUSB  /NOXUSB  /VIGEM  /NOVIGEM   (/DS4: PlayStation 4 pads, no Xbox 360 driver)
 ;   /ADMINFILE=<file: admin name, password on two lines>
 ;   /NOHTTPS  /TUNNELTOKENFILE=<file>  /LATEST (newest downloads, not the tested ones)
+;   /REPLACESUNSHINESIGNIN  (Sunshine already has a sign-in: give it the admin's, so it can pair)
 ; Files given are copied, never changed or deleted.
 Function ReadOptions
   ClearErrors
@@ -914,6 +931,13 @@ FunctionEnd
 ; No pages to click through: apply the options and check what the pages would.
 Function SilentSetup
   Call ComponentsPre
+  ; Nobody to ask: an existing Sunshine sign-in stays unless the command line says.
+  StrCpy $ReplaceSignIn 0
+  ClearErrors
+  ${GetOptions} $Opts "/REPLACESUNSHINESIGNIN" $0
+  ${IfNot} ${Errors}
+    StrCpy $ReplaceSignIn 1
+  ${EndIf}
   ClearErrors
   ${GetOptions} $Opts "/EMULATORS=" $0
   ${IfNot} ${Errors}
@@ -1048,15 +1072,21 @@ Function ComponentsPre
     ${If} ${FileExists} "$GamesDir\ES-DE\ES-DE.exe"
       !insertmacro UnselectSection ${SEC_ESDE}
     ${EndIf}
+    !insertmacro Pick ${SEC_THEME} 1
   ${ElseIf} $SetupType == 1
     !insertmacro Lock ${SEC_LUMA}
     !insertmacro Lock ${SEC_SUNSHINE}
     !insertmacro Pick ${SEC_ESDE} 1
     !insertmacro SetSectionFlag ${SEC_ESDE} ${SF_RO}
+    !insertmacro Pick ${SEC_THEME} 1
   ${Else}
     !insertmacro Lock ${SEC_LUMA}
     !insertmacro Lock ${SEC_SUNSHINE}
     !insertmacro Lock ${SEC_ESDE}
+    !insertmacro Lock ${SEC_THEME}
+  ${EndIf}
+  ${If} ${FileExists} "$GamesDir\ES-DE\themes\iconic-es-de\theme.xml"
+    !insertmacro UnselectSection ${SEC_THEME}
   ${EndIf}
   !insertmacro AllEmus UntickPresent
 FunctionEnd
@@ -1072,6 +1102,9 @@ Function MarkInstalledComponents
   ${EndIf}
   ${If} ${FileExists} "$GamesDir\ES-DE\ES-DE.exe"
     !insertmacro MarkInstalled ${SEC_ESDE}
+  ${EndIf}
+  ${If} ${FileExists} "$GamesDir\ES-DE\themes\iconic-es-de\theme.xml"
+    !insertmacro MarkInstalled ${SEC_THEME}
   ${EndIf}
   !insertmacro AllEmus MarkPresent
 FunctionEnd
@@ -1147,6 +1180,7 @@ Function MaintenanceLeave
     !insertmacro Pick ${SEC_LUMA} 1
     !insertmacro Pick ${SEC_SUNSHINE} 1
     !insertmacro UnselectSection ${SEC_ESDE}
+    !insertmacro UnselectSection ${SEC_THEME}
     !insertmacro AllEmus UnselectEmu
   ${EndIf}
 FunctionEnd
@@ -1482,10 +1516,29 @@ Function AdminPage
   Pop $0
   ${NSD_CreatePassword} 64u 81u 120u 12u ""
   Pop $hAdminPass2
+  ; Sunshine from before, with its own sign-in: pairing needs this one.
+  StrCpy $hReplaceSignIn ""
+  ${If} $HwSunshineUser == 1
+    ${NSD_CreateCheckbox} 0 100u 100% 12u "Use this name and password for Sunshine's web page too (replaces its current sign-in)"
+    Pop $hReplaceSignIn
+    ${If} $ReplaceSignIn == 1
+      ${NSD_Check} $hReplaceSignIn
+    ${EndIf}
+    ${NSD_CreateLabel} 12u 113u -12u 20u "Sunshine on this PC already has a sign-in. Setup needs to sign in to it to pair it with Luma Arcade; untick to keep the old one and pair by hand later."
+    Pop $0
+    !insertmacro Muted $0
+  ${EndIf}
   nsDialogs::Show
 FunctionEnd
 
 Function AdminLeave
+  ${If} $hReplaceSignIn != ""
+    ${NSD_GetState} $hReplaceSignIn $0
+    StrCpy $ReplaceSignIn 0
+    ${If} $0 == ${BST_CHECKED}
+      StrCpy $ReplaceSignIn 1
+    ${EndIf}
+  ${EndIf}
   ${NSD_GetText} $hAdminName $AdminName
   ${NSD_GetText} $hAdminPass $AdminPass
   ${NSD_GetText} $hAdminPass2 $0
@@ -1911,7 +1964,7 @@ Function un.Remove
       CopyFiles /SILENT "$INSTDIR\server\luma-arcade.db*" "$DOCUMENTS\LumaArcade-backup\"
       CopyFiles /SILENT "$INSTDIR\moonlight-web-stream\server\data.json" "$DOCUMENTS\LumaArcade-backup\"
       ; Nothing of Luma Arcade's is kept: the whole folder goes.
-      RMDir /r "$INSTDIR"
+      RMDir /r /REBOOTOK "$INSTDIR"
     ${Else}
       RMDir /r "$INSTDIR\server\dist"
       RMDir /r "$INSTDIR\server\assets"
@@ -1934,7 +1987,7 @@ Function un.Remove
       Delete "$INSTDIR\NEXT-STEPS.txt"
       Delete "$INSTDIR\Uninstall.exe"
       RMDir "$INSTDIR\server"
-      RMDir "$INSTDIR"
+      RMDir /REBOOTOK "$INSTDIR"
     ${EndIf}
   ${EndIf}
 
@@ -1964,6 +2017,11 @@ Function un.Remove
     ${If} $UnGamesDir != ""
       StrCpy $1 '$1 -GamesDir "$UnGamesDir"'
     ${EndIf}
+    ; A folder something has open: remove.ps1 asks before closing it -
+    ; unless no one's there to ask.
+    ${If} ${Silent}
+      StrCpy $1 "$1 -Force"
+    ${EndIf}
     nsExec::ExecToLog '"${POWERSHELL}" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\scripts\remove.ps1" $1'
     Pop $0
     ${If} $0 != 0
@@ -1971,6 +2029,9 @@ Function un.Remove
     ${EndIf}
   ${EndIf}
 
+  ${If} ${RebootFlag}
+    MessageBox MB_ICONINFORMATION "A few of Luma Arcade's files were in use: Windows deletes them when the PC restarts." /SD IDOK
+  ${EndIf}
   ${If} ${SectionIsSelected} ${UN_LUMA}
   ${AndIfNot} ${SectionIsSelected} ${UN_GAMES}
     MessageBox MB_ICONINFORMATION "Luma Arcade is removed. Anything you didn't tick (and your games folder) was left in place." /SD IDOK

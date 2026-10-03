@@ -14,6 +14,8 @@
 #                   emulators - and C:\ProgramData\LumaArcade (whose saves
 #                   are where)
 #  -GamesDir        the games folder Setup used
+#  -Force           close whatever has a folder open without asking (a
+#                   silent uninstall); otherwise each time it's asked first
 #  -TestRoot        testing: Sunshine and ProgramData under this folder, and
 #                   no services, drivers or uninstallers run
 param(
@@ -24,6 +26,7 @@ param(
     [switch]$VirtualDisplay,
     [switch]$ViGEm,
     [switch]$Games,
+    [switch]$Force,
     [string]$TestRoot = ''
 )
 . (Join-Path $PSScriptRoot 'common.ps1')
@@ -42,11 +45,93 @@ $sunshineApps = Join-Path $sunshineDir 'config\apps.json'
 $esdeDir = if ($GamesDir) { Join-Path $GamesDir 'ES-DE' } else { '' }
 $failed = $false
 
+# --- files in use: who has them, and closing them (asked first)
+
+# Windows' Restart Manager: which programs have these files open.
+Add-Type -Namespace LumaSetup -Name RestartManager -MemberDefinition @'
+[StructLayout(LayoutKind.Sequential)] struct RM_UNIQUE_PROCESS { public int dwProcessId; public System.Runtime.InteropServices.ComTypes.FILETIME ProcessStartTime; }
+[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)] struct RM_PROCESS_INFO {
+    public RM_UNIQUE_PROCESS Process;
+    [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)] public string strAppName;
+    [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)] public string strServiceShortName;
+    public int ApplicationType; public uint AppStatus; public uint TSSessionId; [MarshalAs(UnmanagedType.Bool)] public bool bRestartable; }
+[DllImport("rstrtmgr.dll", CharSet = CharSet.Unicode)] static extern int RmStartSession(out uint pSessionHandle, int dwSessionFlags, string strSessionKey);
+[DllImport("rstrtmgr.dll")] static extern int RmEndSession(uint pSessionHandle);
+[DllImport("rstrtmgr.dll", CharSet = CharSet.Unicode)] static extern int RmRegisterResources(uint pSessionHandle, uint nFiles, string[] rgsFilenames, uint nApplications, IntPtr rgApplications, uint nServices, string[] rgsServiceNames);
+[DllImport("rstrtmgr.dll")] static extern int RmGetList(uint dwSessionHandle, out uint pnProcInfoNeeded, ref uint pnProcInfo, [In, Out] RM_PROCESS_INFO[] rgAffectedApps, ref uint lpdwRebootReasons);
+public static int[] Holders(string[] files) {
+    uint session; var ids = new System.Collections.Generic.List<int>();
+    if (RmStartSession(out session, 0, Guid.NewGuid().ToString()) != 0) return ids.ToArray();
+    try {
+        if (RmRegisterResources(session, (uint)files.Length, files, 0, IntPtr.Zero, 0, null) != 0) return ids.ToArray();
+        uint needed = 0, count = 0, reasons = 0;
+        int r = RmGetList(session, out needed, ref count, null, ref reasons);
+        if (r == 234 /* ERROR_MORE_DATA */ && needed > 0) {
+            var info = new RM_PROCESS_INFO[needed]; count = needed;
+            if (RmGetList(session, out needed, ref count, info, ref reasons) == 0)
+                for (int i = 0; i < count; i++) ids.Add(info[i].Process.dwProcessId);
+        }
+    } finally { RmEndSession(session); }
+    return ids.ToArray();
+}
+'@
+
+# What's keeping $Path from going: programs running from inside it,
+# programs with its files open, and File Explorer windows showing it.
+function Get-Blockers([string]$Path) {
+    $inside = $Path.TrimEnd('\') + '\'
+    $ids = @{}
+    Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($inside, 'OrdinalIgnoreCase') } | ForEach-Object { $ids[[int]$_.ProcessId] = $true }
+    $files = @(Get-ChildItem -LiteralPath $Path -Recurse -File -Force -ErrorAction SilentlyContinue | Select-Object -First 500 | ForEach-Object FullName)
+    if ($files) { foreach ($id in [LumaSetup.RestartManager]::Holders($files)) { $ids[[int]$id] = $true } }
+    $ids.Remove($PID)
+    $procs = @($ids.Keys | ForEach-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue } | Where-Object { $_ -and $_.ProcessName -ne 'explorer' })
+    $windows = @()
+    try {
+        $windows = @((New-Object -ComObject Shell.Application).Windows() | Where-Object {
+            try { $p = $_.Document.Folder.Self.Path; $p -and ($p -eq $Path.TrimEnd('\') -or $p.StartsWith($inside, 'OrdinalIgnoreCase')) } catch { $false }
+        })
+    } catch { }
+    [pscustomobject]@{ Processes = $procs; Windows = $windows; Any = ($procs.Count + $windows.Count) -gt 0 }
+}
+
+# Asks before closing anything (-Force: a silent uninstall, close them).
+function Confirm-Close([string]$Path, [string[]]$Names) {
+    if ($Force) { return $true }
+    Add-Type -AssemblyName System.Windows.Forms
+    $owner = New-Object System.Windows.Forms.Form -Property @{ TopMost = $true; ShowInTaskbar = $false; WindowState = 'Minimized' }
+    $owner.Show(); $owner.Hide()
+    $text = "These have files in $Path open, so it can't be deleted:`r`n`r`n  - $($Names -join "`r`n  - ")`r`n`r`nClose them and keep uninstalling? Anything unsaved in them is lost.`r`n`r`n(No: leave it, and delete the folder yourself after a restart.)"
+    $answer = [System.Windows.Forms.MessageBox]::Show($owner, $text, 'Luma Arcade Uninstall', 'YesNo', 'Warning')
+    $owner.Dispose()
+    $answer -eq 'Yes'
+}
+
 function Remove-Folder([string]$Path) {
     if (-not $Path -or -not (Test-Path -LiteralPath $Path)) { return }
     Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue
+    if (-not (Test-Path -LiteralPath $Path)) { return }
+
+    $blockers = Get-Blockers $Path
+    if ($blockers.Any) {
+        $names = @($blockers.Processes | Group-Object ProcessName | ForEach-Object {
+            $p = $_.Group[0]; $title = try { $p.MainModule.FileVersionInfo.FileDescription } catch { '' }
+            if ($title) { "$title ($($p.ProcessName).exe)" } else { "$($p.ProcessName).exe" }
+        })
+        if ($blockers.Windows.Count) { $names += "File Explorer ($($blockers.Windows.Count) window$(if ($blockers.Windows.Count -gt 1) { 's' }) showing it)" }
+        if (Confirm-Close $Path $names) {
+            Write-Note "closing what had it open: $($names -join ', ')"
+            foreach ($p in $blockers.Processes) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+            foreach ($w in $blockers.Windows) { try { $w.Quit() } catch { } }
+        }
+    }
+    # Windows lets go of files a moment after a program closes.
+    for ($i = 0; $i -lt 5 -and (Test-Path -LiteralPath $Path); $i++) {
+        Start-Sleep -Seconds 1
+        Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue
+    }
     if (Test-Path -LiteralPath $Path) {
-        Write-Note "couldn't delete all of $Path (something has it open): delete it after a restart"
+        Write-Note "couldn't delete all of $Path (something still has it open): delete it after a restart"
         $script:failed = $true
     }
 }

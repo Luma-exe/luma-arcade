@@ -11,6 +11,8 @@
 #              controllers into virtual Xbox 360 or PlayStation 4 pads on it
 #   xusb     = 1 if the Xbox 360 controller driver is installed (Windows
 #              Server doesn't ship it; virtual Xbox 360 pads need it)
+#   sunshineuser = 1 if Sunshine is installed and already has a web page
+#              sign-in (Setup can't pair with it unless it's replaced)
 param([Parameter(Mandatory)] [string]$Out)
 $ErrorActionPreference = 'SilentlyContinue'
 
@@ -31,6 +33,8 @@ $monitors = @(Get-CimInstance -Namespace root\wmi -ClassName WmiMonitorConnectio
 $vdd = [bool](Get-CimInstance Win32_PnPEntity -Filter "PNPDeviceID LIKE 'ROOT\\DISPLAY\\%'" | Where-Object { $_.HardwareID -contains 'Root\MttVDD' })
 $vigem = [bool](Get-CimInstance Win32_PnPEntity -Filter "PNPDeviceID LIKE 'ROOT\\SYSTEM\\%'" | Where-Object { $_.HardwareID -contains 'Nefarius\ViGEmBus\Gen1' })
 $xusb = (Test-Path "$env:SystemRoot\System32\drivers\xusb22.sys") -or (Test-Path "$env:SystemRoot\System32\drivers\xusb21.sys")
+$state = Join-Path $env:ProgramFiles 'Sunshine\config\sunshine_state.json'
+$sunshineUser = (Test-Path $state) -and [bool](Get-Content -Raw $state | ConvertFrom-Json).username
 
 @(
     '[hw]'
@@ -39,4 +43,5 @@ $xusb = (Test-Path "$env:SystemRoot\System32\drivers\xusb22.sys") -or (Test-Path
     "vdd=$([int]$vdd)"
     "vigem=$([int]$vigem)"
     "xusb=$([int]$xusb)"
+    "sunshineuser=$([int]$sunshineUser)"
 ) | Set-Content -Path $Out -Encoding Unicode

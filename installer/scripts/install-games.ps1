@@ -5,6 +5,9 @@
 # -ListOnly prints what would be downloaded (and checks every source) without
 # downloading anything. Downloads are the tested versions in versions.json
 # (checksums checked); -Latest takes each one's newest release instead.
+# -Theme puts ES-DE's Iconic theme in ES-DE\themes and makes it ES-DE's
+# theme (Textlist, light colors - as the arcade uses it), unless someone
+# already picked another one.
 # -Repair (Setup's Repair): ES-DE and every emulator already in the folder
 # whose program has gone missing are downloaded again over their folder
 # (settings and saves in it stay); nothing new is added.
@@ -14,7 +17,8 @@ param(
     [string]$Emulators = '',
     [switch]$ListOnly,
     [switch]$Latest,
-    [switch]$Repair
+    [switch]$Repair,
+    [switch]$Theme
 )
 . (Join-Path $PSScriptRoot 'common.ps1')
 . (Join-Path $PSScriptRoot 'catalog.ps1')
@@ -45,7 +49,10 @@ $unknown = @($wanted | Where-Object { -not $Catalog.Contains($_) })
 if ($unknown) { throw "Unknown emulator(s): $($unknown -join ', '). Known: $($Catalog.Keys -join ', ')" }
 
 $esdeDir = Join-Path $GamesDir 'ES-DE'
-$emuRoot = if ($WithEsDe) { Join-Path $esdeDir 'Emulators' } else { Join-Path $GamesDir 'Emulators' }
+# With ES-DE (being installed, or there from before) the emulators go in its
+# folder, where its find rules look.
+$hasEsDe = $WithEsDe -or (Test-Path (Join-Path $esdeDir 'ES-DE.exe'))
+$emuRoot = if ($hasEsDe) { Join-Path $esdeDir 'Emulators' } else { Join-Path $GamesDir 'Emulators' }
 $failed = @()
 $installed = @()
 
@@ -63,6 +70,42 @@ if ($WithEsDe -and -not $script:SkipEsDe) {
     } catch {
         Write-Note "FAILED: $($_.Exception.Message)"
         $failed += 'ES-DE'
+    }
+}
+
+if ($Theme -and -not $ListOnly) {
+    Write-Step 'Iconic theme for ES-DE (about 190 MB)'
+    try {
+        if (-not (Test-Path (Join-Path $esdeDir 'ES-DE.exe'))) { throw "ES-DE isn't in $esdeDir" }
+        $themeDir = Join-Path $esdeDir 'themes\iconic-es-de'
+        if (Test-Path (Join-Path $themeDir 'theme.xml')) {
+            Write-Note 'already installed'
+        } else {
+            $src = Get-CatalogDownload 'iconic' -Latest:$Latest
+            Write-Note "$($src.Name) ($($src.Version)$(if (-not $src.Pinned) { ', newest' }))"
+            Expand-Download (Save-CatalogDownload 'iconic' $src) $themeDir
+            $installed += "Iconic theme $($src.Version)"
+        }
+        # ES-DE's settings: in ES-DE\ES-DE for the portable ES-DE Setup installs.
+        $esData = if (Test-Path (Join-Path $esdeDir 'portable.txt')) { Join-Path $esdeDir 'ES-DE' } else { Join-Path $env:USERPROFILE 'ES-DE' }
+        $settingsFile = Join-Path $esData 'settings\es_settings.xml'
+        New-Item -ItemType Directory -Force (Split-Path $settingsFile) | Out-Null
+        $lines = @(if (Test-Path $settingsFile) { Get-Content $settingsFile } else { '<?xml version="1.0"?>' })
+        $current = ($lines | Where-Object { $_ -match 'name="Theme"' } | Select-Object -First 1) -replace '.*value="([^"]*)".*', '$1'
+        if ($current -and $current -notin 'linear-es-de', 'iconic-es-de') {
+            Write-Note "ES-DE already uses the theme $current - keeping it (pick Iconic in ES-DE's UI settings)"
+        } else {
+            foreach ($s in @(@('Theme', 'iconic-es-de'), @('ThemeVariant', 'textlist'), @('ThemeColorScheme', 'light-default'))) {
+                $line = "<string name=`"$($s[0])`" value=`"$($s[1])`" />"
+                $at = @(for ($i = 0; $i -lt $lines.Count; $i++) { if ($lines[$i] -match "name=`"$($s[0])`"") { $i } })
+                if ($at) { $lines[$at[0]] = $line } else { $lines += $line }
+            }
+            $lines | Set-Content -Path $settingsFile -Encoding UTF8
+            Write-Note "ES-DE's theme: Iconic"
+        }
+    } catch {
+        Write-Note "FAILED: $($_.Exception.Message)"
+        $failed += 'Iconic theme'
     }
 }
 
@@ -122,7 +165,7 @@ function New-Shortcut([string]$Link, [string]$Target) {
     $s.WorkingDirectory = Split-Path $Target
     $s.Save()
 }
-if ($WithEsDe) {
+if ($hasEsDe) {
     New-Shortcut (Join-Path $env:PUBLIC 'Desktop\ES-DE.lnk') (Join-Path $esdeDir 'ES-DE.exe')
 } else {
     $menu = Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs\Emulators'
@@ -151,7 +194,7 @@ $(($installed | ForEach-Object { "  - $_" }) -join "`r`n")
 $(if ($failed) { "`r`nCould not install (try again later, or download by hand):`r`n" + (($failed | ForEach-Object { "  - $_" }) -join "`r`n") })
 
 Emulators: $emuRoot
-$(if ($WithEsDe) { "ES-DE:     $esdeDir\ES-DE.exe  (shortcut on the desktop)
+$(if ($hasEsDe) { "ES-DE:     $esdeDir\ES-DE.exe  (shortcut on the desktop)
 Games:     put them in $esdeDir\ROMs\<system>\ - ES-DE offers to create
            these folders the first time it starts (e.g. ROMs\snes, ROMs\ps2)." })
 
@@ -164,7 +207,7 @@ BIOS and firmware are NOT included - dump them from consoles you own:
   - xemu (Xbox):   point xemu at your BIOS/MCPX/HDD image in its settings
 
 To add or update emulators later, run as administrator:
-  powershell -ExecutionPolicy Bypass -File "$GamesDir\setup\install-games.ps1" -GamesDir "$GamesDir"$(if ($WithEsDe) { ' -WithEsDe' }) -Emulators <names>
+  powershell -ExecutionPolicy Bypass -File "$GamesDir\setup\install-games.ps1" -GamesDir "$GamesDir"$(if ($hasEsDe) { ' -WithEsDe' }) -Emulators <names>
   Names: $($Catalog.Keys -join ', ')
   (add -Latest for each one's newest release instead of the tested version)
 "@ | Set-Content -Path $readme -Encoding UTF8

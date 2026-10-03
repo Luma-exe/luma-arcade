@@ -120,7 +120,10 @@ function Expand-Download([string]$File, [string]$Destination) {
         & (Get-SevenZip) x $File "-o$tmp" -y | Out-Null
         if ($LASTEXITCODE) { throw "7-Zip couldn't unpack $File" }
     } else {
-        Expand-Archive -LiteralPath $File -DestinationPath $tmp -Force
+        # .NET's unzip: Expand-Archive (PowerShell 5) takes minutes on an
+        # archive of thousands of files, like the Iconic theme.
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        [IO.Compression.ZipFile]::ExtractToDirectory($File, $tmp)
     }
     $root = $tmp
     $items = @(Get-ChildItem -LiteralPath $tmp -Force)

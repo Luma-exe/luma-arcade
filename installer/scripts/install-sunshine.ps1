@@ -7,11 +7,14 @@
 #             sign-in, set when Sunshine doesn't have one yet (the file is
 #             left for the pairing step, first-run.mjs)
 #  -Latest    the newest Sunshine instead of the tested version
+#  -ReplaceSignIn  give Sunshine the admin's sign-in even when it already
+#             has one (asked on Setup's admin page): pairing needs it
 param(
     [string]$EsDeExe = '',
     [switch]$Ds4,
     [string]$AdminFile = '',
-    [switch]$Latest
+    [switch]$Latest,
+    [switch]$ReplaceSignIn
 )
 . (Join-Path $PSScriptRoot 'common.ps1')
 . (Join-Path $PSScriptRoot 'catalog.ps1')
@@ -94,10 +97,10 @@ $lines = $null
 if ($admin) {
     $state = Join-Path $configDir 'sunshine_state.json'
     $hasUser = (Test-Path $state) -and [bool](Get-Content -Raw $state | ConvertFrom-Json).username
-    if ($hasUser) {
+    if ($hasUser -and -not $ReplaceSignIn) {
         Write-Note 'Sunshine already has a sign-in: keeping it'
     } else {
-        Write-Step "Sunshine's web page sign-in: $($admin.name)"
+        Write-Step "Sunshine's web page sign-in: $($admin.name)$(if ($hasUser) { ' (replacing the one it had)' })"
         $p = Start-Process -FilePath (Join-Path $sunshineDir 'sunshine.exe') -ArgumentList '--creds', (ConvertTo-Argument $admin.name), (ConvertTo-Argument $admin.password) `
             -WorkingDirectory $sunshineDir -WindowStyle Hidden -Wait -PassThru
         if ($p.ExitCode) { Write-Note "FAILED (exit code $($p.ExitCode)): set it at https://localhost:47990" } else { $changed = $true; $signIn = $true }

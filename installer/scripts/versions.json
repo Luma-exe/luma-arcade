@@ -56,6 +56,13 @@
       "assetUrl": "https://api.github.com/repos/flyinghead/flycast/releases/assets/520813551",
       "sha256": "7EDF489BA6B3053703A18CE8233767EB71A2D89E4BDA0421B312C2167A739161"
     },
+    "iconic": {
+      "version": "0a549ff",
+      "name": "iconic-es-de-0a549ff.zip",
+      "url": "https://codeload.github.com/Siddy212/iconic-es-de/zip/0a549ffbe5a392bd818ee4c11a7175b2372591e4",
+      "sha256": "0CE20966027B6F367F75AB7E4029CC2D187DF7BFE0C3655D07594727ACBD14B5",
+      "rolling": "true"
+    },
     "melonds": {
       "version": "1.1",
       "name": "melonDS-1.1-windows-x86_64.zip",
