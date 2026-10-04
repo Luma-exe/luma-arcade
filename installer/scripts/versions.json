@@ -70,6 +70,13 @@
       "assetUrl": "https://api.github.com/repos/melonDS-emu/melonDS/releases/assets/317872508",
       "sha256": "9F3F8A244103BE20B5B657AF5B0ED1B2A66BB20A7181476A6D294C9A53D4F8C8"
     },
+    "mesa": {
+      "version": "26.2.3",
+      "name": "mesa3d-26.2.3-release-msvc.7z",
+      "url": "https://github.com/pal1000/mesa-dist-win/releases/download/26.2.3/mesa3d-26.2.3-release-msvc.7z",
+      "assetUrl": "https://api.github.com/repos/pal1000/mesa-dist-win/releases/assets/592900967",
+      "sha256": "3F3613ADB43CFD0F2E665CE2400B130C275F0B3317CB3A05566320A3A67589ED"
+    },
     "pcsx2": {
       "version": "v2.8.2",
       "name": "pcsx2-v2.8.2-windows-x64-Qt.7z",

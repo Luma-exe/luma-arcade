@@ -1,11 +1,13 @@
 import type { FastifyBaseLogger } from "fastify";
 import { notify } from "./notify.js";
+import { seatIdleTick } from "./seats.js";
 import { awayCheck, disconnectEveryone, gameEnded } from "./sessions.js";
 import { sunshineGet } from "./sunshine.js";
 
 // Nothing left running for nobody: every CHECK_MS, players away from their
 // controls too long are disconnected, and a game nobody has streamed for a
-// while is closed on the PC (sessions.ts awayCheck decides both).
+// while is closed on the PC (sessions.ts awayCheck decides both). The extra
+// seats' are closed when their player's hold on the seat runs out (seats.ts).
 
 const CHECK_MS = 30_000;
 
@@ -58,6 +60,11 @@ export function startIdleChecks(log: FastifyBaseLogger): void {
         if (!failedClose) log.warn({ err }, "idle check failed");
         failedClose = true;
       });
+    void seatIdleTick()
+      .then((closed) => {
+        for (const seat of closed) log.info({ seat }, "closed the game left open on a seat");
+      })
+      .catch((err: Error) => log.warn({ err }, "seat idle check failed"));
   }, CHECK_MS);
   timer.unref();
 }

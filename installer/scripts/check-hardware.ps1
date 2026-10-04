@@ -13,6 +13,12 @@
 #              Server doesn't ship it; virtual Xbox 360 pads need it)
 #   sunshineuser = 1 if Sunshine is installed and already has a web page
 #              sign-in (Setup can't pair with it unless it's replaced)
+#   hyperv   = on | off | restart | unavailable: extra seats are Hyper-V
+#              virtual machines (Windows Home has no Hyper-V)
+#   seatgpu  = 1 if Hyper-V can give a virtual machine a slice of a graphics
+#              card here (only known while Hyper-V is on)
+#   gpupolicy = 1 if Windows Server's Hyper-V policies let it partition a
+#              gaming graphics card (always 1 on Windows 10/11)
 param([Parameter(Mandatory)] [string]$Out)
 $ErrorActionPreference = 'SilentlyContinue'
 
@@ -36,6 +42,24 @@ $xusb = (Test-Path "$env:SystemRoot\System32\drivers\xusb22.sys") -or (Test-Path
 $state = Join-Path $env:ProgramFiles 'Sunshine\config\sunshine_state.json'
 $sunshineUser = (Test-Path $state) -and [bool](Get-Content -Raw $state | ConvertFrom-Json).username
 
+$server = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').InstallationType -eq 'Server'
+$hyperV = 'unavailable'
+if ($server) {
+    $f = Get-WindowsFeature -Name Hyper-V
+    if ($f) { $hyperV = if ($f.InstallState -eq 'InstallPending') { 'restart' } elseif ($f.Installed) { 'on' } else { 'off' } }
+} else {
+    $f = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All
+    if ($f) { $hyperV = if ($f.State -eq 'EnablePending') { 'restart' } elseif ($f.State -eq 'Enabled') { 'on' } else { 'off' } }
+}
+$seatGpu = $false
+if ($hyperV -eq 'on') {
+    foreach ($cmd in 'Get-VMHostPartitionableGpu', 'Get-VMPartitionableGpu') {
+        if (Get-Command $cmd -ErrorAction SilentlyContinue) { $seatGpu = [bool](& $cmd); break }
+    }
+}
+$policy = Get-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\HyperV' -ErrorAction SilentlyContinue
+$gpuPolicy = -not $server -or ($policy -and $policy.RequireSecureDeviceAssignment -eq 0 -and $policy.RequireSupportedDeviceAssignment -eq 0)
+
 @(
     '[hw]'
     "encoder=$encoder"
@@ -44,4 +68,7 @@ $sunshineUser = (Test-Path $state) -and [bool](Get-Content -Raw $state | Convert
     "vigem=$([int]$vigem)"
     "xusb=$([int]$xusb)"
     "sunshineuser=$([int]$sunshineUser)"
+    "hyperv=$hyperV"
+    "seatgpu=$([int]$seatGpu)"
+    "gpupolicy=$([int]$gpuPolicy)"
 ) | Set-Content -Path $Out -Encoding Unicode

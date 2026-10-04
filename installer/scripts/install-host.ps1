@@ -82,6 +82,8 @@ $config = [ordered]@{
     emulators = $emulators
     roaming   = (Join-Path $profileDir 'AppData\Roaming')
     snapshots = $snapshots
+    # The folder the extra seats see, read-only (seat-manager.ps1).
+    gamesDir  = $GamesDir
 }
 $config | ConvertTo-Json | Set-Content -Path "$dataDir\host.json" -Encoding UTF8
 Write-Note "ES-DE: $(if ($EsDeExe) { $EsDeExe } else { 'not found - the Home button can only switch to it while it runs' })"
@@ -207,6 +209,41 @@ if (Test-Path $sunshineApps) {
         $apps | ConvertTo-Json -Depth 10 | Set-Content -Path $sunshineApps -Encoding UTF8
         # Sunshine only rereads apps.json when its service restarts.
         if (-not $TestRoot) { Restart-Service SunshineService -Force -ErrorAction SilentlyContinue }
+    }
+}
+
+# Extra seats (seat-manager.ps1): Hyper-V needs an administrator, so a task
+# runs it as SYSTEM - at startup, and whenever the website starts it - and
+# the website hands it requests through seats\requests. It also keeps a copy
+# of Setup's scripts, which it runs inside each new seat to set it up the
+# way this PC was.
+# (Not inside a seat itself: it gets no seat-manager.ps1.)
+if (Test-Path (Join-Path $dataDir 'seat-manager.ps1')) {
+    Write-Step 'Extra seats: the seat manager (\LumaArcade\Seats, runs as SYSTEM)'
+    $setupCopy = Join-Path $dataDir 'setup'
+    New-Item -ItemType Directory -Force $setupCopy | Out-Null
+    foreach ($file in 'common.ps1', 'catalog.ps1', 'versions.json', 'install-sunshine.ps1', 'install-drivers.ps1', 'install-host.ps1', 'setup-windows.ps1', 'es-de.png') {
+        $from = Join-Path $PSScriptRoot $file
+        if (Test-Path $from) { Copy-Item $from $setupCopy -Force }
+    }
+    $seatsDir = Join-Path $dataDir 'seats'
+    foreach ($dir in $seatsDir, "$seatsDir\requests", "$seatsDir\responses", "$seatsDir\logs", "$dataDir\sync-out") { New-Item -ItemType Directory -Force $dir | Out-Null }
+    if (-not $TestRoot) {
+        # Administrators and SYSTEM run it; the account reads its status and
+        # logs, and may only drop requests (and its saves for a seat to fetch).
+        & icacls.exe $seatsDir /inheritance:r /grant:r '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-18:(OI)(CI)F' "${Account}:(OI)(CI)RX" /C /Q | Out-Null
+        & icacls.exe "$seatsDir\requests" /grant "${Account}:(OI)(CI)M" /C /Q | Out-Null
+        & icacls.exe "$dataDir\sync-out" /grant "${Account}:(OI)(CI)M" /C /Q | Out-Null
+        # The scripts SYSTEM runs: nobody else may change them.
+        foreach ($file in @(Get-Item "$dataDir\seat-manager.ps1", "$dataDir\seat-guest.ps1" -ErrorAction SilentlyContinue) + @(Get-Item $setupCopy)) {
+            & icacls.exe $file.FullName /inheritance:r /grant:r '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-545:(OI)(CI)RX' /T /C /Q | Out-Null
+        }
+        $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$dataDir\seat-manager.ps1`""
+        $principal = New-ScheduledTaskPrincipal -UserId 'S-1-5-18' -LogonType ServiceAccount -RunLevel Highest
+        $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew
+        Register-ScheduledTask -TaskName 'Seats' -TaskPath '\LumaArcade\' -Action $action -Trigger (New-ScheduledTaskTrigger -AtStartup) -Principal $principal -Settings $settings -Force | Out-Null
+        # The website starts it (schtasks /run) when someone opens Extra seats.
+        $scheduler.GetFolder('\LumaArcade').GetTask('Seats').SetSecurityDescriptor("D:(A;;FA;;;BA)(A;;FA;;;SY)(A;;FRFX;;;$sidAccount)", 0)
     }
 }
 

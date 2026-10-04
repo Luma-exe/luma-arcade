@@ -12,6 +12,7 @@ import {
   seatHolder,
   seatOffer,
   seatStreamEnded,
+  seatIdleTick,
   seatStreamStarted,
   setSeatDeps,
   type Seat,
@@ -135,5 +136,33 @@ describe("seats", () => {
 
   it("isn't a seat stream when the socket isn't one", () => {
     assert.equal(seatStreamEnded({}), false);
+  });
+
+  it("closes the game a player left open once their hold runs out", async () => {
+    const t = Date.now();
+    const socket = {};
+    seatStreamStarted(200, alice, socket, t);
+    seatStreamEnded(socket, t + 1000);
+    assert.deepEqual(await seatIdleTick(t + 1000 + HOLD_MS - 1), [], "still theirs");
+    assert.deepEqual(closed, []);
+    assert.deepEqual(await seatIdleTick(t + 1000 + HOLD_MS + 1), ["Seat2"]);
+    assert.deepEqual(closed, [200]);
+    // Once.
+    assert.deepEqual(await seatIdleTick(t + 1000 + HOLD_MS * 2), []);
+    assert.equal(seatHolder(200, t + HOLD_MS * 2), null);
+  });
+
+  it("doesn't close anything for a claim that never streamed", async () => {
+    const t = Date.now();
+    await claimSeat(alice, t);
+    closed = [];
+    assert.deepEqual(await seatIdleTick(t + CLAIM_MS + 1), []);
+    assert.deepEqual(closed, []);
+  });
+
+  it("leaves a seat alone while someone streams it", async () => {
+    const t = Date.now();
+    seatStreamStarted(200, alice, {}, t);
+    assert.deepEqual(await seatIdleTick(t + HOLD_MS * 5), []);
   });
 });

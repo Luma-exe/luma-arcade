@@ -18,7 +18,7 @@ export interface MoonlightHost {
   cache?: { name?: string; mac?: string | null };
 }
 
-interface MoonlightData {
+export interface MoonlightData {
   users: Record<string, { name: string; role_id: number }>;
   hosts: Record<string, MoonlightHost>;
   roles: Record<string, { name: string }>;
@@ -146,4 +146,65 @@ export function setDeviceOwner(data: MoonlightData, hostId: number, owner: numbe
 export function deleteDevice(data: MoonlightData, hostId: number): void {
   if (!data.hosts[String(hostId)]) throw new Error("That device doesn't exist");
   delete data.hosts[String(hostId)];
+}
+
+// --- extra seats (web/seatAdmin.ts)
+
+const SEAT_HOST = /^seat\s*\d+$/i;
+
+/** Paired seats by name, with the address moonlight-web-stream uses. */
+export function seatPairing(data: MoonlightData): Map<string, string> {
+  const seats = new Map<string, string>();
+  for (const h of Object.values(data.hosts ?? {})) {
+    const name = h.cache?.name;
+    if (name && SEAT_HOST.test(name) && h.pair_info) seats.set(name, h.address);
+  }
+  return seats;
+}
+
+/**
+ * A seat paired without a PIN: it trusts the client certificate this PC's
+ * Sunshine was paired with (host/seat-guest.ps1 added it to its devices),
+ * so its entry is that pairing with the seat's own certificate. Everyone can
+ * use it. Already there: its address (and certificate) are brought up to date.
+ */
+export function upsertSeatHost(
+  data: MoonlightData,
+  seat: { name: string; address: string; httpPort: number; serverCert: string }
+): void {
+  const existing = Object.values(data.hosts).filter((h) => h.cache?.name === seat.name);
+  if (existing.length) {
+    for (const h of existing) {
+      h.address = seat.address;
+      h.http_port = seat.httpPort;
+      h.pair_info = { ...(h.pair_info as object), server_certificate: seat.serverCert };
+    }
+    return;
+  }
+  const main = Object.values(data.hosts).find((h) => /^(localhost|127\.0\.0\.1|::1)$/.test(h.address) && h.pair_info);
+  const pair = main?.pair_info as { client_private_key?: string; client_certificate?: string } | undefined;
+  if (!pair?.client_private_key || !pair.client_certificate) throw new Error("This PC isn't paired with its own Sunshine, so there's no certificate to pair the seat with");
+  data.hosts[newHostId(data)] = {
+    owner: null,
+    address: seat.address,
+    http_port: seat.httpPort,
+    pair_info: {
+      client_private_key: pair.client_private_key,
+      client_certificate: pair.client_certificate,
+      server_certificate: seat.serverCert,
+    },
+    cache: { name: seat.name, mac: null },
+  };
+}
+
+/** Every copy of a seat, gone from everyone's devices. Returns how many. */
+export function removeSeatHosts(data: MoonlightData, name: string): number {
+  let n = 0;
+  for (const [id, h] of Object.entries(data.hosts)) {
+    if (h.cache?.name === name) {
+      delete data.hosts[id];
+      n++;
+    }
+  }
+  return n;
 }

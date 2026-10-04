@@ -8,6 +8,7 @@ import { registerSpeedtestRoutes } from "./routes/speedtest.js";
 import { registerHomeRoutes } from "./routes/home.js";
 import { registerInputRoutes } from "./routes/input.js";
 import { registerAdminRoutes } from "./routes/admin.js";
+import { registerSeatRoutes } from "./routes/seats.js";
 import { registerHandoverRoutes } from "./routes/handover.js";
 import { registerProfileRoutes } from "./routes/profiles.js";
 import { registerCoopRoutes } from "./routes/coop.js";
@@ -60,6 +61,7 @@ export async function createServer(opts: { port: number; serverDir: string }) {
   await registerHomeRoutes(app);
   await registerInputRoutes(app);
   await registerAdminRoutes(app);
+  await registerSeatRoutes(app);
   await registerHandoverRoutes(app);
   await registerProfileRoutes(app);
   await registerCoopRoutes(app);

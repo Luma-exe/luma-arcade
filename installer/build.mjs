@@ -94,7 +94,8 @@ const hostStage = path.join(stagingDir, "host");
 mkdirSync(hostStage, { recursive: true });
 const hostFiles = [
   [MOONLIGHT_DIR, ["home.ps1", "lockdown.ps1", "lockdown-shells.ps1", "focus-app.ps1", "stream-start.ps1", "esde-game-events.ps1", "vdd_settings.xml"]],
-  [repoRoot, ["profiles.ps1", "esde-game-started.ps1", "esde-keepalive.ps1", "emulator-window.ps1", "sync-pc-games.ps1"]],
+  // seat-*.ps1: extra seats (seat-manager.ps1 runs as SYSTEM, seat-guest.ps1 inside each seat).
+  [repoRoot, ["profiles.ps1", "esde-game-started.ps1", "esde-keepalive.ps1", "emulator-window.ps1", "sync-pc-games.ps1", "seat-manager.ps1", "seat-guest.ps1", "seat-sync.ps1"]],
 ];
 for (const [root, files] of hostFiles) {
   for (const file of files) cpSync(path.join(root, "host", file), path.join(hostStage, file));

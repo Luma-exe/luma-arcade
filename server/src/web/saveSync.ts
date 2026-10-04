@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import { runProfiles } from "./profilesScript.js";
 import type { Seat } from "./seats.js";
 import { dataPath } from "../platform.js";
+import { askManager, managerInstalled } from "./seatManager.js";
 
 const run = promisify(execFile);
 
@@ -14,13 +15,16 @@ const run = promisify(execFile);
 // isn't that one, their PC's switch asks here first (POST /api/saves/arrive):
 // the last PC exports their saves, they're copied over, and the switch
 // imports them before loading them - so whichever PC they're on, it has their
-// latest. Seats are VMs on this PC, reached through PowerShell Direct
-// (host/seat-sync.ps1).
+// latest. Seats are VMs on this PC, reached through PowerShell Direct: by the
+// seat manager (host/seat-manager.ps1, as SYSTEM) where Setup installed it,
+// else straight from here (host/seat-sync.ps1, when Luma Arcade runs as an
+// administrator).
 
 /** The main PC, as a "where they last played". Seats go by their name. */
 export const MAIN = "main";
 const HOME_FILE = process.env.LUMA_SAVES_HOME || dataPath("saves-home.json");
-const STAGING = process.env.LUMA_SAVES_STAGING || "E:\\LumaArcade\\sync";
+/** The main PC's exports (the seat manager copies them from here). */
+const STAGING = process.env.LUMA_SAVES_STAGING || dataPath("sync-out");
 /** Where a seat keeps a player's saves on the move. */
 const SEAT_DIR = dataPath("sync");
 const SEAT_SYNC_SCRIPT = process.env.LUMA_SEAT_SYNC_SCRIPT || dataPath("seat-sync.ps1");
@@ -35,8 +39,9 @@ export interface SyncDeps {
   writeHome(home: Record<string, string>): void;
   /** On the main PC: the player's saves into dir. */
   exportMain(player: Player, dir: string): Promise<void>;
-  /** On a seat: the player's saves, copied here to hostDir. */
-  exportSeat(seat: Seat, player: Player, hostDir: string): Promise<void>;
+  /** On a seat: the player's saves, copied to this PC - into hostDir, or
+   * the folder it returns (the seat manager picks its own). */
+  exportSeat(seat: Seat, player: Player, hostDir: string): Promise<string | void>;
   /** hostDir copied onto the seat at seatDir. */
   toSeat(seat: Seat, player: Player, hostDir: string, seatDir: string): Promise<void>;
   /** The folder becomes the player's saves on that PC (its profiles.ps1
@@ -45,9 +50,17 @@ export interface SyncDeps {
   importSeat(seat: Seat, player: Player, hostDir: string, seatDir: string): Promise<void>;
 }
 
-/** The seat VM's sign-in, made when it was set up. */
+/** The seat VM's sign-in: the seat manager's, or Seat2's (set up by hand). */
 function credFile(seat: Seat): string {
+  const managed = dataPath("seats", seat.name, "credentials.json");
+  if (existsSync(managed)) return managed;
   return path.join("E:\\HyperV", seat.name, `${seat.name.toLowerCase()}-credentials.json`);
+}
+
+/** A move done by the seat manager. Returns the folder it used on this PC. */
+async function viaManager(mode: "export" | "import" | "apply", seat: Seat, player: Player, from?: string): Promise<string> {
+  const answer = await askManager("sync", { name: seat.name, mode, playerId: player.id, playerName: player.name, from }, 600_000);
+  return String(answer.dir ?? "");
 }
 
 async function seatSync(mode: "export" | "import" | "apply", seat: Seat, player: Player, seatDir: string, hostDir: string) {
@@ -82,15 +95,22 @@ const realDeps: SyncDeps = {
     if (answer.error) throw new Error(String(answer.error));
   },
   exportSeat: async (seat, player, hostDir) => {
+    if (managerInstalled()) return viaManager("export", seat, player);
     mkdirSync(path.dirname(hostDir), { recursive: true });
     await seatSync("export", seat, player, path.win32.join(SEAT_DIR, `user-${player.id}`), hostDir);
   },
-  toSeat: (seat, player, hostDir, seatDir) => seatSync("import", seat, player, seatDir, hostDir),
+  toSeat: async (seat, player, hostDir, seatDir) => {
+    if (managerInstalled()) return void (await viaManager("import", seat, player, hostDir));
+    await seatSync("import", seat, player, seatDir, hostDir);
+  },
   importMain: async (player, dir) => {
     const answer = await runProfiles(["-Action", "import", "-Player", `${player.id}:${player.name}`, "-Dir", dir]);
     if (answer.error) throw new Error(String(answer.error));
   },
-  importSeat: (seat, player, hostDir, seatDir) => seatSync("apply", seat, player, seatDir, hostDir),
+  importSeat: async (seat, player, hostDir, seatDir) => {
+    if (managerInstalled()) return void (await viaManager("apply", seat, player, hostDir));
+    await seatSync("apply", seat, player, seatDir, hostDir);
+  },
 };
 
 let deps: SyncDeps = realDeps;
@@ -128,14 +148,14 @@ export function arrive(player: Player, pc: string, seats: Seat[]): Promise<{ imp
     const last = lastPc(player.id);
     if (last === pc) return {};
     const seatNamed = (name: string) => seats.find((s) => s.name === name) ?? null;
-    const hostDir = path.win32.join(STAGING, `user-${player.id}`);
+    let hostDir = path.win32.join(STAGING, `user-${player.id}`);
     if (last === MAIN) {
       await deps.exportMain(player, hostDir);
     } else {
       const from = seatNamed(last);
       // That seat is gone: nothing to fetch, this PC's copy is the one now.
       if (!from) return {};
-      await deps.exportSeat(from, player, hostDir);
+      hostDir = (await deps.exportSeat(from, player, hostDir)) || hostDir;
     }
     pending.set(player.id, pc);
     if (pc === MAIN) return { import: hostDir, from: last };
@@ -161,7 +181,7 @@ export function fetchTo(player: Player, pc: string, seats: Seat[]): Promise<{ mo
     const last = lastPc(player.id);
     if (last === pc) return { moved: false };
     const seatNamed = (name: string) => seats.find((s) => s.name === name) ?? null;
-    const hostDir = path.win32.join(STAGING, `user-${player.id}`);
+    let hostDir = path.win32.join(STAGING, `user-${player.id}`);
     if (last === MAIN) {
       await deps.exportMain(player, hostDir);
     } else {
@@ -170,7 +190,7 @@ export function fetchTo(player: Player, pc: string, seats: Seat[]): Promise<{ mo
         setLastPc(player.id, pc);
         return { moved: false };
       }
-      await deps.exportSeat(from, player, hostDir);
+      hostDir = (await deps.exportSeat(from, player, hostDir)) || hostDir;
     }
     if (pc === MAIN) {
       await deps.importMain(player, hostDir);

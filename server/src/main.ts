@@ -14,6 +14,7 @@ import { startGameTracking } from "./web/games.js";
 import { startWatchdog } from "./web/watchdog.js";
 import { startLockdown } from "./web/lockdown.js";
 import { startIdleChecks } from "./web/idle.js";
+import { startSeatAdmin } from "./web/seatAdmin.js";
 import { runHome } from "./web/routes/home.js";
 import { timestampStderr } from "./process/stderrTimestamps.js";
 import { useBundledMoonlight } from "./config/bundled.js";
@@ -53,6 +54,7 @@ async function main() {
     // Lockdown runs a helper on the games desktop (Windows only so far).
     if (IS_WINDOWS) startLockdown(server.app.log);
     startIdleChecks(server.app.log);
+    startSeatAdmin(server.app.log);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "EADDRINUSE") {
       console.error(await explainPortInUse(port));

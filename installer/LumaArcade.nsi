@@ -87,6 +87,12 @@ Var HwVdd            ; 1 = virtual display driver installed
 Var HwXusb           ; 1 = Xbox 360 controller driver installed
 Var HwVigem          ; 1 = ViGEmBus (virtual controllers) installed
 Var HwSunshineUser   ; 1 = Sunshine already has a web page sign-in
+Var HwHyperV         ; on | off | restart | unavailable (extra seats need Hyper-V)
+Var HwGpuPolicy      ; 0 = Windows Server's policies block gaming graphics cards
+Var WantSeats        ; 1 = get this PC ready for extra seats
+Var SeatCount        ; seats to build after Setup (0-3)
+Var SeatIso          ; the Windows disc they're built from
+Var SeatPolicy       ; 1 = allow partitioning a gaming card (Windows Server)
 Var ReplaceSignIn    ; 1 = give it the admin's sign-in anyway (so pairing works)
 Var hReplaceSignIn
 Var WantVdd
@@ -137,6 +143,11 @@ Var hAdminPass
 Var hAdminPass2
 Var hHttps
 Var hToken
+Var hSeats
+Var hSeatPolicy
+Var hSeatCount
+Var hSeatIso
+Var hSeatBrowse
 
 ; uninstaller
 Var UnAccount
@@ -159,6 +170,7 @@ Page custom ControllersPage ControllersLeave
 Page custom AccountPage AccountLeave
 Page custom AdminPage AdminLeave
 Page custom NetworkPage NetworkLeave
+Page custom SeatsPage SeatsLeave
 
 !define MUI_PAGE_HEADER_TEXT "Luma Arcade folder"
 !define MUI_PAGE_HEADER_SUBTEXT "Where the Luma Arcade website and streaming server go."
@@ -613,6 +625,29 @@ Section "-First run"
   Delete "$PLUGINSDIR\admin.txt"
 SectionEnd
 
+; Extra seats: the seat manager gets this PC ready and builds them after
+; Setup (Hyper-V may need a restart first; it carries on by itself).
+Section "-Extra seats"
+  ${IfNot} ${SectionIsSelected} ${SEC_LUMA}
+  ${OrIf} $WantSeats != 1
+    Return
+  ${EndIf}
+  !insertmacro QuotablePath $2 $INSTDIR
+  StrCpy $1 '-LumaDir "$2" -Port ${LUMA_PORT} -Count $SeatCount'
+  ${If} $SeatCount > 0
+    StrCpy $1 '$1 -Iso "$SeatIso"'
+  ${EndIf}
+  ${If} $SeatPolicy == 1
+    StrCpy $1 '$1 -AllowGpuPolicy'
+  ${EndIf}
+  !insertmacro RunPs "setup-seats.ps1" $1
+  ${If} $0 != 0
+    MessageBox MB_ICONEXCLAMATION|MB_OK "Extra seats couldn't be queued - see the details list. You can set them up later in Settings > Extra seats." /SD IDOK
+  ${ElseIf} $HwHyperV != "on"
+    MessageBox MB_ICONINFORMATION|MB_OK "Hyper-V is being turned on for the extra seats: restart this PC when Setup is done. Getting ready (and building any seats you asked for) carries on by itself after the restart - Settings > Extra seats shows how far it has got." /SD IDOK
+  ${EndIf}
+SectionEnd
+
 Section "-Finish"
   SetRegView 64
   ${If} ${SectionIsSelected} ${SEC_LUMA}
@@ -757,6 +792,15 @@ Function .onInit
   ReadINIStr $HwXusb "$PLUGINSDIR\hardware.ini" "hw" "xusb"
   ReadINIStr $HwVigem "$PLUGINSDIR\hardware.ini" "hw" "vigem"
   ReadINIStr $HwSunshineUser "$PLUGINSDIR\hardware.ini" "hw" "sunshineuser"
+  ReadINIStr $HwHyperV "$PLUGINSDIR\hardware.ini" "hw" "hyperv"
+  ReadINIStr $HwGpuPolicy "$PLUGINSDIR\hardware.ini" "hw" "gpupolicy"
+  ${If} $HwHyperV == ""
+    StrCpy $HwHyperV "unavailable"
+  ${EndIf}
+  StrCpy $WantSeats 0
+  StrCpy $SeatCount 0
+  StrCpy $SeatIso ""
+  StrCpy $SeatPolicy 0
   StrCpy $ReplaceSignIn 1
   ${If} $HwMonitors == ""
     ; The check couldn't run: assume a normal PC.
@@ -806,6 +850,8 @@ FunctionEnd
 ;   /ADMINFILE=<file: admin name, password on two lines>
 ;   /NOHTTPS  /TUNNELTOKENFILE=<file>  /LATEST (newest downloads, not the tested ones)
 ;   /REPLACESUNSHINESIGNIN  (Sunshine already has a sign-in: give it the admin's, so it can pair)
+;   /SEATS=0-3  extra seats: get this PC ready (Hyper-V, GPU partitioning) and build that many
+;   /WINDOWSISO=<Windows 10/11 .iso to build them from>  /ALLOWGPUPOLICY (Windows Server)
 ; Files given are copied, never changed or deleted.
 Function ReadOptions
   ClearErrors
@@ -916,6 +962,25 @@ Function ReadOptions
   ${IfNot} ${Errors}
     StrCpy $Latest 1
   ${EndIf}
+  ClearErrors
+  ${GetOptions} $Opts "/SEATS=" $0
+  ${IfNot} ${Errors}
+    StrCpy $WantSeats 1
+    IntOp $SeatCount $0 + 0
+    ${If} $SeatCount > 3
+      StrCpy $SeatCount 3
+    ${EndIf}
+  ${EndIf}
+  ClearErrors
+  ${GetOptions} $Opts "/WINDOWSISO=" $0
+  ${IfNot} ${Errors}
+    StrCpy $SeatIso $0
+  ${EndIf}
+  ClearErrors
+  ${GetOptions} $Opts "/ALLOWGPUPOLICY" $0
+  ${IfNot} ${Errors}
+    StrCpy $SeatPolicy 1
+  ${EndIf}
 FunctionEnd
 
 !macro EmuOption SEC KEY FOLDER
@@ -953,6 +1018,19 @@ Function SilentSetup
     StrCpy $WantVigem 0
     StrCpy $WantXusb 0
     StrCpy $Ds4 0
+  ${EndIf}
+  ${If} $WantSeats == 1
+    ${If} $HwHyperV == "unavailable"
+      MessageBox MB_ICONSTOP "/SEATS: this Windows can't run Hyper-V (extra seats need Windows 10/11 Pro, Enterprise or Server)." /SD IDOK
+      SetErrorLevel 2
+      Quit
+    ${EndIf}
+    ${If} $SeatCount > 0
+    ${AndIfNot} ${FileExists} "$SeatIso"
+      MessageBox MB_ICONSTOP "/SEATS=$SeatCount needs /WINDOWSISO=<a Windows 10 or 11 .iso>." /SD IDOK
+      SetErrorLevel 2
+      Quit
+    ${EndIf}
   ${EndIf}
   ${If} ${SectionIsSelected} ${SEC_LUMA}
   ${AndIf} $SeparateAccount == 1
@@ -1602,6 +1680,126 @@ Function NetworkLeave
   ${NSD_GetText} $hToken $TunnelToken
 FunctionEnd
 
+; ---------------------------------------------------------------- extra seats
+Function SeatsPage
+  !insertmacro OnlyWhenChanging
+  ${IfNot} ${SectionIsSelected} ${SEC_LUMA}
+  ${OrIfNot} ${SectionIsSelected} ${SEC_SUNSHINE}
+  ${OrIf} $HwHyperV == "unavailable"
+    StrCpy $WantSeats 0
+    Abort
+  ${EndIf}
+  !insertmacro MUI_HEADER_TEXT "Extra seats" "More people playing at once, each on their own Windows."
+  nsDialogs::Create 1018
+  Pop $0
+
+  ${NSD_CreateCheckbox} 0 0 100% 12u "Get this PC ready for extra seats"
+  Pop $hSeats
+  !insertmacro Strong $hSeats
+  ${NSD_OnClick} $hSeats SeatsToggle
+  ${If} $WantSeats == 1
+    ${NSD_Check} $hSeats
+  ${EndIf}
+  StrCpy $1 ""
+  ${If} $HwHyperV != "on"
+    StrCpy $1 " Hyper-V gets turned on, which needs a restart after Setup."
+  ${EndIf}
+  ${NSD_CreateLabel} 12u 13u -12u 34u "Each seat is its own Windows - a Hyper-V virtual machine on this PC with a slice of the graphics card - so several people can play different games at once, with their own saves. Each needs about 6 GB of memory and a few processors of its own.$1"
+  Pop $0
+  !insertmacro Muted $0
+
+  StrCpy $hSeatPolicy ""
+  ${If} $IsServer == 1
+  ${AndIf} $HwGpuPolicy != 1
+    ${NSD_CreateCheckbox} 12u 49u -12u 20u "Let Hyper-V partition this gaming graphics card (changes two Hyper-V security policies Windows Server has on by default)"
+    Pop $hSeatPolicy
+    ${If} $SeatPolicy == 1
+      ${NSD_Check} $hSeatPolicy
+    ${EndIf}
+  ${EndIf}
+
+  ${NSD_CreateLabel} 12u 74u 70u 10u "Seats to build now"
+  Pop $0
+  ${NSD_CreateDropList} 84u 72u 120u 60u ""
+  Pop $hSeatCount
+  ${NSD_CB_AddString} $hSeatCount "None - add them in Settings"
+  ${NSD_CB_AddString} $hSeatCount "1"
+  ${NSD_CB_AddString} $hSeatCount "2"
+  ${NSD_CB_AddString} $hSeatCount "3"
+  SendMessage $hSeatCount ${CB_SETCURSEL} $SeatCount 0
+
+  ${NSD_CreateLabel} 12u 90u 70u 10u "Windows disc (.iso)"
+  Pop $0
+  ${NSD_CreateText} 84u 88u -60u 12u $SeatIso
+  Pop $hSeatIso
+  ${NSD_CreateButton} -54u 87u 54u 14u "Browse..."
+  Pop $hSeatBrowse
+  ${NSD_OnClick} $hSeatBrowse SeatsBrowse
+
+  ${NSD_CreateLabel} 12u 105u -12u 34u "Windows 10 or 11 Pro, Enterprise or Education, from microsoft.com/software-download. Each seat takes about an hour to build, one after another, after Setup. Settings > Extra seats shows how far it has got, and adds or removes seats any time."
+  Pop $0
+  !insertmacro Muted $0
+  Call SeatsToggle
+  nsDialogs::Show
+FunctionEnd
+
+Function SeatsToggle
+  ${NSD_GetState} $hSeats $0
+  ${If} $0 == ${BST_CHECKED}
+    StrCpy $0 1
+  ${Else}
+    StrCpy $0 0
+  ${EndIf}
+  ${If} $hSeatPolicy != ""
+    EnableWindow $hSeatPolicy $0
+  ${EndIf}
+  EnableWindow $hSeatCount $0
+  EnableWindow $hSeatIso $0
+  EnableWindow $hSeatBrowse $0
+FunctionEnd
+
+Function SeatsBrowse
+  nsDialogs::SelectFileDialog open "" "Windows disc (*.iso)|*.iso"
+  Pop $0
+  ${If} $0 != ""
+    ${NSD_SetText} $hSeatIso $0
+  ${EndIf}
+FunctionEnd
+
+Function SeatsLeave
+  ${NSD_GetState} $hSeats $0
+  StrCpy $WantSeats 0
+  ${If} $0 == ${BST_CHECKED}
+    StrCpy $WantSeats 1
+  ${EndIf}
+  StrCpy $SeatPolicy 0
+  ${If} $hSeatPolicy != ""
+    ${NSD_GetState} $hSeatPolicy $0
+    ${If} $0 == ${BST_CHECKED}
+      StrCpy $SeatPolicy 1
+    ${EndIf}
+  ${EndIf}
+  SendMessage $hSeatCount ${CB_GETCURSEL} 0 0 $SeatCount
+  ${NSD_GetText} $hSeatIso $SeatIso
+  ${If} $WantSeats != 1
+    Return
+  ${EndIf}
+  ${If} $SeatCount > 0
+    StrCpy $0 $SeatIso 4 -4
+    ${If} $0 != ".iso"
+    ${OrIfNot} ${FileExists} "$SeatIso"
+      MessageBox MB_ICONEXCLAMATION "Pick the Windows 10 or 11 .iso file the seats are built from (or build none now and add them in Settings later)."
+      Abort
+    ${EndIf}
+  ${EndIf}
+  ${If} $IsServer == 1
+  ${AndIf} $HwGpuPolicy != 1
+  ${AndIf} $SeatPolicy != 1
+    MessageBox MB_YESNO|MB_ICONQUESTION "Without the GPU policy change, Windows Server won't give a seat a slice of this graphics card, so seats can't be built. Continue anyway?" IDYES +2
+    Abort
+  ${EndIf}
+FunctionEnd
+
 ; ---------------------------------------------------------------- folders
 Function LumaDirPre
   !insertmacro OnlyWhenChanging
@@ -1736,6 +1934,8 @@ SectionEnd
 Section /o "un.ViGEmBus (virtual controllers)" UN_VIGEM
   SectionIn 2
 SectionEnd
+Section /o "un.Extra seats: their virtual machines and disks" UN_SEATS
+SectionEnd
 Section /o "un.Your games folder: games, saves and BIOS files" UN_GAMES
 SectionEnd
 
@@ -1753,6 +1953,7 @@ SectionEnd
   !insertmacro MUI_DESCRIPTION_TEXT ${UN_EMUS} "Each emulator goes with its settings and any saves kept in its own folder."
   !insertmacro MUI_DESCRIPTION_TEXT ${UN_VDD} "The virtual screen Sunshine streams when no monitor is plugged in."
   !insertmacro MUI_DESCRIPTION_TEXT ${UN_VIGEM} "The driver that turns players' controllers into Xbox or PlayStation pads on this PC. Other apps (like DS4Windows) may use it too."
+  !insertmacro MUI_DESCRIPTION_TEXT ${UN_SEATS} "The extra seats Luma Arcade built: their virtual machines and disks, the read-only share of your games folder and its account. Hyper-V itself stays on."
   !insertmacro MUI_DESCRIPTION_TEXT ${UN_GAMES} "Deletes the whole games folder: your games (ROMs), saves, BIOS files, ES-DE and the emulators. Can't be undone."
 !insertmacro MUI_UNFUNCTION_DESCRIPTION_END
 
@@ -1815,6 +2016,7 @@ SectionEnd
   !insertmacro UnCountSelected ${UN_VDD} "" ""
   !insertmacro UnCountSelected ${UN_VIGEM} "" ""
   !insertmacro UnCountSelected ${UN_GAMES} "" ""
+  !insertmacro UnCountSelected ${UN_SEATS} "" ""
 !macroend
 
 Function un.onInit
@@ -1877,6 +2079,14 @@ Function un.onInit
   ${OrIf} $UnGamesDir == ""
     !insertmacro UnHide ${UN_ESDE}
   ${EndIf}
+  ; Extra seats: only when the seat manager built some.
+  nsExec::ExecToStack `"${POWERSHELL}" -NoProfile -Command "[int][bool](Get-ChildItem 'C:\ProgramData\LumaArcade\seats' -Directory -ErrorAction SilentlyContinue | Where-Object { Test-Path (Join-Path $$_.FullName 'seat.json') })"`
+  Pop $0
+  Pop $1
+  StrCpy $1 $1 1
+  ${If} $1 != "1"
+    !insertmacro UnHide ${UN_SEATS}
+  ${EndIf}
   StrCpy $Str1 0
   !insertmacro UnAllEmus UnHideAbsent
   ${If} $Str1 == 0
@@ -1894,6 +2104,10 @@ Function un.ComponentsLeave
   ${EndIf}
   ${If} ${SectionIsSelected} ${UN_GAMES}
     MessageBox MB_YESNO|MB_ICONEXCLAMATION|MB_DEFBUTTON2 "Delete EVERYTHING in $UnGamesDir - your games, saves, BIOS files, ES-DE and the emulators? This can't be undone." /SD IDYES IDYES +2
+    Abort
+  ${EndIf}
+  ${If} ${SectionIsSelected} ${UN_SEATS}
+    MessageBox MB_YESNO|MB_ICONEXCLAMATION|MB_DEFBUTTON2 "Delete the extra seats' virtual machines and disks? Saves people only have on a seat go with it." /SD IDYES IDYES +2
     Abort
   ${EndIf}
   ${If} ${SectionIsSelected} ${UN_ACCOUNT}
@@ -1924,6 +2138,16 @@ Function un.Remove
     Pop $0
     ; Everything running from the install folder, so its files can go.
     nsExec::Exec `"${POWERSHELL}" -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $$_.ExecutablePath -like '$INSTDIR\*' -and $$_.Name -ne 'cloudflared.exe' } | ForEach-Object { Stop-Process -Id $$_.ProcessId -Force }"`
+    Pop $0
+  ${EndIf}
+
+  ; The extra seats, while their scripts are still there.
+  ${If} ${SectionIsSelected} ${UN_SEATS}
+  ${AndIf} ${FileExists} "C:\ProgramData\LumaArcade\seat-manager.ps1"
+    DetailPrint "Removing the extra seats..."
+    nsExec::Exec 'schtasks.exe /end /tn "\LumaArcade\Seats"'
+    Pop $0
+    nsExec::ExecToLog '"${POWERSHELL}" -NoProfile -ExecutionPolicy Bypass -File "C:\ProgramData\LumaArcade\seat-manager.ps1" -Action teardown'
     Pop $0
   ${EndIf}
 

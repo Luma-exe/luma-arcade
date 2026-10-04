@@ -152,3 +152,33 @@ desktop with the stream ended. Sunshine closing the app (Stop, idle close,
 saves switch) ends this script within its 5-second exit timeout, before it
 would restart anything; with nobody streaming it just ends.
 Log: `C:\ProgramData\LumaArcade\home\esde-keepalive.log`.
+
+## Extra seats (`seat-manager.ps1`, `seat-guest.ps1`, `seat-sync.ps1`)
+
+More people playing at once, each on a Hyper-V virtual machine with a slice of
+the graphics card (README: *Extra seats*). Settings > Extra seats drives it.
+
+- **`seat-manager.ps1`** runs as SYSTEM (task `\LumaArcade\Seats`, at startup
+  and whenever the website starts it): the website drops requests in
+  `C:\ProgramData\LumaArcade\seats\requests` (writable by the games account
+  only), it answers in `seats\responses` and keeps `seats\status.json`
+  current. Each job runs as its own process. With no seats it stops after 15
+  idle minutes. Logs: `seats\logs\<SeatN>.log` and `manager.log`.
+- **Building a seat** (`create`): checks this PC, writes an unattended
+  Windows answer file (an admin account `LumaAdmin` for PowerShell Direct, the
+  standard games account `Arcade` signing in by itself), creates the VM with
+  the GPU partition, waits for Windows, copies the host's display driver into
+  `System32\HostDriverStore`, then runs `seat-guest.ps1` inside it: ES-DE and
+  the emulators copied from the read-only games share (ROMs, media and BIOS
+  stay on it), Setup's own `install-sunshine.ps1` / `install-drivers.ps1` /
+  `install-host.ps1`, Mesa for OpenGL/Vulkan, lockdown always on, and Luma
+  Arcade's client certificate trusted by Sunshine. Every step is noted in
+  `seats\<SeatN>\seat.json`, so a failed or interrupted build carries on from
+  where it stopped. Passwords are in `seats\<SeatN>\credentials.json`
+  (administrators only).
+- **Saves** moving to or from a seat go through the manager too (`sync`),
+  with folders it picks itself: `seats\staging\user-<id>` (seat -> PC) and
+  `sync-out\user-<id>` (PC -> seat). `seat-sync.ps1` is the older direct way,
+  used when the manager isn't installed and Luma Arcade runs as an admin.
+- **Uninstalling** with "Extra seats" ticked runs `-Action teardown`: the
+  seats Luma Arcade built, the games share and its account. Hyper-V stays.

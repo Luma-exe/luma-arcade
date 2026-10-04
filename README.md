@@ -38,6 +38,7 @@ Free and open source. Runs on your own Windows gaming PC, set up by a one-click 
 | **Play anywhere** | Stream the PC's games to any browser - TV, laptop or phone - with controllers, touch controls and automatic quality that adapts to the connection. |
 | **Accounts and fair turns** | One player at a time, with hand-over requests, a waiting line, idle hand-over and admin take-over. |
 | **Co-op** | Invite up to three more players onto the same screen, or let people watch. |
+| **Extra seats** | More people playing different games at once, each on their own Windows: a virtual machine on your PC with a slice of the graphics card, added from Settings in a few clicks. When the PC is busy, friends get a free seat - with their own saves. [More](#extra-seats) |
 | **Guest links** | Share a link that gives someone without an account a turn, or a seat in your game, for a set time. Pick a game and the link opens straight into it - no menus. |
 | **Your PC games** | Installed Steam, Epic, Xbox app (Game Pass), EA app, GOG and Ubisoft Connect games show up in the library by themselves - Steam with its artwork - and stay in step as you install and uninstall. |
 | **Per-player saves** | Everyone keeps their own emulator saves and ES-DE favorites, with snapshots they can restore. |
@@ -50,6 +51,25 @@ Free and open source. Runs on your own Windows gaming PC, set up by a one-click 
 No controller? Phones and tablets get **on-screen controls**, with layouts for Xbox, PlayStation and more, and special ones for racing (analog pedals, tilt to steer) and shooters (swipe to look). Drag any button to where your thumbs want it, and save your own layouts.
 
 <p align="center"><img src="docs/touch-controls.png" alt="Luma Arcade's on-screen controls on a phone: a standard pad, and a racing layout with gas and brake pedals" width="900"></p>
+
+## Extra seats
+
+One gaming PC, several people playing **different** games at the same time. Each extra seat is its own Windows - a Hyper-V virtual machine on your PC with a slice of the graphics card (GPU partitioning) - with its own Sunshine, ES-DE and emulators, reading your games from the PC through a read-only share.
+
+Nobody has to pick a seat. When someone else is using the PC, the "*X is using this PC*" screen offers **Start a new session**, and the friend lands on a free seat. Their saves come with them: per-player saves follow each player between the PC and the seats.
+
+**Adding one:** Settings > **Extra seats** > *Get this PC ready* (turns on Hyper-V, makes a network switch and the games share - once, may need a restart), then *Add a seat* with a Windows 10/11 .iso. It builds itself in about an hour - Windows installs unattended, gets the graphics driver, Sunshine, ES-DE, the emulators and Luma Arcade's helpers, and pairs - and the page shows each step. Seats can be started, stopped, repaired or removed there too; removing one brings players' saves back to the PC first. Setup's *Extra seats* page can do the same during install.
+
+| | |
+|---|---|
+| **Windows** | 10/11 Pro, Enterprise or Education, or Windows Server (not Home: no Hyper-V). On Server, gaming cards need two Hyper-V policies relaxed - Setup and Settings ask first. |
+| **Graphics** | A card Hyper-V can partition (recent NVIDIA, AMD or Intel drivers). Every seat shares its power: think half the card for one seat, a quarter each for three. |
+| **Memory and processors** | About 6 GB and 4-6 processors per seat, on top of what your PC needs. |
+| **Disk** | About 130 GB per seat (Windows plus ES-DE and the emulators; the games stay on the PC). An SSD makes seats start much faster. |
+| **A Windows .iso** | Windows 10 or 11 Pro/Enterprise/Education from [Microsoft](https://www.microsoft.com/software-download/windows11). Seats install unactivated; licensing them is up to you. |
+
+> [!NOTE]
+> Inside a seat, OpenGL and Vulkan run through Direct3D 12 ([Mesa](https://github.com/pal1000/mesa-dist-win)), because a partitioned graphics card only offers Direct3D to a virtual machine. Most emulators are fine; a few may need their renderer set to Direct3D. PC games from Steam and other launchers stay on the main PC. Seats are always locked down (admin tools close as they open).
 
 ## What you need
 
@@ -87,6 +107,7 @@ No controller? Phones and tablets get **on-screen controls**, with layouts for X
 | **Admin account** | Creates your admin sign-in, sets Sunshine's sign-in and pairs the two. |
 | **Other devices** | HTTPS on the home network (browsers only allow controllers on secure pages) and an optional Cloudflare Tunnel for playing away from home. |
 | **PC-side helpers** | Installs the scripts and scheduled tasks behind lockdown, the Home button, per-player saves, game tracking and window focus. |
+| **Extra seats** | Optional: gets the PC ready for [extra seats](#extra-seats) (Hyper-V, GPU partitioning, the games share) and builds up to three from a Windows .iso after Setup. |
 
 Everything is downloaded from official releases at **versions tested with Luma Arcade**, each checked against its SHA-256 before it's installed ([`versions.json`](installer/scripts/versions.json)). BIOS and firmware files are never included.
 
@@ -129,6 +150,9 @@ LumaArcadeSetup.exe /S [options] [/D=C:\Program Files\LumaArcade]
 | `/VDD` `/NOVDD` `/VIGEM` `/NOVIGEM` `/XUSB` `/NOXUSB` | Force a driver on or off |
 | `/DS4` | PlayStation 4 controllers instead of Xbox 360 |
 | `/LATEST` | Newest releases instead of the tested versions |
+| `/SEATS=0-3` | Get the PC ready for extra seats and build that many |
+| `/WINDOWSISO=<file>` | The Windows 10/11 .iso to build seats from |
+| `/ALLOWGPUPOLICY` | Windows Server: let Hyper-V partition a gaming graphics card |
 
 Secrets are read from files, which are copied and never changed. `/D=` must come last. Setup exits with code `2`, before changing anything, if the options don't add up.
 
@@ -191,6 +215,7 @@ Because the server can't reach the games desktop itself, PC-side PowerShell help
 | **Auth** | `web/streamUser.ts` | Pages under `/stream` call `/stream/luma-api/...` (rewritten to `/api/...`) because moonlight's cookie is scoped to `/stream`. Access rules live in Luma Arcade's database (`web/access.ts`, `web/appAccess.ts`). |
 | **Turns** | `web/sessions.ts`, `routes/handover.ts` | Whoever streams has the PC. Hand-over requests lapse after 10 s; idle players (15 min) hand over when asked; an abandoned game is released after 10 min (3 with someone waiting); the line holds a free PC for 90 s. |
 | **Co-op** | `sessions.ts`, `routes/coop.ts` | Up to 4 players on one screen at the host's size and frame rate; needs `channels = 2` in `sunshine.conf`. Guests can't go Home or close the game. |
+| **Extra seats** | `web/seats.ts`, `web/seatAdmin.ts`, `host/seat-manager.ps1` | moonlight hosts named `SeatN` are seats; "Start a new session" claims a free one, held 10 min after its player leaves, then what they left open is closed. Hyper-V needs an admin, so `seat-manager.ps1` runs as SYSTEM (task `\LumaArcade\Seats`) and takes requests from `ProgramData\LumaArcade\seats\requests`: it builds a seat (unattended Windows, the host's GPU driver, then `seat-guest.ps1` inside it runs Setup's own Sunshine/driver/helper scripts) and Luma Arcade pairs it without a PIN. Saves move between PCs through it (`web/saveSync.ts`). |
 | **Guest links** | `web/guestLinks.ts` | `/g/<token>` signs a visitor in as a throwaway moonlight account whose time and expiry act as a play limit. A link with a game goes straight to its stream with `?continue=1`, and `POST /api/continue` starts that game (`games.ts` `queueLaunch`). |
 | **Saves** | `host/profiles.ps1`, `routes/saves.ts` | A Sunshine prep-command swaps save folders and ES-DE stats to the incoming player; snapshots are kept per player. |
 | **Limits and messages** | `web/limits.ts`, `web/announcements.ts`, `web/messages.ts` | Daily/weekly minutes, announcements and direct messages, delivered through one poll. |
@@ -305,6 +330,7 @@ Streaming quality depends on the host's GPU encoder (NVENC, AMF or Quick Sync) a
 
 ## Roadmap
 
+- **Extra seats** - new: several people on different games at once, each seat built from Settings (see [Extra seats](#extra-seats)).
 - **Linux hosts** - early beta (see [Install](#linux-early-beta)); next are the PC-side helpers. See the [plan](docs/linux-host-plan.md).
 - Ideas and votes welcome in [Discussions](https://github.com/Luma-exe/luma-arcade/discussions).
 

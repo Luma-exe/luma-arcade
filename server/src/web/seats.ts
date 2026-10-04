@@ -40,6 +40,8 @@ interface Holder {
   lastSeen: number;
   /** Claimed, and no stream has started yet. */
   claimedUntil: number | null;
+  /** A stream ran: whatever it left open is closed when the hold ends. */
+  played: boolean;
 }
 
 export interface SeatDeps {
@@ -102,15 +104,37 @@ export function isSeatHost(hostId: number): boolean {
   return listSeats().some((s) => s.hostId === hostId);
 }
 
-/** Whoever has this seat right now (streaming, holding it, or claimed it). */
+function holding(h: Holder, now: number): boolean {
+  if (h.sockets.size > 0) return true;
+  if (h.claimedUntil !== null) return h.claimedUntil > now;
+  return now - h.lastSeen < HOLD_MS;
+}
+
+/** Whoever has this seat right now (streaming, holding it, or claimed it).
+ * One whose hold ran out stays listed until seatIdleTick closes what they
+ * left open. */
 function holderOf(hostId: number, now = Date.now()): Holder | null {
   const h = holders.get(hostId);
-  if (!h) return null;
-  if (h.sockets.size > 0) return h;
-  if (h.claimedUntil !== null && h.claimedUntil > now) return h;
-  if (h.claimedUntil === null && now - h.lastSeen < HOLD_MS) return h;
-  holders.delete(hostId);
-  return null;
+  return h && holding(h, now) ? h : null;
+}
+
+/**
+ * A seat whose player left (their hold ran out): the game they left open is
+ * closed, like the main PC's (idle.ts), so the seat is fresh for the next
+ * person and isn't running a game for nobody. Returns the seats closed.
+ */
+export async function seatIdleTick(now = Date.now()): Promise<string[]> {
+  const closed: string[] = [];
+  for (const [hostId, h] of [...holders]) {
+    if (holding(h, now)) continue;
+    holders.delete(hostId);
+    if (!h.played) continue;
+    const seat = listSeats(now).find((s) => s.hostId === hostId);
+    if (!seat) continue;
+    await deps.close(seat).catch(() => {});
+    closed.push(seat.name);
+  }
+  return closed;
 }
 
 /** The seat this person has, if any. */
@@ -162,7 +186,7 @@ export async function claimSeat(user: StreamUser, now = Date.now()): Promise<Sea
   }
   const seat = await freeSeat(user, now);
   if (!seat) return null;
-  holders.set(seat.hostId, { user, sockets: new Set(), lastSeen: now, claimedUntil: now + CLAIM_MS });
+  holders.set(seat.hostId, { user, sockets: new Set(), lastSeen: now, claimedUntil: now + CLAIM_MS, played: false });
   // A new player: the last one's ES-DE (and their saves) closes, so the
   // seat starts it again with this player's saves (host/profiles.ps1).
   await deps.close(seat).catch(() => {});
@@ -187,10 +211,11 @@ export function seatStreamStarted(hostId: number, user: StreamUser, socket: obje
     h.sockets.add(socket);
     h.claimedUntil = null;
     h.lastSeen = now;
+    h.played = true;
   } else {
     // Free, or an admin taking it over: the old holder's streams stay
     // open until Sunshine ends them, but the seat is the admin's now.
-    holders.set(hostId, { user, sockets: new Set([socket]), lastSeen: now, claimedUntil: null });
+    holders.set(hostId, { user, sockets: new Set([socket]), lastSeen: now, claimedUntil: null, played: true });
   }
   return { allowed: true };
 }

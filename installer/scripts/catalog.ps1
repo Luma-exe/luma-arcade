@@ -63,6 +63,9 @@ $OtherDownloads = [ordered]@{
     # from the Microsoft Update Catalog. It hasn't changed since 2009.
     xusb              = @{ Name = 'Xbox 360 controller driver'; Check = 'cab'
                            Source = { @{ Url = 'https://catalog.s.download.windowsupdate.com/msdownload/update/driver/drvs/2013/01/20289581_7385d6be1b053a35955a910f11436729a1d4cb56.cab'; Name = 'xusb21.cab'; Version = '2.1.0.1349' } } }
+    # OpenGL and Vulkan over Direct3D 12 for the extra seats (host/seat-guest.ps1):
+    # a partitioned graphics card only offers Direct3D inside a virtual machine.
+    mesa              = @{ Name = 'Mesa (OpenGL/Vulkan over Direct3D 12, for extra seats)'; Check = 'x64\opengl32.dll'; Repo = 'pal1000/mesa-dist-win'; Pattern = '^mesa3d-[\d.]+-release-msvc\.7z$' }
     '7zr'             = @{ Name = '7-Zip extractor'; Check = 'exe'
                            Source = { $page = Invoke-WebRequest 'https://www.7-zip.org/download.html' -UseBasicParsing -Headers $script:UserAgent
                                       $ver = [regex]::Match($page.Content, 'Download 7-Zip ([\d.]+)').Groups[1].Value
