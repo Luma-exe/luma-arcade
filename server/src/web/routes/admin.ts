@@ -32,7 +32,9 @@ interface SunshineApp {
 
 /** Sunshine's apps (apps.json), with their cover images inlined. */
 function sunshineApps(): { name: string; image: string | null }[] {
-  const config = JSON.parse(readFileSync(path.join(SUNSHINE_DIR, "config", "apps.json"), "utf8")) as {
+  // PowerShell 5.1 (Setup, the helper scripts) saves it with a byte order mark.
+  const text = readFileSync(path.join(SUNSHINE_DIR, "config", "apps.json"), "utf8").replace(/^﻿/, "");
+  const config = JSON.parse(text) as {
     apps: SunshineApp[];
   };
   return config.apps.map((app) => {
