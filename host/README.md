@@ -132,25 +132,27 @@ and scrolls sideways forever behind the game; when only the desktop is left
 it brings ES-DE back. Needs ES-DE's `CustomEventScripts` setting. Deployed
 copy: `C:\ProgramData\LumaArcade\esde-game-started.ps1`.
 
-## Switch, Wii and GameCube games fill the screen (`emulator-window.ps1`)
+## Games fill the screen (`emulator-window.ps1`)
 
-Eden (`user\config\window_state.ini`) and Dolphin (`Config\Qt.ini`) save
-their window's place and size and put it back next time. The PC's screen
-changes size with every player's stream, so after someone played at another
-size the next game opened off to the side. The ES-DE game-start script
-`00-emulator-window.bat` (switch, wii, gc only) clears the saved place and
+Most standalone emulators save their window's place and size and put it back
+next time. The PC's screen changes size with every player's stream, so after
+someone played at another size the next game opened off to the side. The
+ES-DE game-start script `00-emulator-window.bat` clears the saved place and
 size before the emulator starts, then watches in the background: a
 fullscreen window that doesn't cover the screen is put over the whole
-screen. Log: `C:\ProgramData\LumaArcade\home\emulator-window.log`.
+screen. Covered: Eden (switch), Dolphin (wii, gc), PCSX2 (ps2), RPCS3 (ps3),
+DuckStation (psx), Azahar (n3ds), melonDS (nds), Vita3K (psvita), PPSSPP
+(psp) and Cemu (wiiu). Log: `C:\ProgramData\LumaArcade\home\emulator-window.log`.
 
 ## Quitting ES-DE (`esde-keepalive.ps1`)
 
 Sunshine's ES-DE app starts `esde-keepalive.ps1 -Exe "<ES-DE.exe>"` instead
 of ES-DE itself. If a player picks "Quit ES-DE" while someone is streaming,
-ES-DE is started again 7 seconds later, instead of leaving them on the
-desktop with the stream ended. Sunshine closing the app (Stop, idle close,
-saves switch) ends this script within its 5-second exit timeout, before it
-would restart anything; with nobody streaming it just ends.
+ES-DE is started again at once, instead of leaving them on the desktop with
+the stream ended. Sunshine closing the app (Stop, idle close, saves switch)
+is told apart by its log line "Successfully requested the app to exit";
+then, or with nobody streaming, it stays closed. If Sunshine's log can't be
+read, it waits out Sunshine's 5-second exit timeout before restarting.
 Log: `C:\ProgramData\LumaArcade\home\esde-keepalive.log`.
 
 ## Extra seats (`seat-manager.ps1`, `seat-guest.ps1`, `seat-sync.ps1`)

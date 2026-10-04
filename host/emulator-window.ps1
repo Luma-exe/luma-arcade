@@ -1,14 +1,13 @@
 <#
-  ES-DE game-start event script for Switch, Wii and GameCube games (called by
-  <ES-DE>\scripts\game-start\00-emulator-window.bat, which passes ES-DE's
-  system name and only calls this for those systems).
+  ES-DE game-start event script for games on the standalone emulators (called
+  by <ES-DE>\scripts\game-start\00-emulator-window.bat, which passes ES-DE's
+  system name and only calls this for the systems below).
 
-  Eden (Switch) and Dolphin (Wii, GameCube) remember their window's place and
-  size and put it back on the next start (Eden: user\config\window_state.ini,
-  Dolphin: Config\Qt.ini). The games PC's screen changes size with every
-  player's stream, so after someone played at another size, the next game
-  opened off to the side instead of filling the screen, until someone left
-  fullscreen and went back in.
+  Most emulators remember their window's place and size and put it back on
+  the next start. The games PC's screen changes size with every player's
+  stream, so after someone played at another size, the next game opened off
+  to the side instead of filling the screen, until someone left fullscreen
+  and went back in.
 
   1. Before the emulator starts: forget the saved window place and size (it's
      closed then, so it can't write them back).
@@ -27,37 +26,53 @@ function Log($m) { try { Add-Content $LOG "$(Get-Date -Format s) $m" } catch {} 
 if (-not $Watch) {
   # Emulators and the games account's AppData\Roaming: host.json
   # (installer/scripts/install-host.ps1), else the original gaming PC's.
-  $emulators = 'G:\ES-DE\Emulators'
-  $roaming = 'C:\Users\Arcade\AppData\Roaming'
+  $E = 'G:\ES-DE\Emulators'
+  $R = 'C:\Users\Arcade\AppData\Roaming'
   $hostFile = 'C:\ProgramData\LumaArcade\host.json'
   try {
     if (Test-Path $hostFile) {
       $h = Get-Content -Raw $hostFile | ConvertFrom-Json
-      if ($h.emulators) { $emulators = $h.emulators }
-      if ($h.roaming) { $roaming = $h.roaming }
+      if ($h.emulators) { $E = $h.emulators }
+      if ($h.roaming) { $R = $h.roaming }
     }
   } catch {}
+  $documents = Join-Path (Split-Path (Split-Path $R)) 'Documents'
 
-  # Which emulator, its settings file, and the [sections] whose geometry= it
-  # restores ('' = no sections in the file).
+  # Per system: the emulator's process, its settings file, the [sections]
+  # holding the saved window place/size ($null = anywhere in the file) and
+  # those settings' names.
   $emu = switch -Regex ($System) {
-    '^switch$' { @{ Process = 'eden'; File = (Join-Path $emulators 'eden\user\config\window_state.ini'); Keys = '^geometry(RenderWindow)?='; Sections = @('General') } }
-    '^(wii|gc|gamecube|wiiware)$' { @{ Process = 'Dolphin'; File = (Join-Path $roaming 'Dolphin Emulator\Config\Qt.ini'); Keys = '^geometry='; Sections = @('mainwindow', 'renderwidget') } }
+    '^switch$' { @{ Process = 'eden'; File = "$E\eden\user\config\window_state.ini"; Sections = @('General'); Keys = '^geometry(RenderWindow)?=' } }
+    '^(wii|gc|gamecube|wiiware)$' { @{ Process = 'Dolphin'; File = "$R\Dolphin Emulator\Config\Qt.ini"; Sections = @('mainwindow', 'renderwidget'); Keys = '^geometry=' } }
+    '^ps2$' { @{ Process = 'pcsx2-qt'; File = "$documents\PCSX2\inis\PCSX2.ini"; Sections = @('UI'); Keys = '^(DisplayWindowGeometry|MainWindowGeometry)\s*=' } }
+    '^ps3$' { @{ Process = 'rpcs3'; File = "$E\RPCS3\GuiConfigs\CurrentSettings.ini"; Sections = @('main_window', 'GSFrame'); Keys = '^geometry=' } }
+    '^psx$' { @{ Process = 'duckstation-qt-x64-ReleaseLTCG'; File = "$E\duckstation\settings.ini"; Sections = @('UI'); Keys = '^MainWindow(X|Y|Width|Height)\s*=' } }
+    '^n3ds$' { @{ Process = 'azahar'; File = "$E\azahar\user\config\qt-config.ini"; Sections = $null; Keys = '^UILayout\\geometry(RenderWindow|SecondaryWindow)?=' } }
+    '^nds$' { @{ Process = 'melonDS'; File = "$E\melonDS\melonDS.toml"; Sections = $null; Keys = '^Geometry\s*=' } }
+    '^psvita$' { @{ Process = 'Vita3K'; File = "$E\Vita3K\gui-configs\CurrentSettings.ini"; Sections = @('MainWindow'); Keys = '^geometry=' } }
+    '^psp$' { @{ Process = 'PPSSPPWindows64'; File = "$E\PPSSPP\memstick\PSP\SYSTEM\ppsspp.ini"; Sections = $null; Keys = '^Window(X|Y|Width|Height)\s*=' } }
+    '^wiiu$' { @{ Process = 'Cemu'; File = "$R\Cemu\settings.xml"; Sections = $null; Keys = '^\s*<(window_position|window_size|pad_position|pad_size)>' } }
     default { $null }
   }
   if (-not $emu) { exit 0 }
 
   if ((Test-Path $emu.File) -and -not (Get-Process $emu.Process -ErrorAction SilentlyContinue)) {
     try {
-      $lines = @(Get-Content $emu.File)
+      $lines = [IO.File]::ReadAllLines($emu.File)
       $section = 'General'
+      $skipping = ''
       $kept = @(foreach ($line in $lines) {
-        if ($line -match '^\[(.+)\]$') { $section = $Matches[1] }
-        if ($emu.Sections -contains $section -and $line -match $emu.Keys) { continue }
+        # Cemu's XML: <window_position> holds <x>/<y> lines up to its end tag.
+        if ($skipping) { if ($line -match "</$skipping>") { $skipping = '' }; continue }
+        if ($line -match '^\[(.+)\]\s*$') { $section = $Matches[1] }
+        if ((-not $emu.Sections -or $emu.Sections -contains $section) -and $line -match $emu.Keys) {
+          if ($line -match '^\s*<(\w+)>\s*$') { $skipping = $Matches[1] }
+          continue
+        }
         $line
       })
       if ($kept.Count -ne $lines.Count) {
-        Set-Content -Path $emu.File -Value $kept -Encoding ASCII
+        [IO.File]::WriteAllLines($emu.File, [string[]]$kept, (New-Object Text.UTF8Encoding $false))
         Log "$($emu.Process): forgot the saved window size"
       }
     } catch { Log "couldn't change $($emu.File): $($_.Exception.Message)" }

@@ -8,9 +8,9 @@
 #   esde-game-*.ps1     ES-DE event scripts: what's being played (game
 #                       tracking) and minimizing ES-DE behind a game (it
 #                       otherwise steals a held stick direction)
-#   emulator-window.ps1 ES-DE event script: Switch, Wii and GameCube games
-#                       fill the screen whatever size the previous player
-#                       streamed at
+#   emulator-window.ps1 ES-DE event script: games on the standalone
+#                       emulators fill the screen whatever size the previous
+#                       player streamed at
 #   esde-keepalive.ps1  what Sunshine's ES-DE app runs: starts ES-DE again
 #                       when a player quits it from its menu
 #   sync-pc-games.ps1   puts the PC's installed Steam and Epic games in ES-DE
@@ -146,9 +146,9 @@ if ($esDeData) {
     ) | Set-Content -Path (Join-Path $events '02-luma-game-events.bat') -Encoding ASCII
     @(
         '@echo off'
-        "rem Switch, Wii and GameCube games fill the screen whatever size the last player streamed at, see $dataDir\emulator-window.ps1"
+        "rem Games on the standalone emulators fill the screen whatever size the last player streamed at, see $dataDir\emulator-window.ps1"
         'rem Runs without "start" so the saved window size is gone before the emulator starts.'
-        'for %%s in (switch wii gc gamecube wiiware) do if /i "%~3"=="%%s" goto run'
+        'for %%s in (switch wii gc gamecube wiiware ps2 ps3 psx n3ds nds psvita psp wiiu) do if /i "%~3"=="%%s" goto run'
         'exit /b 0'
         ':run'
         "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$dataDir\emulator-window.ps1`" -System %3"
