@@ -1,6 +1,6 @@
 {
   "comment": "Download versions the installer uses, checked by installer/scripts/update-versions.ps1. Change them with that script, not by hand.",
-  "updated": "2026-09-30",
+  "updated": "2026-10-05",
   "downloads": {
     "7zr": {
       "version": "26.03",
@@ -36,18 +36,18 @@
       "sha256": "1AA25785B7D4CB76259754C5FBCDD8856857B8E7BB4E523C57A8AC56665FBA75"
     },
     "duckstation": {
-      "version": "latest 2026-09-12",
+      "version": "latest 2026-10-03",
       "name": "duckstation-windows-x64-release.zip",
       "url": "https://github.com/stenzek/duckstation/releases/download/latest/duckstation-windows-x64-release.zip",
-      "assetUrl": "https://api.github.com/repos/stenzek/duckstation/releases/assets/559221312",
+      "assetUrl": "https://api.github.com/repos/stenzek/duckstation/releases/assets/607030938",
       "rolling": "true",
-      "sha256": "5BA3B9624B3073D3398C2CB8185BA3A014FF9E84F9C486627E0E8AA56371D352"
+      "sha256": "1C6CE125F5BDDB5D72B294335975B79EAA29E3F6686875537BFE4B61C9CC3973"
     },
     "esde": {
-      "version": "v3.4.1",
+      "version": "v3.5.0",
       "name": "ES-DE-portable.zip",
-      "url": "https://gitlab.com/es-de/emulationstation-de/-/package_files/288156909/download",
-      "sha256": "B082110241A5A672353729E3787609F406C4C149DDDBD791993BDA0A3185D4B5"
+      "url": "https://gitlab.com/es-de/emulationstation-de/-/package_files/357718057/download",
+      "sha256": "0231EDD066A36A9D22D280631CDA6B6C1B2AFA6DCA699BEF20E4956A624B7801"
     },
     "flycast": {
       "version": "v2.7",
@@ -71,11 +71,11 @@
       "sha256": "9F3F8A244103BE20B5B657AF5B0ED1B2A66BB20A7181476A6D294C9A53D4F8C8"
     },
     "mesa": {
-      "version": "26.2.3",
-      "name": "mesa3d-26.2.3-release-msvc.7z",
-      "url": "https://github.com/pal1000/mesa-dist-win/releases/download/26.2.3/mesa3d-26.2.3-release-msvc.7z",
-      "assetUrl": "https://api.github.com/repos/pal1000/mesa-dist-win/releases/assets/592900967",
-      "sha256": "3F3613ADB43CFD0F2E665CE2400B130C275F0B3317CB3A05566320A3A67589ED"
+      "version": "26.2.4",
+      "name": "mesa3d-26.2.4-release-msvc.7z",
+      "url": "https://github.com/pal1000/mesa-dist-win/releases/download/26.2.4/mesa3d-26.2.4-release-msvc.7z",
+      "assetUrl": "https://api.github.com/repos/pal1000/mesa-dist-win/releases/assets/609112860",
+      "sha256": "351FC8C8B695878FFB3EAA044B3EAD08672A48B1A045E3C3E3975811DF0F6695"
     },
     "pcsx2": {
       "version": "v2.8.2",
@@ -104,18 +104,18 @@
       "sha256": "86B871E11B9B4772AC644B40A38F2C8E9449DA1F355EAE7DA08AA061148547B0"
     },
     "rpcs3": {
-      "version": "build-3e9d881aa681f4ade80f86e9ff7fba73d5098a9b",
-      "name": "rpcs3-v0.0.42-20083-3e9d881a_win64_msvc.7z",
-      "url": "https://github.com/RPCS3/rpcs3-binaries-win/releases/download/build-3e9d881aa681f4ade80f86e9ff7fba73d5098a9b/rpcs3-v0.0.42-20083-3e9d881a_win64_msvc.7z",
-      "assetUrl": "https://api.github.com/repos/RPCS3/rpcs3-binaries-win/releases/assets/598520241",
-      "sha256": "A03B955B5B738AD02465F55A45BEEF171414E0C7177348B95CCC3A5D20D2D0E1"
+      "version": "build-52de29af0405cc64c54733085af0fb994e8b3a88",
+      "name": "rpcs3-v0.0.43-20215-52de29af_win64_msvc.7z",
+      "url": "https://github.com/RPCS3/rpcs3-binaries-win/releases/download/build-52de29af0405cc64c54733085af0fb994e8b3a88/rpcs3-v0.0.43-20215-52de29af_win64_msvc.7z",
+      "assetUrl": "https://api.github.com/repos/RPCS3/rpcs3-binaries-win/releases/assets/611700133",
+      "sha256": "D989E5873D241127E98B57385AB941071C59BC971456B6CCAFED89F86747D59D"
     },
     "shadps4": {
-      "version": "v.0.18.0",
-      "name": "shadps4-win64-sdl-0.18.0.zip",
-      "url": "https://github.com/shadps4-emu/shadPS4/releases/download/v.0.18.0/shadps4-win64-sdl-0.18.0.zip",
-      "assetUrl": "https://api.github.com/repos/shadps4-emu/shadPS4/releases/assets/519167613",
-      "sha256": "EA273C6A2B296D4CEE2E3DC45414FA9077F5FB43679784D1C43EEE97A484FCC8"
+      "version": "v.0.19.0",
+      "name": "shadps4-win64-sdl-0.19.0.zip",
+      "url": "https://github.com/shadps4-emu/shadPS4/releases/download/v.0.19.0/shadps4-win64-sdl-0.19.0.zip",
+      "assetUrl": "https://api.github.com/repos/shadps4-emu/shadPS4/releases/assets/605748764",
+      "sha256": "B9600602A809B7CB4AAF29CBEB0917D32CAECF27BC5A9232DF76200FBF80C017"
     },
     "sunshine": {
       "version": "v2026.914.233613",
@@ -135,15 +135,16 @@
       "version": "v1.22.0",
       "name": "ViGEmBus_1.22.0_x64_x86_arm64.exe",
       "url": "https://github.com/nefarius/ViGEmBus/releases/download/v1.22.0/ViGEmBus_1.22.0_x64_x86_arm64.exe",
+      "assetUrl": "https://api.github.com/repos/nefarius/ViGEmBus/releases/assets/133623750",
       "sha256": "89220A7865076B342892F98865F3499FB7C4CFD673159E89D352C360FD014C6A"
     },
     "vita3k": {
-      "version": "continuous 2026-09-28",
+      "version": "continuous 2026-10-05",
       "name": "windows-latest.zip",
       "url": "https://github.com/Vita3K/Vita3K/releases/download/continuous/windows-latest.zip",
-      "assetUrl": "https://api.github.com/repos/Vita3K/Vita3K/releases/assets/593123368",
+      "assetUrl": "https://api.github.com/repos/Vita3K/Vita3K/releases/assets/611017281",
       "rolling": "true",
-      "sha256": "F9302631F1557C7B14E5A2B63FDF13F7A7F2B1D336D6FEDAB453C5F4D09B8D31"
+      "sha256": "3EAC35D9D407212BBA76A374BBDA7B2DAF5763D9757A17A4C2F1262909400126"
     },
     "xemu": {
       "version": "v0.8.136",
