@@ -169,6 +169,24 @@
   .done strong { display: block; margin-bottom: 2px; }
   .done-icon { flex: 0 0 auto; font-size: 20px; line-height: 1; }
 
+  /* A private arcade: no requests here, set up your own. */
+  .notice {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 14px;
+    border-radius: 10px;
+    background: var(--accent-soft);
+    border: 1px solid rgba(31, 111, 209, 0.25);
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  .notice strong { display: block; margin-bottom: 2px; }
+  .notice p { margin: 0 0 8px; }
+  .notice a { color: var(--accent); font-weight: 600; }
+  .notice-icon { flex: 0 0 auto; font-size: 20px; line-height: 1; }
+  #intro .notice { margin-top: 14px; }
+
   .contact {
     display: flex;
     align-items: center;
@@ -255,6 +273,14 @@
       <a class="btn primary" href="/stream/">Sign in</a>
       <button class="btn" type="button" id="open-request">Request an account</button>
     </div>
+    <div class="notice" id="private-note" hidden>
+      <span class="notice-icon" aria-hidden="true">🔒</span>
+      <div>
+        <strong>This is a private arcade</strong>
+        <p>It runs on luma_exe's own PC for their friends, so it doesn't take account requests. Luma Arcade is free and open source: set it up on your own gaming PC and play with your friends.</p>
+        <a href="https://github.com/Luma-exe/luma-arcade" target="_blank" rel="noopener">Set up your own Luma Arcade <span aria-hidden="true">→</span></a>
+      </div>
+    </div>
     <a class="more" href="/howitworks/">How it works, and everything it can do <span aria-hidden="true">→</span></a>
   </section>
 
@@ -315,6 +341,22 @@
     </form>
   </section>
 
+  <section class="card" id="reset-private" aria-labelledby="reset-private-title" hidden>
+    <h2 id="reset-private-title">Forgot your password?</h2>
+    <p class="lead">This arcade is private, so passwords aren't reset from here. If luma_exe gave you an account, message them on Discord for a new one.</p>
+    <div class="notice">
+      <span class="notice-icon" aria-hidden="true">🔒</span>
+      <div>
+        <strong>Want an arcade of your own?</strong>
+        <p>Luma Arcade is free and open source. Set it up on your own gaming PC and you decide who plays.</p>
+        <a href="https://github.com/Luma-exe/luma-arcade" target="_blank" rel="noopener">Set up your own Luma Arcade <span aria-hidden="true">→</span></a>
+      </div>
+    </div>
+    <div class="actions" style="margin-top:14px">
+      <button class="btn" type="button" id="cancel-reset-private">Back</button>
+    </div>
+  </section>
+
   <section class="card" id="reset-sent" aria-live="polite" hidden>
     <div class="done">
       <span class="done-icon" aria-hidden="true">✓</span>
@@ -339,7 +381,10 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const SENT_KEY = "lumaAccountRequested";
-  const show = (id) => ["intro", "request", "requested", "reset", "reset-sent"].forEach((s) => ($(s).hidden = s !== id));
+  const show = (id) => ["intro", "request", "requested", "reset", "reset-private", "reset-sent"].forEach((s) => ($(s).hidden = s !== id));
+  // The owner's own arcade: no account requests or password resets, just "set up your own".
+  const PRIVATE = document.body.classList.contains("private-server");
+  if (PRIVATE) { $("open-request").hidden = true; $("private-note").hidden = false; }
 
   const remembered = () => { try { return localStorage.getItem(SENT_KEY); } catch { return null; } };
   const remember = (name) => { try { localStorage.setItem(SENT_KEY, name || "1"); } catch {} };
@@ -363,10 +408,12 @@
   });
 
   // Asked before (this browser, or this address)?
-  if (remembered()) $("open-request").textContent = "Account requested ✓";
-  fetch("/api/account-request", { cache: "no-store" }).then((r) => r.json()).then((d) => {
-    if (d && d.requested) { remember(d.name); $("open-request").textContent = "Account requested ✓"; }
-  }).catch(() => {});
+  if (!PRIVATE) {
+    if (remembered()) $("open-request").textContent = "Account requested ✓";
+    fetch("/api/account-request", { cache: "no-store" }).then((r) => r.json()).then((d) => {
+      if (d && d.requested) { remember(d.name); $("open-request").textContent = "Account requested ✓"; }
+    }).catch(() => {});
+  }
 
   $("open-request").addEventListener("click", () => {
     if (remembered()) { showRequested(true); return; }
@@ -414,10 +461,13 @@
     show("reset-sent");
   }
   function openReset() {
+    if (PRIVATE) { show("reset-private"); $("cancel-reset-private").focus(); return; }
     show("reset");
     $("reset-name").focus();
   }
-  $("cancel-reset").addEventListener("click", () => { history.replaceState(null, "", location.pathname); show("intro"); });
+  const closeReset = () => { history.replaceState(null, "", location.pathname); show("intro"); };
+  $("cancel-reset").addEventListener("click", closeReset);
+  $("cancel-reset-private").addEventListener("click", closeReset);
   $("reset-message").addEventListener("input", () => { $("reset-count").textContent = `${$("reset-message").value.length} / 500`; });
   if (location.hash === "#reset-password") openReset();
   window.addEventListener("hashchange", () => { if (location.hash === "#reset-password") openReset(); });

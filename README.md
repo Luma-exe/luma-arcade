@@ -71,6 +71,11 @@ Nobody has to pick a seat. When someone else is using the PC, the "*X is using t
 > [!NOTE]
 > Inside a seat, OpenGL and Vulkan run through Direct3D 12 ([Mesa](https://github.com/pal1000/mesa-dist-win)), because a partitioned graphics card only offers Direct3D to a virtual machine. Most emulators are fine; a few may need their renderer set to Direct3D. PC games from Steam and other launchers stay on the main PC. Seats are always locked down (admin tools close as they open).
 
+## Host your own
+
+> [!IMPORTANT]
+> **Luma Arcade is something you run on your own PC - there's no public server to sign up for.** [arcade.lumaplayground.com](https://arcade.lumaplayground.com) is the author's personal gaming PC, shared with friends only: it doesn't take account requests or password resets, and it isn't open to new players. To play, [install Luma Arcade](#install) on your own gaming PC and invite your friends - you decide who gets an account.
+
 ## What you need
 
 **The gaming PC** (the host)

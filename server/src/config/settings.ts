@@ -25,6 +25,11 @@ export interface AppSettings {
    * closed for nobody, Sunshine restarts, failed backups, the weekly play
    * summary. Empty: none of that is sent. */
   discordWebhookUrl: string;
+
+  /** A private arcade (the author's own, arcade.lumaplayground.com): the
+   * welcome page takes no account requests or password resets and tells
+   * visitors to set up their own server instead. Off for everyone else. */
+  privateServer: boolean;
 }
 
 const DEFAULTS: AppSettings = {
@@ -38,6 +43,8 @@ const DEFAULTS: AppSettings = {
   devTreePath: "",
 
   discordWebhookUrl: "",
+
+  privateServer: false,
 };
 
 export function getSetting<K extends keyof AppSettings>(key: K): AppSettings[K] {

@@ -145,6 +145,30 @@ describe("forgotten passwords", () => {
   });
 });
 
+describe("a private arcade", () => {
+  after(() => setSetting("privateServer", false));
+
+  it("is off unless turned on", async () => {
+    const page = await app.inject({ method: "GET", url: "/" });
+    assert.match(page.body, /<body class="checking">/);
+  });
+
+  it("marks the page private and turns both forms away", async () => {
+    setSetting("privateServer", true);
+    const page = await app.inject({ method: "GET", url: "/" });
+    assert.match(page.body, /<body class="checking private-server">/);
+    assert.match(page.body, /Set up your own Luma Arcade/);
+    const account = await ask("203.0.113.40", { name: "Sam" });
+    assert.equal(account.statusCode, 403);
+    assert.match(account.json().error, /private/);
+    const reset = await app.inject({ method: "POST", url: "/api/password-reset", headers: { "cf-connecting-ip": "203.0.113.41" }, payload: { name: "Ben" } });
+    assert.equal(reset.statusCode, 403);
+    assert.equal(posts.length, 0);
+    const rows = getDb().prepare("SELECT (SELECT COUNT(*) FROM account_requests) + (SELECT COUNT(*) FROM password_resets) AS n").get() as { n: number };
+    assert.equal(rows.n, 0);
+  });
+});
+
 describe("the admin's Requests tab", () => {
   const admin = { cookie: "mlSession=admin" };
 

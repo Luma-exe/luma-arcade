@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { getSetting } from "../../config/settings.js";
 import { getDb } from "../../db/index.js";
 import { MOONLIGHT_PATH_PREFIX } from "../../remote/moonlightWebStream.js";
 import { notify } from "../notify.js";
@@ -14,6 +15,9 @@ import { requireAdmin, streamUser } from "../streamUser.js";
 // on Discord (settings: discordWebhookUrl) with their name, Discord and
 // message. One request per visitor address, and a cap on all of them so
 // nobody can use it to spam the admin.
+//
+// A private arcade (settings: privateServer) takes neither: the page says
+// so and points visitors at setting up their own.
 //
 // The sign-in cookie only exists under /stream, so the page itself asks
 // /stream/luma-api/me whether you're signed in and goes straight on if so.
@@ -34,6 +38,14 @@ let page: string | null = null;
 /** /howitworks/: how the arcade works and everything it does, for visitors. */
 const HOW_PAGE = path.join(PAGES, "howitworks.html");
 let howPage: string | null = null;
+
+/** What the request forms get back on a private arcade. */
+const PRIVATE_ERROR = "This arcade is private. Luma Arcade is free: set up your own at github.com/Luma-exe/luma-arcade";
+
+/** The welcome page, marked private (body class) when the arcade is. */
+export function welcomePage(html: string, isPrivate: boolean): string {
+  return isPrivate ? html.replace('<body class="checking">', '<body class="checking private-server">') : html;
+}
 
 /** One line of text as typed, trimmed to `max`. */
 export function oneLine(value: unknown, max: number): string {
@@ -69,7 +81,7 @@ export async function registerWelcomeRoutes(app: FastifyInstance) {
     return reply
       .header("cache-control", "no-cache")
       .type("text/html; charset=utf-8")
-      .send(withPreview(page, request, `Luma Arcade - ${SLOGAN}`, PITCH));
+      .send(withPreview(welcomePage(page, getSetting("privateServer")), request, `Luma Arcade - ${SLOGAN}`, PITCH));
   });
 
   // Public, like the welcome page: no sign-in needed to read it.
@@ -93,6 +105,7 @@ export async function registerWelcomeRoutes(app: FastifyInstance) {
   });
 
   app.post<{ Body: { name?: unknown; contact?: unknown; message?: unknown } }>("/api/account-request", async (request, reply) => {
+    if (getSetting("privateServer")) return reply.code(403).send({ error: PRIVATE_ERROR });
     const name = oneLine(request.body?.name, MAX_NAME);
     const contact = oneLine(request.body?.contact, MAX_CONTACT);
     const message = String(request.body?.message ?? "").slice(0, MAX_MESSAGE).trim();
@@ -134,6 +147,7 @@ export async function registerWelcomeRoutes(app: FastifyInstance) {
   });
 
   app.post<{ Body: { name?: unknown; contact?: unknown; message?: unknown } }>("/api/password-reset", async (request, reply) => {
+    if (getSetting("privateServer")) return reply.code(403).send({ error: PRIVATE_ERROR });
     const name = oneLine(request.body?.name, MAX_NAME);
     const contact = oneLine(request.body?.contact, MAX_CONTACT);
     const message = String(request.body?.message ?? "").slice(0, MAX_MESSAGE).trim();
