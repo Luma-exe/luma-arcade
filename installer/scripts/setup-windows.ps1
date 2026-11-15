@@ -11,9 +11,16 @@
 #                    as an LSA secret like Sysinternals Autologon does, not
 #                    as plain text in the registry.
 #  -LumaDir          LumaArcade's install folder: the account gets write
-#                    access to it (its database lives there), and the
-#                    firewall lets the home network reach the web page and
-#                    browsers reach the stream's video directly.
+#                    access only to the few folders the app writes at run
+#                    time (its database, moonlight-web-stream's data.json),
+#                    never to the programs run elevated (Uninstall.exe,
+#                    cloudflared.exe). The firewall lets the home network
+#                    reach the web page and browsers reach the stream's
+#                    video directly.
+#  -CheckAdminOnly   changes nothing: exits 3 if -Account is a Windows
+#                    administrator, else 0 (the installer asks first).
+#  -RemoveFromAdmins takes an existing -Account out of Administrators, so
+#                    people streaming its desktop can't take over the PC.
 #  -Autostart        start LumaArcade whenever the account signs in.
 #  -Port             LumaArcade's port, for the firewall.
 param(
@@ -24,9 +31,33 @@ param(
     [switch]$AutoLogon,
     [string]$LumaDir = '',
     [switch]$Autostart,
-    [int]$Port = 7777
+    [int]$Port = 7777,
+    [switch]$CheckAdminOnly,
+    [switch]$RemoveFromAdmins
 )
 . (Join-Path $PSScriptRoot 'common.ps1')
+
+# True if $Name is in Administrators (S-1-5-32-544). By SID, so it works
+# whatever language Windows is in; false if the account doesn't exist.
+function Test-IsAdministrator([string]$Name) {
+    try {
+        Add-Type -AssemblyName System.DirectoryServices.AccountManagement
+        $ctx = New-Object System.DirectoryServices.AccountManagement.PrincipalContext('Machine')
+        $idType = [System.DirectoryServices.AccountManagement.IdentityType]
+        $user = [System.DirectoryServices.AccountManagement.UserPrincipal]::FindByIdentity($ctx, $idType::SamAccountName, $Name)
+        if (-not $user) { return $false }
+        $group = [System.DirectoryServices.AccountManagement.GroupPrincipal]::FindByIdentity($ctx, $idType::Sid, 'S-1-5-32-544')
+        return [bool]$user.IsMemberOf($group)
+    } catch {
+        return $false
+    }
+}
+
+if ($CheckAdminOnly) {
+    if (-not $Account) { $Account = $env:USERNAME }
+    if (Test-IsAdministrator $Account) { exit 3 }
+    exit 0
+}
 
 $password = Read-SecretFile $PasswordFile -Keep:$KeepPasswordFile
 
@@ -52,6 +83,20 @@ if (-not $isCurrent) {
         Add-LocalGroupMember -SID 'S-1-5-32-545' -Member $Account
     } else {
         Write-Step "Using the existing Windows account $Account"
+    }
+}
+
+# Anyone streaming the games account sees and controls its desktop, so an
+# administrator account there means control of the whole PC.
+if (Test-IsAdministrator $Account) {
+    if ($RemoveFromAdmins -and -not $isCurrent) {
+        Write-Step "Taking $Account out of the Administrators group"
+        Remove-LocalGroupMember -SID 'S-1-5-32-544' -Member $Account
+        Add-LocalGroupMember -SID 'S-1-5-32-545' -Member $Account -ErrorAction SilentlyContinue
+        Write-Note "$Account is now a standard account"
+    } else {
+        if ($RemoveFromAdmins) { Write-Note "Not changing $Account's rights: it's the account running Setup, and taking it out of Administrators would lock you out" }
+        Write-Warn "$Account is a Windows administrator. Players streaming its desktop could take over the PC. Use a separate standard account."
     }
 }
 
@@ -107,15 +152,38 @@ $password = $null
 
 if ($LumaDir) {
     Write-Step "Letting $Account run Luma Arcade from $LumaDir"
-    & icacls.exe $LumaDir /grant "${Account}:(OI)(CI)M" /T /C /Q | Out-Null
+    # Only what the app writes while it runs. The rest of the folder stays
+    # read and run only: Uninstall.exe is run elevated by administrators and
+    # cloudflared.exe runs as a SYSTEM service, so a games account that could
+    # change them could take over the PC.
+    # An older Setup gave this account Modify on the whole folder: take that
+    # back first (only what was granted to the account by name).
+    & icacls.exe $LumaDir /remove:g $Account /T /C /Q | Out-Null
+    # server\: the database (luma-arcade.db, with its -wal and -shm files).
+    # SQLite creates those next to it, so that one folder and the files directly
+    # in it are writable. (NP) = no propagate: the files inherit it, but dist    # and node_modules\ (and what is in them) don't, so they stay read-only.
+    # moonlight-web-stream\server\: data.json (users, paired PCs) and its
+    # backup, rewritten whenever someone is added or a PC is paired.
+    $writable = @(
+        @{ Path = Join-Path $LumaDir 'server'; Grant = @("${Account}:(M)", "${Account}:(OI)(IO)(NP)M") },
+        @{ Path = Join-Path $LumaDir 'moonlight-web-stream\server'; Grant = @("${Account}:(OI)(CI)M") }
+    )
+    foreach ($w in $writable) {
+        New-Item -ItemType Directory -Force $w.Path | Out-Null
+        foreach ($g in $w.Grant) { & icacls.exe $w.Path /grant $g /C /Q | Out-Null }
+    }
 
     Write-Step 'Firewall: the Luma Arcade page (home network) and stream video'
     Remove-NetFirewallRule -DisplayName 'Luma Arcade web page' -ErrorAction SilentlyContinue
     Remove-NetFirewallRule -DisplayName 'Luma Arcade stream video' -ErrorAction SilentlyContinue
     # Settings > General can change the port later (then change this rule too).
-    New-NetFirewallRule -DisplayName 'Luma Arcade web page' -Direction Inbound -Protocol TCP -LocalPort $Port -Profile Domain, Private -Action Allow | Out-Null
+    New-NetFirewallRule -DisplayName 'Luma Arcade web page' -Direction Inbound -Protocol TCP -LocalPort $Port -Profile Domain, Private -RemoteAddress LocalSubnet -Action Allow | Out-Null
     # Without this, WebRTC video can't come straight in and goes through a
     # relay (slower) or falls back to the WebSocket.
+    # Deliberately NOT limited to the home network (no -RemoteAddress): the
+    # players' browsers connect to this from the internet, from addresses
+    # nobody can list in advance. It stays bound to streamer.exe, which only
+    # listens while a stream runs.
     New-NetFirewallRule -DisplayName 'Luma Arcade stream video' -Direction Inbound -Protocol UDP -Program (Join-Path $LumaDir 'moonlight-web-stream\streamer.exe') -Action Allow | Out-Null
 }
 

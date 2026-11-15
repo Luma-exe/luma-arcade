@@ -21,6 +21,9 @@ jobs:
       - run: npm ci
       - run: npx tsc -p server/tsconfig.json --noEmit
       - run: npm test
+      - name: Third-party notices are current
+        if: runner.os == 'Windows'
+        run: node installer/notices.mjs --check
       - name: Linux install scripts
         if: runner.os == 'Linux'
         run: |

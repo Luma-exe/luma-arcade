@@ -123,6 +123,14 @@ paths above (without it, nothing changes). Dolphin and Cemu saves are taken
 from their own folder when they're portable (`portable.txt` / `portable\`),
 as the installer sets them up.
 
+## Backing up and moving (`arcade-backup.ps1`)
+
+`-Action export -To <zip>` saves the Luma Arcade database, moonlight-web-stream's `data.json` and `config.json`, `profiles\` and `host.json` (no logs); `-Action import -From <zip>` restores them. Needs an administrator PowerShell. Export refuses while Luma Arcade runs unless `-Force`; import stops it, keeps what it replaces in `import-backup-<date>` and starts it again. `host.json` is only restored with `-RestoreHostSettings`. `-DryRun` lists without changing anything. See [docs/MOVING.md](../docs/MOVING.md).
+
+## Log files
+
+Every script that keeps a log renames it to `<name>.1` (replacing the old one) when it passes 2 MB, so logs stay bounded. Scripts are deployed standalone, so each has its own copy of that three-line check in its `Log` function. All paths under `C:\ProgramData\LumaArcade` are built from `$env:ProgramData`.
+
 ## Minimizing ES-DE during games (`esde-game-started.ps1`)
 
 An ES-DE game-start event script (`<ES-DE data>\scripts\game-start\01-minimize-es-de.bat`

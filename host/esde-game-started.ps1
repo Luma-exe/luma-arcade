@@ -52,8 +52,8 @@ public static class LumaGame {
 }
 "@
 
-$LOG = 'C:\ProgramData\LumaArcade\home\esde-game-start.log'
-function Log($m) { try { Add-Content $LOG "$(Get-Date -Format s) $m" } catch {} }
+$LOG = (Join-Path $env:ProgramData 'LumaArcade\home\esde-game-start.log')
+function Log($m) { try { if ((Test-Path $LOG) -and (Get-Item $LOG).Length -gt 2MB) { Move-Item $LOG "$LOG.1" -Force } } catch {}; try { Add-Content $LOG "$(Get-Date -Format s) $m" } catch {} }
 
 # Windows that aren't the game: the desktop, taskbar, Steam's own client
 # (its "launching" dialog), and our own helpers.

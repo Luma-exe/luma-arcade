@@ -23,7 +23,7 @@ param(
 . (Join-Path $PSScriptRoot 'common.ps1')
 $ErrorActionPreference = 'Continue'
 
-$dataDir = 'C:\ProgramData\LumaArcade'
+$dataDir = Join-Path $env:ProgramData 'LumaArcade'
 $sunshineApps = Join-Path $env:ProgramFiles 'Sunshine\config\apps.json'
 if ($TestRoot) {
     $dataDir = Join-Path $TestRoot 'LumaArcade'; $sunshineApps = Join-Path $TestRoot 'apps.json'

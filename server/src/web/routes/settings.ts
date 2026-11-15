@@ -25,6 +25,11 @@ export function pickKnownSettings(body: unknown, current: object): Partial<AppSe
   ) as Partial<AppSettings>;
 }
 
+/** A Discord user id: only digits. */
+export function isDiscordId(value: string): boolean {
+  return /^\d{5,25}$/.test(value);
+}
+
 export async function registerSettingsRoutes(app: FastifyInstance) {
   app.get("/api/settings", { preHandler: requireAdmin }, async () => getAllSettings());
 
@@ -61,6 +66,14 @@ export async function registerSettingsRoutes(app: FastifyInstance) {
         body.discordWebhookUrl = body.discordWebhookUrl.trim();
         if (body.discordWebhookUrl && !isDiscordWebhook(body.discordWebhookUrl)) {
           reply.code(400).send({ error: "That isn't a Discord webhook link (https://discord.com/api/webhooks/...)" });
+          return;
+        }
+      }
+
+      if (body.adminDiscordId !== undefined) {
+        body.adminDiscordId = typeof body.adminDiscordId === "string" ? body.adminDiscordId.trim() : body.adminDiscordId;
+        if (typeof body.adminDiscordId !== "string" || (body.adminDiscordId !== "" && !isDiscordId(body.adminDiscordId))) {
+          reply.code(400).send({ error: "That isn't a Discord user id (digits only, 5 to 25 of them)" });
           return;
         }
       }

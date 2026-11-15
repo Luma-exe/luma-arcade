@@ -73,7 +73,7 @@ if ($HttpsPort) {
         & icacls.exe $dir /inheritance:r /grant:r '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-18:(OI)(CI)F' "${Account}:(OI)(CI)R" /T /C /Q | Out-Null
         & icacls.exe $configFile /inheritance:r /grant:r '*S-1-5-32-544:F' '*S-1-5-18:F' "${Account}:R" /C /Q | Out-Null
         Remove-NetFirewallRule -DisplayName 'Luma Arcade web page (HTTPS)' -ErrorAction SilentlyContinue
-        New-NetFirewallRule -DisplayName 'Luma Arcade web page (HTTPS)' -Direction Inbound -Protocol TCP -LocalPort $HttpsPort -Profile Domain, Private -Action Allow | Out-Null
+        New-NetFirewallRule -DisplayName 'Luma Arcade web page (HTTPS)' -Direction Inbound -Protocol TCP -LocalPort $HttpsPort -Profile Domain, Private -RemoteAddress LocalSubnet -Action Allow | Out-Null
         Write-Note "other devices: https://$($env:COMPUTERNAME):$HttpsPort (accept the certificate warning once)"
     } catch {
         Write-Note "FAILED: $($_.Exception.Message)"

@@ -12,6 +12,8 @@
     "start": "npm run start -w server",
     "test": "npm test -w server",
     "package": "node installer/build.mjs",
+    "notices": "node installer/notices.mjs",
+    "notices:check": "node installer/notices.mjs --check",
     "package:linux": "node installer/linux/build.mjs"
   }
 }

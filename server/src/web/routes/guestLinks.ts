@@ -28,7 +28,7 @@ import { requireAuth } from "../session.js";
 import { answerInvite, createInvite, endInvitesFrom, endInvitesTo, joinableStream, playingUserIds } from "../sessions.js";
 import { clearStreamUserCache, requireAdmin, streamUser, type StreamUser } from "../streamUser.js";
 import { MOONLIGHT_PATH_PREFIX } from "../../remote/moonlightWebStream.js";
-import { sturdySetCookieHeader } from "../sessionCookie.js";
+import { isSecureRequest, sturdySetCookieHeader } from "../sessionCookie.js";
 import { coverFile, launchableGame, queueLaunch } from "../games.js";
 import { gameStreams } from "./games.js";
 import { PITCH, SLOGAN, isPreviewBot, previewPage, siteOrigin } from "../linkPreview.js";
@@ -196,7 +196,7 @@ export async function registerGuestLinkRoutes(app: FastifyInstance) {
     }
     recordUse(link);
     clearStreamUserCache();
-    reply.header("set-cookie", sturdySetCookieHeader(cookies));
+    reply.header("set-cookie", sturdySetCookieHeader(cookies, Date.now(), isSecureRequest(request)));
     reply.header("cache-control", "no-store");
     return reply.redirect(target);
   });

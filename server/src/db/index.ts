@@ -27,6 +27,13 @@ export function initDb(dbPath: string): Database.Database {
     )
   );
 
+  // A database that already had migrations recorded is an existing install.
+  // Migrations that must treat those differently from a fresh one (settings
+  // whose default changed) look for this temporary table; it lives only on
+  // this connection.
+  db.exec("DROP TABLE IF EXISTS temp._existing_install");
+  if (applied.size > 0) db.exec("CREATE TEMP TABLE _existing_install (x INTEGER)");
+
   const migrationsDir = path.join(__dirname, "migrations");
   const migrationFiles = readdirSync(migrationsDir)
     .filter((f) => f.endsWith(".sql"))

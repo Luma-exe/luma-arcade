@@ -1,4 +1,4 @@
-import { cpSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -19,9 +19,12 @@ rmSync(path.join(root, "dist", "web", "pages"), { recursive: true, force: true }
 cpSync(path.join(root, "src", "web", "pages"), path.join(root, "dist", "web", "pages"), { recursive: true });
 
 // Stamps the build with the exact commit it was built from, so the running
-// app can tell it's out of date against origin/main (see remote/updateCheck.ts)
+// app can tell it's out of date against the newest GitHub release (see remote/updateCheck.ts)
 // without needing a .git checkout at runtime — the packaged installer only
 // ships dist/, not source control metadata.
+// The release version (server/package.json), which the update check compares
+// with the newest GitHub release.
+const version = JSON.parse(readFileSync(path.join(root, "package.json"), "utf-8")).version;
 let commit = "unknown";
 try {
   commit = execSync("git rev-parse HEAD", { cwd: root, encoding: "utf-8" }).trim();
@@ -30,5 +33,5 @@ try {
 }
 writeFileSync(
   path.join(root, "dist", "version.json"),
-  JSON.stringify({ commit, builtAt: new Date().toISOString() }, null, 2)
+  JSON.stringify({ version, commit, builtAt: new Date().toISOString() }, null, 2)
 );

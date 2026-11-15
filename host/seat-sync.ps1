@@ -28,7 +28,7 @@ try {
         if ($Mode -eq 'export') {
             $answer = Invoke-Command -Session $session -ArgumentList $Player, $SeatDir -ScriptBlock {
                 param($p, $d)
-                powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\ProgramData\LumaArcade\profiles.ps1 -Action export -Player $p -Dir $d
+                powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $env:ProgramData 'LumaArcade\profiles.ps1') -Action export -Player $p -Dir $d
             }
             $line = @($answer)[-1]
             if ($line -notmatch '"exported"') { throw "the seat couldn't export: $line" }
@@ -47,7 +47,7 @@ try {
             if ($Mode -eq 'apply') {
                 $answer = Invoke-Command -Session $session -ArgumentList $Player, $SeatDir -ScriptBlock {
                     param($p, $d)
-                    powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\ProgramData\LumaArcade\profiles.ps1 -Action import -Player $p -Dir $d
+                    powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $env:ProgramData 'LumaArcade\profiles.ps1') -Action import -Player $p -Dir $d
                 }
                 $line = @($answer)[-1]
                 if ($line -notmatch '"imported"') { throw "the seat couldn't import: $line" }

@@ -25,7 +25,7 @@ Free and open source. Runs on your own Windows gaming PC, set up by a one-click 
 [![License: GPL v3](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
 [![Support on Ko-fi](https://img.shields.io/badge/Ko--fi-support_Luma_Arcade-FF5E5B?logo=kofi&logoColor=white)](https://ko-fi.com/lumaexe)
 
-[What you need](#what-you-need) · [Install](#install) · [Features](#features) · [How it works](#how-it-works) · [Development](#development) · [Troubleshooting](#troubleshooting)
+[Quick start](docs/QUICKSTART.md) · [Privacy](docs/PRIVACY.md) · [What you need](#what-you-need) · [Install](#install) · [Features](#features) · [How it works](#how-it-works) · [Development](#development) · [Troubleshooting](#troubleshooting)
 
 </div>
 
@@ -328,6 +328,10 @@ The detail line under that status says whether the process isn't running or isn'
 - `pm2 list`'s user column is cosmetic - check real ownership with `Get-WmiObject Win32_Process | ForEach-Object { $_.GetOwner() }`.
 
 </details>
+
+## Privacy
+
+Luma Arcade runs on your own PC and has no telemetry or analytics. Accounts, settings and saves stay on your PC. The only things that leave it are optional or minimal: Discord messages if you set a webhook, a once-an-hour update check that asks GitHub for the newest release, and web traffic through Cloudflare if you use the tunnel. New installs start in private mode, which stores nothing from visitors. [What is stored and sent, in full](docs/PRIVACY.md). To back up or move your arcade, see [docs/MOVING.md](docs/MOVING.md).
 
 ## Performance
 

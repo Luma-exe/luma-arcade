@@ -22,8 +22,12 @@ import { requireAdmin, streamUser } from "../streamUser.js";
 // The sign-in cookie only exists under /stream, so the page itself asks
 // /stream/luma-api/me whether you're signed in and goes straight on if so.
 
-/** Who gets pinged for account requests. */
-export const ADMIN_DISCORD_ID = "851332798231871508";
+/** Who gets pinged for account requests: the adminDiscordId setting, or
+ * nobody when it's empty. */
+function adminMention(): { ping: string; users: string[] } {
+  const id = getSetting("adminDiscordId");
+  return /^\d{5,25}$/.test(id) ? { ping: `<@${id}> `, users: [id] } : { ping: "", users: [] };
+}
 /** At most this many requests from everyone together per hour. */
 const REQUESTS_PER_HOUR = 10;
 const MAX_NAME = 40;
@@ -125,12 +129,13 @@ export async function registerWelcomeRoutes(app: FastifyInstance) {
         .prepare("INSERT INTO account_requests (ip, name, contact, message, created_at) VALUES (?, ?, ?, ?, ?)")
         .run(ip, name, contact || null, message || null, now).lastInsertRowid
     );
+    const mention = adminMention();
     const lines = [
-      `<@${ADMIN_DISCORD_ID}> 📝 **${forDiscord(name)}** is asking for an arcade account`,
+      `${mention.ping}📝 **${forDiscord(name)}** is asking for an arcade account`,
       contact ? `Discord: ${forDiscord(contact)}` : "No Discord given",
     ];
     if (message) lines.push(quote(message));
-    const delivered = await notify(lines.join("\n"), undefined, 0, now, [ADMIN_DISCORD_ID]);
+    const delivered = await notify(lines.join("\n"), undefined, 0, now, mention.users);
     db.prepare("UPDATE account_requests SET delivered = ? WHERE id = ?").run(delivered ? 1 : 0, id);
     request.log.info({ name, contact, delivered }, "account requested");
     return { ok: true };
@@ -167,12 +172,13 @@ export async function registerWelcomeRoutes(app: FastifyInstance) {
         .prepare("INSERT INTO password_resets (ip, name, contact, message, created_at) VALUES (?, ?, ?, ?, ?)")
         .run(ip, name, contact || null, message || null, now).lastInsertRowid
     );
+    const mention = adminMention();
     const lines = [
-      `<@${ADMIN_DISCORD_ID}> 🔑 **${forDiscord(name)}** forgot their arcade password`,
+      `${mention.ping}🔑 **${forDiscord(name)}** forgot their arcade password`,
       contact ? `Discord: ${forDiscord(contact)}` : "No Discord given",
     ];
     if (message) lines.push(quote(message));
-    const delivered = await notify(lines.join("\n"), undefined, 0, now, [ADMIN_DISCORD_ID]);
+    const delivered = await notify(lines.join("\n"), undefined, 0, now, mention.users);
     db.prepare("UPDATE password_resets SET delivered = ? WHERE id = ?").run(delivered ? 1 : 0, id);
     request.log.info({ name, contact, delivered }, "password reset requested");
     return { ok: true };

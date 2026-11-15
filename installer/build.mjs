@@ -1,24 +1,87 @@
 import { execSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { signFiles } from "./sign.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.join(__dirname, "..");
 const stagingDir = path.join(__dirname, "staging");
 const outputDir = path.join(__dirname, "output");
 
-const NODE_EXE = "C:\\Program Files\\nodejs\\node.exe";
-const MAKENSIS = "C:\\Program Files (x86)\\NSIS\\makensis.exe";
+function run(cmd, cwd, env = process.env) {
+  console.log(`> ${cmd}${cwd ? `  (cwd=${cwd})` : ""}`);
+  execSync(cmd, { cwd, stdio: "inherit", shell: true, env });
+}
+
+// The Node.js that gets bundled: LUMA_NODE_EXE, else the node running this
+// script (so CI's setup-node version is what ships).
+function resolveNode() {
+  const exe = process.env.LUMA_NODE_EXE || process.execPath;
+  if (!existsSync(exe)) throw new Error(`node.exe not found at ${exe} — check LUMA_NODE_EXE`);
+  return exe;
+}
+
+// makensis: LUMA_MAKENSIS, then PATH, then the registry, then the default folders.
+function resolveMakensis() {
+  const fromEnv = process.env.LUMA_MAKENSIS;
+  if (fromEnv) {
+    if (!existsSync(fromEnv)) throw new Error(`LUMA_MAKENSIS points at ${fromEnv}, which doesn't exist`);
+    return fromEnv;
+  }
+  const tried = [];
+  try {
+    const found = execSync("where makensis.exe", { encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"] })
+      .split(/\r?\n/)[0]
+      .trim();
+    if (found && existsSync(found)) return found;
+  } catch {
+    tried.push("PATH");
+  }
+  for (const key of ["HKLM\\SOFTWARE\\WOW6432Node\\NSIS", "HKLM\\SOFTWARE\\NSIS"]) {
+    try {
+      const out = execSync(`reg query "${key}" /ve`, { encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"] });
+      const m = out.match(/REG_SZ\s+(.+)/);
+      const exe = m && path.join(m[1].trim(), "makensis.exe");
+      if (exe && existsSync(exe)) return exe;
+    } catch {
+      /* key not present */
+    }
+  }
+  tried.push("registry");
+  for (const base of [process.env["ProgramFiles(x86)"], process.env.ProgramFiles, "C:\\Program Files (x86)"]) {
+    const exe = base && path.join(base, "NSIS", "makensis.exe");
+    if (exe && existsSync(exe)) return exe;
+  }
+  tried.push("default install folders");
+  throw new Error(`makensis.exe not found (looked in ${tried.join(", ")}). Install NSIS or set LUMA_MAKENSIS.`);
+}
+
 // The customized moonlight-web-stream build (its own repo,
 // moonlight-web-stream-luma): web-server.exe, streamer.exe, static\, server\.
+// LUMA_MOONLIGHT_DIR (MOONLIGHT_PACKAGE_DIR still works), else the sibling folder.
 const MOONLIGHT_DIR =
-  process.env.MOONLIGHT_PACKAGE_DIR || path.join(repoRoot, "..", "moonlight-web-stream-bin", "package");
+  process.env.LUMA_MOONLIGHT_DIR ||
+  process.env.MOONLIGHT_PACKAGE_DIR ||
+  path.join(repoRoot, "..", "moonlight-web-stream-bin", "package");
 
-function run(cmd, cwd) {
-  console.log(`> ${cmd}${cwd ? `  (cwd=${cwd})` : ""}`);
-  execSync(cmd, { cwd, stdio: "inherit", shell: true });
+// Fail before the slow steps if anything the build needs is missing.
+const NODE_EXE = resolveNode();
+const MAKENSIS = resolveMakensis();
+for (const f of ["web-server.exe", "streamer.exe", "static", path.join("server", "config.json")]) {
+  if (!existsSync(path.join(MOONLIGHT_DIR, f))) {
+    throw new Error(
+      `moonlight-web-stream package incomplete: ${path.join(MOONLIGHT_DIR, f)} is missing.\n` +
+        "Set LUMA_MOONLIGHT_DIR to the folder holding web-server.exe, streamer.exe, static\\ and server\\ " +
+        "(default: ..\\moonlight-web-stream-bin\\package next to this repo)."
+    );
+  }
 }
+if (!existsSync(path.join(repoRoot, "THIRD-PARTY-NOTICES.md"))) {
+  throw new Error("THIRD-PARTY-NOTICES.md is missing — run `npm run notices`");
+}
+console.log(`node.exe:   ${NODE_EXE}\nmakensis:   ${MAKENSIS}\nmoonlight:  ${MOONLIGHT_DIR}`);
 
 // LumaArcade's "/" leads into moonlight-web-stream under /stream, whose
 // sign-in is the only login. ES-DE, the emulators and Sunshine aren't
@@ -56,9 +119,6 @@ try {
 }
 
 console.log("=== 4. Staging moonlight-web-stream ===");
-if (!existsSync(path.join(MOONLIGHT_DIR, "web-server.exe"))) {
-  throw new Error(`moonlight-web-stream not found at ${MOONLIGHT_DIR} — set MOONLIGHT_PACKAGE_DIR`);
-}
 const moonlightStage = path.join(stagingDir, "moonlight-web-stream");
 mkdirSync(path.join(moonlightStage, "server"), { recursive: true });
 for (const exe of ["web-server.exe", "streamer.exe"]) {
@@ -95,7 +155,7 @@ mkdirSync(hostStage, { recursive: true });
 const hostFiles = [
   [MOONLIGHT_DIR, ["home.ps1", "lockdown.ps1", "lockdown-shells.ps1", "focus-app.ps1", "stream-start.ps1", "esde-game-events.ps1", "vdd_settings.xml"]],
   // seat-*.ps1: extra seats (seat-manager.ps1 runs as SYSTEM, seat-guest.ps1 inside each seat).
-  [repoRoot, ["profiles.ps1", "esde-game-started.ps1", "esde-keepalive.ps1", "emulator-window.ps1", "sync-pc-games.ps1", "seat-manager.ps1", "seat-guest.ps1", "seat-sync.ps1"]],
+  [repoRoot, ["profiles.ps1", "esde-game-started.ps1", "esde-keepalive.ps1", "emulator-window.ps1", "sync-pc-games.ps1", "seat-manager.ps1", "seat-guest.ps1", "seat-sync.ps1", "arcade-backup.ps1"]],
 ];
 for (const [root, files] of hostFiles) {
   for (const file of files) cpSync(path.join(root, "host", file), path.join(hostStage, file));
@@ -105,10 +165,10 @@ if (!existsSync(path.join(__dirname, "scripts", "versions.json"))) {
 }
 
 console.log("=== 5. Copying portable node.exe ===");
-if (!existsSync(NODE_EXE)) {
-  throw new Error(`Expected Node.js at ${NODE_EXE} — adjust installer/build.mjs if it moved`);
-}
 cpSync(NODE_EXE, path.join(stagingDir, "node.exe"));
+
+// Installed by the setup from the staging root.
+cpSync(path.join(repoRoot, "THIRD-PARTY-NOTICES.md"), path.join(stagingDir, "THIRD-PARTY-NOTICES.md"));
 
 console.log("=== 6. Writing launcher script ===");
 writeFileSync(
@@ -126,12 +186,29 @@ writeFileSync(
   "utf-8"
 );
 
+console.log("=== 6b. Signing bundled executables ===");
+// Off unless configured (installer/sign.mjs); node.exe is already signed by the Node.js project.
+signFiles([
+  path.join(moonlightStage, "web-server.exe"),
+  path.join(moonlightStage, "streamer.exe"),
+]);
+
 console.log("=== 7. Running makensis ===");
 mkdirSync(outputDir, { recursive: true });
-if (!existsSync(MAKENSIS)) {
-  throw new Error(`makensis not found at ${MAKENSIS} — is NSIS installed?`);
-}
 const { version } = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf-8"));
-run(`"${MAKENSIS}" /DAPP_VERSION=${version} "${path.join(__dirname, "LumaArcade.nsi")}"`, __dirname);
+// The .nsi runs `node sign.mjs` (!uninstfinalize): make sure that finds the same node.
+const pathKey = Object.keys(process.env).find((k) => k.toLowerCase() === "path") ?? "PATH";
+const nsisEnv = { ...process.env, [pathKey]: `${path.dirname(NODE_EXE)}${path.delimiter}${process.env[pathKey] ?? ""}` };
+run(`"${MAKENSIS}" /DAPP_VERSION=${version} "${path.join(__dirname, "LumaArcade.nsi")}"`, __dirname, nsisEnv);
 
-console.log(`\nDone: ${path.join(outputDir, "LumaArcadeSetup.exe")}`);
+const setupExe = path.join(outputDir, "LumaArcadeSetup.exe");
+console.log("=== 8. Signing the installer ===");
+signFiles([setupExe]);
+
+console.log("=== 9. Writing SHA256SUMS.txt ===");
+const hash = createHash("sha256").update(readFileSync(setupExe)).digest("hex");
+// Format understood by `sha256sum -c` and `certutil`-style checks: "<hash> *<file>".
+writeFileSync(path.join(outputDir, "SHA256SUMS.txt"), `${hash} *LumaArcadeSetup.exe\n`, "utf-8");
+console.log(`SHA-256 ${hash}`);
+
+console.log(`\nDone: ${setupExe}`);

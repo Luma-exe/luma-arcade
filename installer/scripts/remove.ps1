@@ -34,7 +34,7 @@ param(
 $ErrorActionPreference = 'Continue'
 
 $sunshineDir = Join-Path $env:ProgramFiles 'Sunshine'
-$dataDir = 'C:\ProgramData\LumaArcade'
+$dataDir = Join-Path $env:ProgramData 'LumaArcade'
 $profilesRoot = Split-Path $env:PUBLIC
 if ($TestRoot) {
     $sunshineDir = Join-Path $TestRoot 'Sunshine'

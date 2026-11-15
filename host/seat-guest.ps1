@@ -18,7 +18,7 @@ $ProgressPreference = 'SilentlyContinue'
 $plan = Get-Content -Raw 'C:\SeatSetup\plan.json' | ConvertFrom-Json
 $Setup = 'C:\SeatSetup\setup'
 $EsDe = 'C:\ES-DE'
-$DataDir = 'C:\ProgramData\LumaArcade'
+$DataDir = (Join-Path $env:ProgramData 'LumaArcade')
 $SunshineDir = Join-Path $env:ProgramFiles 'Sunshine'
 $Account = $plan.arcadeUser
 

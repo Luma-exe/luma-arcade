@@ -37,7 +37,7 @@ param(
     [string]$Action = 'serve',
     [string]$Name = '',
     [string]$RequestFile = '',
-    [string]$DataDir = 'C:\ProgramData\LumaArcade'
+    [string]$DataDir = (Join-Path $env:ProgramData 'LumaArcade')
 )
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -61,7 +61,7 @@ $ShareUser = 'lumaseatshare'
 $SwitchName = 'Luma Arcade seats'
 $FirewallGroup = 'Luma Arcade seats'
 # Where a seat keeps a player's saves on the move (host/profiles.ps1 export/import).
-$GuestSyncDir = 'C:\ProgramData\LumaArcade\sync'
+$GuestSyncDir = (Join-Path $env:ProgramData 'LumaArcade\sync')
 
 # The steps of building a seat, in order, with what the settings page shows.
 $Stages = [ordered]@{
@@ -84,8 +84,9 @@ foreach ($dir in $SeatsDir, $RequestsDir, $ResponsesDir, $LogsDir, $StagingDir, 
 function Write-Log([string]$Text, [string]$Seat = '') {
     $file = if ($Seat) { Join-Path $LogsDir "$Seat.log" } else { Join-Path $LogsDir 'manager.log' }
     $line = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') $Text"
+    # A failing rotation (file held open) must not stop the line being written.
+    try { if ((Test-Path $file) -and (Get-Item $file).Length -gt 2MB) { Move-Item $file "$file.1" -Force } } catch { }
     try {
-        if ((Test-Path $file) -and (Get-Item $file).Length -gt 2MB) { Move-Item $file "$file.old" -Force }
         Add-Content -Path $file -Value $line -Encoding UTF8
     } catch { }
     Write-Output $line
@@ -570,6 +571,7 @@ $intl    </component>
       <RunSynchronous>
         <RunSynchronousCommand wcm:action="add"><Order>1</Order><Path>reg add HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE /v BypassNRO /t REG_DWORD /d 1 /f</Path></RunSynchronousCommand>
         <RunSynchronousCommand wcm:action="add"><Order>2</Order><Path>reg add HKLM\SYSTEM\CurrentControlSet\Control\BitLocker /v PreventDeviceEncryption /t REG_DWORD /d 1 /f</Path></RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add"><Order>3</Order><Path>cmd /c mkdir C:\Windows\Setup\Scripts &amp; for %d in (D E F G H I J K L M) do if exist %d:\luma-accounts.ps1 (copy /y %d:\luma-accounts.ps1 C:\Windows\Setup\Scripts\ &amp; copy /y %d:\SetupComplete.cmd C:\Windows\Setup\Scripts\)</Path></RunSynchronousCommand>
       </RunSynchronous>
     </component>
   </settings>
@@ -588,12 +590,10 @@ $intl    </component>
         <LocalAccounts>
           <LocalAccount wcm:action="add">
             <Name>$adminUser</Name>
-            <Group>Administrators</Group>
             <Password><Value>$adminPass</Value><PlainText>true</PlainText></Password>
           </LocalAccount>
           <LocalAccount wcm:action="add">
             <Name>$arcadeUser</Name>
-            <Group>Users</Group>
             <Password><Value>$arcadePass</Value><PlainText>true</PlainText></Password>
           </LocalAccount>
         </LocalAccounts>
@@ -617,6 +617,29 @@ $intl    </component>
     Remove-Tree $stage
     New-Item -ItemType Directory $stage | Out-Null
     [IO.File]::WriteAllText((Join-Path $stage 'autounattend.xml'), $xml, (New-Object Text.UTF8Encoding $false))
+    # Group names are translated on non-English Windows ("Administrators" fails
+    # there), so the answer file creates the accounts without a group. The
+    # specialize command above copies these two files off the answer ISO, and
+    # Windows runs SetupComplete.cmd (as SYSTEM, before the first sign-in) to put
+    # the accounts in their groups by well-known SID, which never changes.
+    $q = { param($v) "'" + ([string]$v -replace "'", "''") + "'" }
+    $groupScript = @'
+function Join-Group($sid, $user) {
+    try { Add-LocalGroupMember -SID $sid -Member $user -ErrorAction Stop }
+    catch {
+        if ($_.Exception.Message -notmatch 'already') {
+            try {
+                $g = (New-Object Security.Principal.SecurityIdentifier $sid).Translate([Security.Principal.NTAccount]).Value.Split('\')[-1]
+                & net.exe localgroup $g $user /add | Out-Null
+            } catch { }
+        }
+    }
+}
+'@
+    $groupScript += "`r`nJoin-Group 'S-1-5-32-544' $(& $q $Cred.adminUser)`r`nJoin-Group 'S-1-5-32-545' $(& $q $Cred.arcadeUser)`r`n"
+    [IO.File]::WriteAllText((Join-Path $stage 'luma-accounts.ps1'), $groupScript, (New-Object Text.UTF8Encoding $true))
+    [IO.File]::WriteAllText((Join-Path $stage 'SetupComplete.cmd'),
+        "@echo off`r`npowershell.exe -NoProfile -ExecutionPolicy Bypass -File `"%~dp0luma-accounts.ps1`"`r`n", (New-Object Text.ASCIIEncoding))
     if (-not ('LumaIsoWriter' -as [type])) {
         Add-Type -TypeDefinition @'
 using System; using System.IO; using System.Runtime.InteropServices; using System.Runtime.InteropServices.ComTypes;
@@ -1118,7 +1141,7 @@ function Invoke-Sync($Request) {
             try {
                 $line = @(Invoke-Command -Session $session -ArgumentList $player, $seatDir -ScriptBlock {
                     param($p, $d)
-                    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\ProgramData\LumaArcade\profiles.ps1 -Action export -Player $p -Dir $d
+                    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $env:ProgramData 'LumaArcade\profiles.ps1') -Action export -Player $p -Dir $d
                 })[-1]
                 if ($line -notmatch '"exported"') { throw "the seat couldn't export: $line" }
                 Copy-Item -FromSession $session -Path (Join-Path $seatDir '*') -Destination $hostDir -Recurse -Force
@@ -1146,7 +1169,7 @@ function Invoke-Sync($Request) {
                 if ($Request.mode -eq 'apply') {
                     $line = @(Invoke-Command -Session $session -ArgumentList $player, $seatDir -ScriptBlock {
                         param($p, $d)
-                        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\ProgramData\LumaArcade\profiles.ps1 -Action import -Player $p -Dir $d
+                        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $env:ProgramData 'LumaArcade\profiles.ps1') -Action import -Player $p -Dir $d
                     })[-1]
                     if ($line -notmatch '"imported"') { throw "the seat couldn't import: $line" }
                 }

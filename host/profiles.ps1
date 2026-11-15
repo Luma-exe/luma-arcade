@@ -56,7 +56,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$Root = 'C:\ProgramData\LumaArcade\profiles'
+$Root = (Join-Path $env:ProgramData 'LumaArcade\profiles')
 $E = 'G:\ES-DE\Emulators'
 $R = 'C:\Users\Arcade\AppData\Roaming'
 $Gamelists = 'C:\Users\Arcade\ES-DE\gamelists'
@@ -66,7 +66,7 @@ $Bios = 'G:\BIOS'
 # A PC set up by the Luma Arcade installer says where things are in
 # host.json (installer/scripts/install-host.ps1); the paths above are the
 # original gaming PC's.
-$HostFile = 'C:\ProgramData\LumaArcade\host.json'
+$HostFile = (Join-Path $env:ProgramData 'LumaArcade\host.json')
 $LumaUrl = "http://127.0.0.1:$Port"
 if (-not $TestRoot -and (Test-Path $HostFile)) {
     $hostConfig = Get-Content -Raw $HostFile | ConvertFrom-Json
@@ -169,7 +169,8 @@ New-Item -ItemType Directory -Force -Path $Root | Out-Null
 
 function Log([string]$Text) {
     $line = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') $(if ($DryRun) { '[dry run] ' })$Text"
-    Add-Content -Path $LogFile -Value $line -Encoding utf8
+    try { if ((Test-Path $LogFile) -and (Get-Item $LogFile).Length -gt 2MB) { Move-Item $LogFile "$LogFile.1" -Force } } catch { }
+    try { Add-Content -Path $LogFile -Value $line -Encoding utf8 } catch { }
 }
 
 function Reply($Object) {

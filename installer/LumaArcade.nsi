@@ -1,4 +1,7 @@
 Unicode true
+; Signs the uninstaller as it is written (installer/sign.mjs; does nothing
+; unless a signing certificate is configured, see installer/build.mjs).
+!uninstfinalize 'node "${__FILEDIR__}\sign.mjs" "%1"'
 
 !define APP_NAME "LumaArcade"
 !define APP_TITLE "Luma Arcade"
@@ -101,6 +104,8 @@ Var WantVigem
 Var SeparateAccount  ; 1 = run under its own Windows account
 Var AccountName
 Var AccountPass
+Var DemoteAccount    ; 1 = take the games account out of Administrators
+Var AllowAdminAccount ; 1 = silent install: an administrator account is fine
 Var AutoLogon
 Var StartAtLogon
 Var AdminName        ; the first Luma Arcade account (admin) and Sunshine's sign-in
@@ -161,6 +166,13 @@ Var UnGamesDir
 !define MUI_PAGE_CUSTOMFUNCTION_SHOW WelcomeShow
 !insertmacro MUI_PAGE_WELCOME
 Page custom MaintenancePage MaintenanceLeave
+; Luma Arcade's licence (GPL-3.0), once: not on a silent install, an update
+; or a repair (LicensePre).
+!define MUI_PAGE_HEADER_TEXT "License"
+!define MUI_PAGE_HEADER_SUBTEXT "Luma Arcade is free software, released under the GNU General Public License."
+!define MUI_LICENSEPAGE_TEXT_TOP "Please read the license before installing."
+!define MUI_PAGE_CUSTOMFUNCTION_PRE LicensePre
+!insertmacro MUI_PAGE_LICENSE "..\LICENSE"
 Page custom SetupTypePage SetupTypeLeave
 !define MUI_PAGE_CUSTOMFUNCTION_PRE ComponentsPre
 !insertmacro MUI_PAGE_COMPONENTS
@@ -307,6 +319,16 @@ FunctionEnd
   ${EndIf}
 !macroend
 
+; The license is for a first install: an update or a repair of something
+; already accepted skips it (a silent install never shows pages).
+Function LicensePre
+  ${If} ${Silent}
+  ${OrIf} $IsUpgrade == 1
+  ${OrIf} $Mode != 0
+    Abort
+  ${EndIf}
+FunctionEnd
+
 ; ---------------------------------------------------------------- sections
 ; Secrets for the steps below, written before anything runs.
 Section "-Prepare"
@@ -316,6 +338,9 @@ Section "-Prepare"
     !insertmacro WriteSecret "$PLUGINSDIR\admin.txt" $AdminName $AdminPass
   ${EndIf}
   StrCpy $AdminPass ""
+  ; Warnings the PowerShell steps collect (common.ps1's Write-Warn), shown
+  ; together at the end by "-Warnings".
+  Delete "$TEMP\LumaArcadeSetup\warnings.txt"
   Call FindEsDe
 SectionEnd
 
@@ -327,6 +352,19 @@ Section "Luma Arcade" SEC_LUMA
     !insertmacro QuotablePath $2 $INSTDIR
     !insertmacro RunPs "stop-luma.ps1" '-LumaDir "$2"'
     StrCpy $LumaWasRunning $0
+    ; Backed up first (as the uninstaller does), now that nothing has the
+    ; database open: if an upgrade ever goes wrong, this is the way back.
+    ; One folder per upgrade, named by the time; the newest 3 are kept.
+    ${GetTime} "" "L" $0 $1 $2 $3 $4 $5 $6
+    StrCpy $3 "$DOCUMENTS\LumaArcade-backup\upgrade-$2$1$0-$4$5$6"
+    CreateDirectory "$3"
+    CopyFiles /SILENT "$INSTDIR\server\luma-arcade.db*" "$3\"
+    CopyFiles /SILENT "$INSTDIR\moonlight-web-stream\server\data.json" "$3\"
+    DetailPrint "Backed up the database and sign-ins to $3"
+    ; The folder goes in through the environment: pasted into the command it would break on a name with an apostrophe.
+    System::Call 'Kernel32::SetEnvironmentVariable(t "LUMA_BACKUP_DIR", t "$DOCUMENTS\LumaArcade-backup")i.r0'
+    nsExec::Exec `"${POWERSHELL}" -NoProfile -Command "Get-ChildItem -LiteralPath $$env:LUMA_BACKUP_DIR -Directory -Filter 'upgrade-*' | Sort-Object Name -Descending | Select-Object -Skip 3 | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue"`
+    Pop $0
     ; The old build's files, so nothing stale is left behind.
     RMDir /r "$INSTDIR\server\dist"
     RMDir /r "$INSTDIR\server\node_modules"
@@ -337,6 +375,10 @@ Section "Luma Arcade" SEC_LUMA
   SetOutPath "$INSTDIR"
   File /r "staging\*.*"
   File "NEXT-STEPS.txt"
+  ; The third-party software notices, staged next to the other root files
+  ; by build.mjs; and the license it all comes under.
+  File "staging\THIRD-PARTY-NOTICES.md"
+  File /oname=LICENSE.txt "..\LICENSE"
   ; moonlight-web-stream's settings: the shipped defaults only on a fresh
   ; install (an upgrade keeps any changes, like session_cookie_secure).
   ${IfNot} ${FileExists} "$INSTDIR\moonlight-web-stream\server\config.json"
@@ -530,6 +572,9 @@ Section "-Windows setup"
     ${If} $StartAtLogon == 1
       StrCpy $1 "$1 -Autostart"
     ${EndIf}
+    ${If} $DemoteAccount == 1
+      StrCpy $1 "$1 -RemoveFromAdmins"
+    ${EndIf}
     ${If} $SeparateAccount == 1
       StrCpy $1 '$1 -Account "$AccountName"'
       ${If} $AutoLogon == 1
@@ -648,6 +693,41 @@ Section "-Extra seats"
   ${EndIf}
 SectionEnd
 
+; Anything a step wanted the person to see, e.g. a download that couldn't be
+; checked against its tested checksum. Also in the details list.
+Section "-Warnings"
+  ${IfNot} ${FileExists} "$TEMP\LumaArcadeSetup\warnings.txt"
+    Return
+  ${EndIf}
+  StrCpy $1 ""
+  ClearErrors
+  FileOpen $2 "$TEMP\LumaArcadeSetup\warnings.txt" r
+  ${Do}
+    FileRead $2 $3
+    ${If} ${Errors}
+      ${Break}
+    ${EndIf}
+    ${Do}
+      StrCpy $4 $3 1 -1
+      ${If} $4 == "$\r"
+      ${OrIf} $4 == "$\n"
+        StrCpy $3 $3 -1
+      ${Else}
+        ${Break}
+      ${EndIf}
+    ${Loop}
+    ${If} $3 != ""
+      DetailPrint "WARNING: $3"
+      StrCpy $1 "$1$\r$\n$\r$\n- $3"
+    ${EndIf}
+  ${Loop}
+  FileClose $2
+  Delete "$TEMP\LumaArcadeSetup\warnings.txt"
+  ${If} $1 != ""
+    MessageBox MB_ICONEXCLAMATION|MB_OK "Setup finished, but please read this:$1" /SD IDOK
+  ${EndIf}
+SectionEnd
+
 Section "-Finish"
   SetRegView 64
   ${If} ${SectionIsSelected} ${SEC_LUMA}
@@ -736,6 +816,16 @@ Function .onInit
     Abort
   ${EndIf}
   SetRegView 64
+  ; The Home and lockdown tasks run through "conhost.exe --headless", which
+  ; Windows has from build 19041 (Windows 10 version 2004; Windows Server
+  ; 2022 is 20348). Before that they'd flash a console window over the game.
+  ReadRegStr $0 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion" "CurrentBuildNumber"
+  ${If} $0 != ""
+  ${AndIf} $0 < 19041
+    MessageBox MB_ICONSTOP "${APP_TITLE} needs Windows 10 version 2004 (build 19041) or newer, or Windows Server 2022 or newer. This PC has build $0: update Windows first." /SD IDOK
+    SetErrorLevel 2
+    Abort
+  ${EndIf}
   InitPluginsDir
   SetOutPath "$PLUGINSDIR\scripts"
   File "scripts\*.ps1"
@@ -749,6 +839,8 @@ Function .onInit
   StrCpy $GamesDir "C:\Games"
   StrCpy $SeparateAccount 1
   StrCpy $AccountName "Arcade"
+  StrCpy $DemoteAccount 0
+  StrCpy $AllowAdminAccount 0
   StrCpy $AutoLogon 1
   StrCpy $StartAtLogon 1
   StrCpy $HttpsOn 1
@@ -845,6 +937,8 @@ FunctionEnd
 ;   /TYPE=everything|esde|emulators    /EMULATORS=all|none|retroarch,dolphin,...
 ;   /GAMESDIR=<folder>                 /D=<Luma Arcade folder> (last, no quotes)
 ;   /ACCOUNT=<name>|current            /PASSWORDFILE=<file with its password>
+;   /REMOVEADMINRIGHTS  /ALLOWADMINACCOUNT   (an existing account that is a Windows administrator:
+;                       a silent install stops unless one of these says what to do)
 ;   /NOAUTOLOGON  /NOAUTOSTART         /SERVER  /CLIENT  /DS4
 ;   /VDD  /NOVDD  /XUSB  /NOXUSB  /VIGEM  /NOVIGEM   (/DS4: PlayStation 4 pads, no Xbox 360 driver)
 ;   /ADMINFILE=<file: admin name, password on two lines>
@@ -895,6 +989,16 @@ Function ReadOptions
   ${GetOptions} $Opts "/TUNNELTOKENFILE=" $0
   ${IfNot} ${Errors}
     CopyFiles /SILENT "$0" "$PLUGINSDIR\tunnel.txt"
+  ${EndIf}
+  ClearErrors
+  ${GetOptions} $Opts "/REMOVEADMINRIGHTS" $0
+  ${IfNot} ${Errors}
+    StrCpy $DemoteAccount 1
+  ${EndIf}
+  ClearErrors
+  ${GetOptions} $Opts "/ALLOWADMINACCOUNT" $0
+  ${IfNot} ${Errors}
+    StrCpy $AllowAdminAccount 1
   ${EndIf}
   ClearErrors
   ${GetOptions} $Opts "/NOAUTOLOGON" $0
@@ -1043,6 +1147,16 @@ Function SilentSetup
       SetErrorLevel 2
       Quit
     ${EndIf}
+  ${EndIf}
+  ; An existing account that is a Windows administrator (stops unless told).
+  ${If} ${SectionIsSelected} ${SEC_LUMA}
+    ${If} $SeparateAccount == 1
+      Push $AccountName
+    ${Else}
+      Push $CurrentUser
+    ${EndIf}
+    Call AskAdminAccount
+    Pop $0
   ${EndIf}
 FunctionEnd
 
@@ -1514,7 +1628,54 @@ Function AccountToggle
   EnableWindow $hAutoLogon $0
 FunctionEnd
 
+; Whether the account (name on the stack) is a Windows administrator,
+; checked by SID so any Windows language works (setup-windows.ps1). Anyone
+; streaming the games account controls its desktop, so an administrator
+; there means control of the whole PC: warn, and offer to take it out of
+; Administrators ($DemoteAccount) or to carry on. Leaves 1 on the stack to
+; go back and choose again, else 0. Silent: stops, unless the command line
+; said what to do (/REMOVEADMINRIGHTS or /ALLOWADMINACCOUNT).
+Function AskAdminAccount
+  Exch $R0
+  Push $R1
+  nsExec::Exec '"${POWERSHELL}" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\scripts\setup-windows.ps1" -Account "$R0" -CheckAdminOnly'
+  Pop $R1
+  ${If} $R1 != 3
+    StrCpy $R1 0
+  ${ElseIf} ${Silent}
+    ${If} $DemoteAccount == 1
+    ${OrIf} $AllowAdminAccount == 1
+      StrCpy $R1 0
+    ${Else}
+      MessageBox MB_ICONSTOP "The account $R0 is a Windows administrator: players streaming its desktop could take over the PC. Use a separate standard account, or add /REMOVEADMINRIGHTS (take it out of Administrators) or /ALLOWADMINACCOUNT (carry on anyway)." /SD IDOK
+      SetErrorLevel 2
+      Quit
+    ${EndIf}
+  ${ElseIf} $R0 == $CurrentUser
+    ; Taking the account running Setup out of Administrators would lock it
+    ; out, so there's no such offer here.
+    MessageBox MB_YESNO|MB_ICONEXCLAMATION|MB_DEFBUTTON2 "This account ($R0) is a Windows administrator; players streaming its desktop could take over the PC. Use a separate standard account.$\r$\n$\r$\nUse it anyway?" IDYES adminCarryOn
+    StrCpy $R1 1
+    Goto adminDone
+  ${Else}
+    MessageBox MB_YESNOCANCEL|MB_ICONEXCLAMATION "This account is a Windows administrator; players streaming its desktop could take over the PC. Use a separate standard account.$\r$\n$\r$\nYes - take $R0 out of Administrators (recommended)$\r$\nNo - continue anyway$\r$\nCancel - go back and choose another" IDYES adminDemote IDNO adminCarryOn
+    StrCpy $R1 1
+    Goto adminDone
+    adminDemote:
+    StrCpy $DemoteAccount 1
+  ${EndIf}
+  adminCarryOn:
+  ${If} $R1 == 3
+    StrCpy $R1 0
+  ${EndIf}
+  adminDone:
+  StrCpy $R0 $R1
+  Pop $R1
+  Exch $R0
+FunctionEnd
+
 Function AccountLeave
+  StrCpy $DemoteAccount 0
   ${NSD_GetState} $hSeparate $0
   ${NSD_GetState} $hAutoLogon $1
   ${NSD_GetState} $hStartAtLogon $2
@@ -1524,6 +1685,12 @@ Function AccountLeave
   ${EndIf}
   ${If} $0 != ${BST_CHECKED}
     StrCpy $SeparateAccount 0
+    Push $CurrentUser
+    Call AskAdminAccount
+    Pop $0
+    ${If} $0 == 1
+      Abort
+    ${EndIf}
     Return
   ${EndIf}
   StrCpy $SeparateAccount 1
@@ -1563,6 +1730,15 @@ Function AccountLeave
         MessageBox MB_ICONEXCLAMATION "To sign $AccountName in automatically, type its password."
         Abort
       ${EndIf}
+    ${EndIf}
+  ${EndIf}
+  ; An existing account may already be an administrator.
+  ${If} $4 == 0
+    Push $AccountName
+    Call AskAdminAccount
+    Pop $0
+    ${If} $0 == 1
+      Abort
     ${EndIf}
   ${EndIf}
 FunctionEnd
@@ -2080,7 +2256,8 @@ Function un.onInit
     !insertmacro UnHide ${UN_ESDE}
   ${EndIf}
   ; Extra seats: only when the seat manager built some.
-  nsExec::ExecToStack `"${POWERSHELL}" -NoProfile -Command "[int][bool](Get-ChildItem 'C:\ProgramData\LumaArcade\seats' -Directory -ErrorAction SilentlyContinue | Where-Object { Test-Path (Join-Path $$_.FullName 'seat.json') })"`
+  ReadEnvStr $R9 "ProgramData"
+  nsExec::ExecToStack `"${POWERSHELL}" -NoProfile -Command "[int][bool](Get-ChildItem -LiteralPath (Join-Path $$env:ProgramData 'LumaArcade\seats') -Directory -ErrorAction SilentlyContinue | Where-Object { Test-Path (Join-Path $$_.FullName 'seat.json') })"`
   Pop $0
   Pop $1
   StrCpy $1 $1 1
@@ -2142,12 +2319,13 @@ Function un.Remove
   ${EndIf}
 
   ; The extra seats, while their scripts are still there.
+  ReadEnvStr $R9 "ProgramData"
   ${If} ${SectionIsSelected} ${UN_SEATS}
-  ${AndIf} ${FileExists} "C:\ProgramData\LumaArcade\seat-manager.ps1"
+  ${AndIf} ${FileExists} "$R9\LumaArcade\seat-manager.ps1"
     DetailPrint "Removing the extra seats..."
     nsExec::Exec 'schtasks.exe /end /tn "\LumaArcade\Seats"'
     Pop $0
-    nsExec::ExecToLog '"${POWERSHELL}" -NoProfile -ExecutionPolicy Bypass -File "C:\ProgramData\LumaArcade\seat-manager.ps1" -Action teardown'
+    nsExec::ExecToLog '"${POWERSHELL}" -NoProfile -ExecutionPolicy Bypass -File "$R9\LumaArcade\seat-manager.ps1" -Action teardown'
     Pop $0
   ${EndIf}
 
@@ -2209,6 +2387,8 @@ Function un.Remove
       Delete "$INSTDIR\node.exe"
       Delete "$INSTDIR\LumaArcade.vbs"
       Delete "$INSTDIR\NEXT-STEPS.txt"
+      Delete "$INSTDIR\THIRD-PARTY-NOTICES.md"
+      Delete "$INSTDIR\LICENSE.txt"
       Delete "$INSTDIR\Uninstall.exe"
       RMDir "$INSTDIR\server"
       RMDir /REBOOTOK "$INSTDIR"
@@ -2258,6 +2438,9 @@ Function un.Remove
   ${EndIf}
   ${If} ${SectionIsSelected} ${UN_LUMA}
   ${AndIfNot} ${SectionIsSelected} ${UN_GAMES}
-    MessageBox MB_ICONINFORMATION "Luma Arcade is removed. Anything you didn't tick (and your games folder) was left in place." /SD IDOK
+    ; uninstall-host.ps1 keeps these folders on purpose (only "games folder"
+    ; removal in remove.ps1 deletes them).
+    ReadEnvStr $0 "ProgramData"
+    MessageBox MB_ICONINFORMATION "Luma Arcade is removed. Anything you didn't tick (and your games folder) was left in place.$\r$\n$\r$\nPlayer saves and profiles are kept on purpose in $0\LumaArcade (the home and profiles folders), so reinstalling picks up where everyone left off. Delete that folder if you don't want them." /SD IDOK
   ${EndIf}
 FunctionEnd

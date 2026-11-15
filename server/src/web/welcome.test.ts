@@ -4,11 +4,12 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { getDb, initDb } from "../db/index.js";
 import { setSetting } from "../config/settings.js";
 import { resetNotify } from "./notify.js";
-import { ADMIN_DISCORD_ID, forDiscord, oneLine, registerWelcomeRoutes } from "./routes/welcome.js";
+import { forDiscord, oneLine, registerWelcomeRoutes } from "./routes/welcome.js";
 
 const realFetch = globalThis.fetch;
 let posts: { content: string; allowed_mentions: { parse: string[]; users: string[] } }[] = [];
 let app: FastifyInstance;
+const ADMIN_DISCORD_ID = "851332798231871508";
 
 before(async () => {
   initDb(":memory:");
@@ -36,6 +37,8 @@ beforeEach(() => {
   resetNotify();
   getDb().exec("DELETE FROM account_requests; DELETE FROM password_resets;");
   setSetting("discordWebhookUrl", "https://discord.com/api/webhooks/1/abc");
+  setSetting("privateServer", false);
+  setSetting("adminDiscordId", ADMIN_DISCORD_ID);
 });
 
 /** A visitor from the internet (through the tunnel) at `ip`. */
@@ -83,6 +86,13 @@ describe("account requests", () => {
     assert.match(posts[0].content, /Discord: sam\\_1/);
     assert.match(posts[0].content, /> Hi!\n> It's Ben's brother\./);
     assert.deepEqual(posts[0].allowed_mentions, { parse: [], users: [ADMIN_DISCORD_ID] });
+  });
+
+  it("mentions nobody when no admin Discord id is set", async () => {
+    setSetting("adminDiscordId", "");
+    assert.equal((await ask("203.0.113.30", { name: "Sam" })).statusCode, 200);
+    assert.ok(posts[0].content.startsWith("📝 **Sam**"), posts[0].content);
+    assert.deepEqual(posts[0].allowed_mentions, { parse: [], users: [] });
   });
 
   it("only once per visitor", async () => {
@@ -148,7 +158,7 @@ describe("forgotten passwords", () => {
 describe("a private arcade", () => {
   after(() => setSetting("privateServer", false));
 
-  it("is off unless turned on", async () => {
+  it("shows the sign-up forms when turned off", async () => {
     const page = await app.inject({ method: "GET", url: "/" });
     assert.match(page.body, /<body class="checking">/);
   });

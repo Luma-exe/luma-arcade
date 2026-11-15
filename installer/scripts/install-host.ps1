@@ -35,7 +35,7 @@ param(
 
 if (-not $Account) { $Account = $env:USERNAME }
 # The website has this folder written in (web/routes/home.ts and others).
-$dataDir = 'C:\ProgramData\LumaArcade'
+$dataDir = Join-Path $env:ProgramData 'LumaArcade'
 $source = Join-Path $LumaDir 'host'
 $sunshineApps = Join-Path $env:ProgramFiles 'Sunshine\config\apps.json'
 if ($TestRoot) { $dataDir = Join-Path $TestRoot 'LumaArcade'; $sunshineApps = Join-Path $TestRoot 'apps.json' }
@@ -100,7 +100,7 @@ Write-Note "ES-DE: $(if ($EsDeExe) { $EsDeExe } else { 'not found - the Home but
 # (the website may run in the background, where it can't reach that desktop).
 Write-Step "Scheduled tasks \LumaArcade\Home and \LumaArcade\Lockdown (run as $Account)"
 $sidAccount = (New-Object Security.Principal.NTAccount($Account)).Translate([Security.Principal.SecurityIdentifier]).Value
-$principal = New-ScheduledTaskPrincipal -UserId $sidAccount -LogonType Interactive -RunLevel Highest
+$principal = New-ScheduledTaskPrincipal -UserId $sidAccount -LogonType Interactive -RunLevel Limited
 $tasks = @(
     @{ Name = 'Home'; Script = 'home.ps1'; Limit = [TimeSpan]::FromMinutes(2); Instances = 'Parallel' },
     @{ Name = 'Lockdown'; Script = 'lockdown.ps1'; Limit = [TimeSpan]::Zero; Instances = 'IgnoreNew' }

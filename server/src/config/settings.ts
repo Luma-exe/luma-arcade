@@ -26,10 +26,16 @@ export interface AppSettings {
    * summary. Empty: none of that is sent. */
   discordWebhookUrl: string;
 
-  /** A private arcade (the author's own, arcade.lumaplayground.com): the
-   * welcome page takes no account requests or password resets and tells
-   * visitors to set up their own server instead. Off for everyone else. */
+  /** A private arcade: the welcome page takes no account requests or
+   * password resets and tells visitors to set up their own server instead.
+   * On for new installs (a tunnelled arcade shouldn't show a public sign-up
+   * form unless its owner turns that on); installs from before this default
+   * changed were pinned to off by migration 017. */
   privateServer: boolean;
+
+  /** Discord user id (digits) pinged when someone asks for an account or a
+   * password reset. Empty: nobody is mentioned. */
+  adminDiscordId: string;
 }
 
 const DEFAULTS: AppSettings = {
@@ -44,7 +50,9 @@ const DEFAULTS: AppSettings = {
 
   discordWebhookUrl: "",
 
-  privateServer: false,
+  privateServer: true,
+
+  adminDiscordId: "",
 };
 
 export function getSetting<K extends keyof AppSettings>(key: K): AppSettings[K] {

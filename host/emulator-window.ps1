@@ -20,15 +20,15 @@
 #>
 param([string]$System, [string]$Process, [switch]$Watch)
 
-$LOG = 'C:\ProgramData\LumaArcade\home\emulator-window.log'
-function Log($m) { try { Add-Content $LOG "$(Get-Date -Format s) $m" } catch {} }
+$LOG = (Join-Path $env:ProgramData 'LumaArcade\home\emulator-window.log')
+function Log($m) { try { if ((Test-Path $LOG) -and (Get-Item $LOG).Length -gt 2MB) { Move-Item $LOG "$LOG.1" -Force } } catch {}; try { Add-Content $LOG "$(Get-Date -Format s) $m" } catch {} }
 
 if (-not $Watch) {
   # Emulators and the games account's AppData\Roaming: host.json
   # (installer/scripts/install-host.ps1), else the original gaming PC's.
   $E = 'G:\ES-DE\Emulators'
   $R = 'C:\Users\Arcade\AppData\Roaming'
-  $hostFile = 'C:\ProgramData\LumaArcade\host.json'
+  $hostFile = (Join-Path $env:ProgramData 'LumaArcade\host.json')
   try {
     if (Test-Path $hostFile) {
       $h = Get-Content -Raw $hostFile | ConvertFrom-Json

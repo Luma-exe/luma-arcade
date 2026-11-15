@@ -44,7 +44,7 @@ $homeDir = Join-Path $dataDir 'home'
 $statusFile = Join-Path $homeDir 'pc-games.json'
 $logFile = Join-Path $homeDir 'pc-games.log'
 New-Item -ItemType Directory -Force $homeDir | Out-Null
-function Log($m) { Add-Content $logFile "$(Get-Date -Format s) $m" }
+function Log($m) { try { if ((Test-Path $logFile) -and (Get-Item $logFile).Length -gt 2MB) { Move-Item $logFile "$logFile.1" -Force } } catch { }; Add-Content $logFile "$(Get-Date -Format s) $m" }
 function SaveStatus($s) { $s | ConvertTo-Json -Depth 4 | Set-Content $statusFile -Encoding UTF8 }
 
 # Steam tools, servers and runtimes aren't games.

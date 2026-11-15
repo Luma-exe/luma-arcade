@@ -11,7 +11,7 @@ import { streamUser } from "../streamUser.js";
 import { moonlightProcess, MOONLIGHT_PATH_PREFIX } from "../../remote/moonlightWebStream.js";
 import { notify } from "../notify.js";
 import { GUEST_SESSION_ENDED, checkGuestSession } from "../guestSessions.js";
-import { sturdySetCookieHeader } from "../sessionCookie.js";
+import { isSecureRequest, sturdySetCookieHeader } from "../sessionCookie.js";
 import { proxyPath } from "../proxyPath.js";
 
 const PROXY_PREFIX = MOONLIGHT_PATH_PREFIX;
@@ -96,7 +96,7 @@ export async function registerMoonlightRoutes(app: FastifyInstance) {
       // which never change, are kept for a week. API answers are untouched.
       rewriteHeaders: (headers, request) => {
         // Its sign-in cookie, so it sticks on every browser (sessionCookie.ts).
-        if (headers["set-cookie"]) headers = { ...headers, "set-cookie": sturdySetCookieHeader(headers["set-cookie"]) };
+        if (headers["set-cookie"]) headers = { ...headers, "set-cookie": sturdySetCookieHeader(headers["set-cookie"], Date.now(), request ? isSecureRequest(request as unknown as FastifyRequest) : false) };
         const path = (request ? proxyPath(request as unknown as FastifyRequest) : null)?.toLowerCase() ?? "";
         if (request?.method !== "GET" || path.startsWith(`${PROXY_PREFIX}/api/`) || !headers.etag) return headers;
         const longLived = /\/(libopus|libopenh264|resources)\//.test(path);

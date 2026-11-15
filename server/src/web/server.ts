@@ -22,6 +22,7 @@ import { MOONLIGHT_PATH_PREFIX } from "../remote/moonlightWebStream.js";
 import { TRUSTED_PROXIES, httpsUpgradeUrl, isViaTunnel } from "./requestOrigin.js";
 import { registerHttpsRoutes, startHttps } from "./https.js";
 import { problemLogHook } from "./diagnostics.js";
+import { createServerLogStream } from "../process/logFile.js";
 
 function securityHeaders(request: FastifyRequest, reply: FastifyReply): void {
   reply.header("X-Content-Type-Options", "nosniff");
@@ -82,7 +83,8 @@ export function registerRequestHooks(app: FastifyInstance): void {
 export async function createServer(opts: { port: number; serverDir: string }) {
   const app = Fastify({
     // Warnings and errors are also kept for Host health's "Copy diagnostics".
-    logger: { level: process.env.LUMA_LOG_LEVEL || "info", hooks: { logMethod: problemLogHook } },
+    // Also written to logs/server.log (rotated), since a hidden install has no console.
+    logger: { level: process.env.LUMA_LOG_LEVEL || "info", hooks: { logMethod: problemLogHook }, stream: createServerLogStream() },
     // cloudflared (and the Vite dev proxy) connect from loopback; trusting
     // them makes request.ip/request.protocol reflect the real visitor.
     trustProxy: TRUSTED_PROXIES,

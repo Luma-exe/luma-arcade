@@ -24,7 +24,7 @@ param(
 )
 . (Join-Path $PSScriptRoot 'common.ps1')
 
-$dataDir = 'C:\ProgramData\LumaArcade'
+$dataDir = Join-Path $env:ProgramData 'LumaArcade'
 $seatsDir = Join-Path $dataDir 'seats'
 if (-not (Test-Path (Join-Path $dataDir 'seat-manager.ps1'))) { throw "The seat manager isn't installed ($dataDir\seat-manager.ps1)" }
 

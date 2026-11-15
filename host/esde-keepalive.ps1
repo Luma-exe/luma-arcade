@@ -19,12 +19,12 @@
 #>
 param([string]$Exe)
 
-$LOG = 'C:\ProgramData\LumaArcade\home\esde-keepalive.log'
-function Log($m) { try { Add-Content $LOG "$(Get-Date -Format s) $m" } catch {} }
+$LOG = (Join-Path $env:ProgramData 'LumaArcade\home\esde-keepalive.log')
+function Log($m) { try { if ((Test-Path $LOG) -and (Get-Item $LOG).Length -gt 2MB) { Move-Item $LOG "$LOG.1" -Force } } catch {}; try { Add-Content $LOG "$(Get-Date -Format s) $m" } catch {} }
 
 if (-not $Exe) {
   $Exe = 'G:\ES-DE\ES-DE.exe'
-  $hostFile = 'C:\ProgramData\LumaArcade\host.json'
+  $hostFile = (Join-Path $env:ProgramData 'LumaArcade\host.json')
   try { if (Test-Path $hostFile) { $h = Get-Content -Raw $hostFile | ConvertFrom-Json; if ($h.esDe) { $Exe = $h.esDe } } } catch {}
 }
 $Exe = $Exe.Trim('"')

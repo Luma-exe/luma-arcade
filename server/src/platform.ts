@@ -10,13 +10,19 @@ import path from "node:path";
 export const IS_WINDOWS = process.platform === "win32";
 export const IS_LINUX = process.platform === "linux";
 
+/** Windows' shared program data folder (C:\ProgramData unless the system
+ * drive or policy puts it elsewhere). */
+export function programDataDir(): string {
+  return process.env.ProgramData || "C:\\ProgramData";
+}
+
 /** Where the PC-side helpers and their state live: C:\ProgramData\LumaArcade
  * on Windows (installer/scripts/install-host.ps1), ~/.local/share/luma-arcade
  * on Linux. LUMA_DATA_DIR overrides it. */
 export const DATA_DIR =
   process.env.LUMA_DATA_DIR ||
   (IS_WINDOWS
-    ? "C:\\ProgramData\\LumaArcade"
+    ? path.join(programDataDir(), "LumaArcade")
     : path.join(process.env.XDG_DATA_HOME || path.join(os.homedir(), ".local", "share"), "luma-arcade"));
 
 export function dataPath(...parts: string[]): string {

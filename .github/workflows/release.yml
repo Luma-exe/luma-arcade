@@ -1,0 +1,158 @@
+# Builds the installer when a version tag is pushed (git tag v1.3.2 && git push
+# origin v1.3.2) and creates a DRAFT GitHub release with LumaArcadeSetup.exe,
+# SHA256SUMS.txt and THIRD-PARTY-NOTICES.md attached. Nothing is public until
+# the draft is published by hand.
+#
+# The customized moonlight-web-stream build (prebuilt web-server.exe,
+# streamer.exe, static\, server\, host\ scripts) is fetched from a release of
+# Luma-exe/moonlight-web-stream-luma:
+#   - the tag comes from the repository variable MOONLIGHT_TAG
+#     (Settings > Secrets and variables > Actions > Variables), or, when that
+#     isn't set, from the first line of installer/moonlight-ref.txt;
+#   - that release must carry an asset named moonlight-web-stream-package.zip
+#     whose root holds web-server.exe, streamer.exe, static\, server\ and host\
+#     (the same layout as the local ..\moonlight-web-stream-bin\package folder);
+#   - if that repo is private, add a secret MOONLIGHT_REPO_TOKEN (a token with
+#     read access to its releases); otherwise the workflow's own token is used.
+# That tag is also the exact GPL source for the shipped build and is written
+# into the release notes.
+#
+# Signing is optional and happens only when these secrets exist (see
+# installer/sign.mjs):
+#   - Authenticode PFX:   LUMA_SIGN_PFX_BASE64 (base64 of the .pfx), LUMA_SIGN_PASSWORD
+#   - Azure Trusted Signing: AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET,
+#     LUMA_TRUSTED_SIGNING_METADATA_JSON (contents of metadata.json: Endpoint,
+#     CodeSigningAccountName, CertificateProfileName)
+# With neither, the release is built unsigned.
+name: Release
+on:
+  push:
+    tags:
+      - "v*"
+permissions:
+  contents: write
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Tagged commit is on main
+        shell: pwsh
+        run: |
+          git fetch --no-tags origin main
+          if ($LASTEXITCODE -ne 0) { throw "Couldn't fetch main" }
+          git merge-base --is-ancestor $env:GITHUB_SHA origin/main
+          if ($LASTEXITCODE -ne 0) {
+            throw "Tag $env:GITHUB_REF_NAME ($env:GITHUB_SHA) isn't on main. Releases are only built from commits that are on main."
+          }
+
+      - name: Tag matches package.json version
+        shell: pwsh
+        run: |
+          $want = "v" + (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ($env:GITHUB_REF_NAME -ne $want) {
+            throw "Tag $env:GITHUB_REF_NAME doesn't match package.json version ($want). Bump the version, or retag."
+          }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+      - run: npx tsc -p server/tsconfig.json --noEmit
+      - run: npm test
+      - name: Third-party notices are current
+        run: node installer/notices.mjs --check
+
+      - name: Install NSIS
+        shell: pwsh
+        run: |
+          choco install nsis --version=3.12.0 -y --no-progress
+          "C:\Program Files (x86)\NSIS" | Add-Content -Path $env:GITHUB_PATH
+
+      - name: Fetch moonlight-web-stream package
+        id: moonlight
+        shell: pwsh
+        env:
+          MOONLIGHT_TAG_VAR: ${{ vars.MOONLIGHT_TAG }}
+          GH_TOKEN: ${{ secrets.MOONLIGHT_REPO_TOKEN || github.token }}
+        run: |
+          $tag = $env:MOONLIGHT_TAG_VAR
+          if (-not $tag -and (Test-Path installer/moonlight-ref.txt)) {
+            $tag = (Get-Content installer/moonlight-ref.txt -TotalCount 1).Trim()
+          }
+          if (-not $tag) {
+            throw "No moonlight-web-stream release chosen: set the MOONLIGHT_TAG repository variable or put the tag in installer/moonlight-ref.txt"
+          }
+          $dir = Join-Path $env:RUNNER_TEMP "moonlight-package"
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          gh release download $tag --repo Luma-exe/moonlight-web-stream-luma --pattern moonlight-web-stream-package.zip --dir $dir
+          if ($LASTEXITCODE -ne 0) { throw "Couldn't download moonlight-web-stream-package.zip from release $tag" }
+          Expand-Archive (Join-Path $dir "moonlight-web-stream-package.zip") -DestinationPath (Join-Path $dir "package") -Force
+          "LUMA_MOONLIGHT_DIR=$dir\package" | Add-Content $env:GITHUB_ENV
+          "tag=$tag" | Add-Content $env:GITHUB_OUTPUT
+
+      - name: Configure signing (only if secrets are present)
+        shell: pwsh
+        env:
+          PFX_B64: ${{ secrets.LUMA_SIGN_PFX_BASE64 }}
+          PFX_PASSWORD: ${{ secrets.LUMA_SIGN_PASSWORD }}
+          TS_METADATA: ${{ secrets.LUMA_TRUSTED_SIGNING_METADATA_JSON }}
+          AZ_TENANT: ${{ secrets.AZURE_TENANT_ID }}
+          AZ_CLIENT: ${{ secrets.AZURE_CLIENT_ID }}
+          AZ_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: |
+          if ($env:TS_METADATA -and $env:AZ_TENANT -and $env:AZ_CLIENT -and $env:AZ_SECRET) {
+            $meta = Join-Path $env:RUNNER_TEMP "trusted-signing-metadata.json"
+            Set-Content -Path $meta -Value $env:TS_METADATA -Encoding utf8
+            nuget install Microsoft.Trusted.Signing.Client -Version 1.0.60 -OutputDirectory (Join-Path $env:RUNNER_TEMP "tsc") -NonInteractive
+            if ($LASTEXITCODE -ne 0) { throw "Couldn't install the Trusted Signing client" }
+            $dlib = Get-ChildItem (Join-Path $env:RUNNER_TEMP "tsc") -Recurse -Filter Azure.CodeSigning.Dlib.dll |
+              Where-Object { $_.FullName -match "x64" } | Select-Object -First 1
+            if (-not $dlib) { throw "Azure.CodeSigning.Dlib.dll (x64) not found in the client package" }
+            "LUMA_TRUSTED_SIGNING_METADATA=$meta" | Add-Content $env:GITHUB_ENV
+            "LUMA_TRUSTED_SIGNING_DLIB=$($dlib.FullName)" | Add-Content $env:GITHUB_ENV
+            "AZURE_TENANT_ID=$env:AZ_TENANT" | Add-Content $env:GITHUB_ENV
+            "AZURE_CLIENT_ID=$env:AZ_CLIENT" | Add-Content $env:GITHUB_ENV
+            "AZURE_CLIENT_SECRET=$env:AZ_SECRET" | Add-Content $env:GITHUB_ENV
+            Write-Host "Signing: Azure Trusted Signing"
+          } elseif ($env:PFX_B64 -and $env:PFX_PASSWORD) {
+            $pfx = Join-Path $env:RUNNER_TEMP "luma-sign.pfx"
+            [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:PFX_B64))
+            "LUMA_SIGN_PFX=$pfx" | Add-Content $env:GITHUB_ENV
+            "LUMA_SIGN_PASSWORD=$env:PFX_PASSWORD" | Add-Content $env:GITHUB_ENV
+            Write-Host "Signing: PFX certificate"
+          } else {
+            Write-Host "No signing secrets: unsigned build"
+          }
+
+      - name: Build installer
+        run: node installer/build.mjs
+
+      - name: Create draft release
+        shell: pwsh
+        env:
+          MOONLIGHT_TAG_USED: ${{ steps.moonlight.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $notes = @"
+          Luma Arcade $env:GITHUB_REF_NAME
+
+          - Installer SHA-256: see SHA256SUMS.txt
+          - Bundled moonlight-web-stream (GPL-3.0) is built from tag ``$env:MOONLIGHT_TAG_USED`` of https://github.com/Luma-exe/moonlight-web-stream-luma
+          - Third-party licenses: THIRD-PARTY-NOTICES.md
+          "@
+          gh release create $env:GITHUB_REF_NAME `
+            --draft --verify-tag `
+            --title "Luma Arcade $env:GITHUB_REF_NAME" `
+            --notes $notes `
+            installer/output/LumaArcadeSetup.exe `
+            installer/output/SHA256SUMS.txt `
+            THIRD-PARTY-NOTICES.md

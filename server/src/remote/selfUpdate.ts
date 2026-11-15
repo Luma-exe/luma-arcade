@@ -25,25 +25,29 @@ export interface SelfUpdateResult {
   error?: string;
 }
 
+/** Can the in-place update work here? It needs `devTreePath` pointing at a
+ * git checkout to pull and build from; a plain installed copy has none. */
+export function canSelfUpdate(): { ok: boolean; reason?: string } {
+  const devTreePath = getSetting("devTreePath");
+  if (!devTreePath) {
+    return { ok: false, reason: "No dev tree path configured in Settings — nothing to build from." };
+  }
+  if (!existsSync(path.join(devTreePath, ".git"))) {
+    return { ok: false, reason: `${devTreePath} doesn't look like a git checkout.` };
+  }
+  return { ok: true };
+}
+
 /** Pulls the configured dev-tree checkout, rebuilds it, and copies the
  * fresh server dist over this install — the same manual sequence
  * used throughout development, just automated behind one call. Requires
  * `devTreePath` to be set (see settings.ts for why this isn't attempted
  * against an arbitrary installed copy with no source tree available). */
 export async function applySelfUpdate(): Promise<SelfUpdateResult> {
-  const devTreePath = getSetting("devTreePath");
   const log: string[] = [];
-
-  if (!devTreePath) {
-    return {
-      ok: false,
-      log,
-      error: "No dev tree path configured in Settings — nothing to build from.",
-    };
-  }
-  if (!existsSync(path.join(devTreePath, ".git"))) {
-    return { ok: false, log, error: `${devTreePath} doesn't look like a git checkout.` };
-  }
+  const can = canSelfUpdate();
+  if (!can.ok) return { ok: false, log, error: can.reason };
+  const devTreePath = getSetting("devTreePath");
 
   try {
     log.push("Pulling latest...");

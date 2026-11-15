@@ -15,6 +15,19 @@ $script:VersionsFile = Join-Path $PSScriptRoot 'versions.json'
 function Write-Step([string]$Text) { Write-Output "==> $Text" }
 function Write-Note([string]$Text) { Write-Output "    $Text" }
 
+# Something the person installing should see at the end: it goes to the
+# details list (the install log) and to a file the installer reads when it
+# finishes, to show in its summary. Write-Host, not Write-Output, so it's
+# safe inside functions whose return value is a file path.
+$script:WarningsFile = Join-Path $script:DownloadDir 'warnings.txt'
+function Write-Warn([string]$Text) {
+    Write-Host "    !! WARNING: $Text"
+    try {
+        New-Item -ItemType Directory -Force $script:DownloadDir | Out-Null
+        Add-Content -LiteralPath $script:WarningsFile -Value $Text -Encoding ASCII
+    } catch { }
+}
+
 # Headers for GitHub API lookups: with GITHUB_TOKEN set (the "Tested
 # versions" workflow), a higher rate limit. Only ever sent to api.github.com
 # lookups, not downloads (those redirect to other hosts).
@@ -84,15 +97,38 @@ function Save-Download($Source, $Entry) {
         Invoke-WebRequest -Uri $Source.Url -OutFile $file -UseBasicParsing -Headers $script:UserAgent
     } catch {
         if (-not ($Source.Pinned -and $Entry)) { throw }
-        Write-Note "The tested version ($($Source.Version)) can't be downloaded any more ($($_.Exception.Message)); using the newest one"
-        return Save-Download (Resolve-Latest $Entry) $Entry
+        Write-Host "    The tested version ($($Source.Version)) can't be downloaded any more ($($_.Exception.Message)); using the newest one"
+        Write-Warn "$($Source.Name): the tested version is gone, so the newest one was downloaded instead. It has no checksum to check against."
+        $fallback = Save-Download (Resolve-Latest $Entry) $Entry
+        # Same rule as a replaced rolling build: a program must vouch for itself.
+        if ($fallback -match '\.(exe|msi)$') {
+            $sig = Get-AuthenticodeSignature -LiteralPath $fallback
+            if ($sig.Status -ne 'Valid') {
+                Remove-Item -Force -LiteralPath $fallback
+                throw "$([IO.Path]::GetFileName($fallback)) (the newest version, used because the tested one is gone) has no valid signature ($($sig.Status)) - not installing it"
+            }
+        }
+        return $fallback
     }
     if ($Source.Sha256) {
         $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $file).Hash
         if ($hash -ne $Source.Sha256 -and $Source.Rolling) {
             # A rolling release replaced the tested build with a newer one
-            # under the same address: that's the only one there is now.
-            Write-Note "The tested build ($($Source.Version)) was replaced by a newer one; using that"
+            # under the same address: that's the only one there is now. But
+            # nothing says the new file is the project's own, so it has to
+            # vouch for itself: a program must carry a valid signature;
+            # an archive can't be checked, so it installs with a warning.
+            if ($file -match '\.(exe|msi)$') {
+                $sig = Get-AuthenticodeSignature -LiteralPath $file
+                if ($sig.Status -ne 'Valid') {
+                    Remove-Item -Force -LiteralPath $file
+                    throw "$($Source.Name) changed since it was tested and has no valid signature ($($sig.Status)) - not installing it"
+                }
+                Write-Host "    The tested build ($($Source.Version)) was replaced by a newer one; using that (signed by $($sig.SignerCertificate.Subject))"
+            } else {
+                Write-Host "    The tested build ($($Source.Version)) was replaced by a newer one; using that"
+                Write-Warn "$($Source.Name) changed since it was tested ($hash, not $($Source.Sha256)) and can't be verified. It's a rolling download, so a newer build is the likely reason, but it was installed unchecked."
+            }
         } elseif ($hash -ne $Source.Sha256) {
             Remove-Item -Force -LiteralPath $file
             throw "$($Source.Name) doesn't match the checksum of the tested version (got $hash) - not installing it"
