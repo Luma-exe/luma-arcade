@@ -46,6 +46,9 @@ if ($HttpsPort) {
             $old | ConvertTo-Json | Set-Content -Path $configFile -Encoding UTF8
         } else {
             New-Item -ItemType Directory -Force $dir | Out-Null
+            # Locked before the key is written, so it's never readable by other users.
+            & icacls.exe $dir /inheritance:r /grant:r '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-18:(OI)(CI)F' "${Account}:(OI)(CI)R" /C /Q | Out-Null
+            if ($LASTEXITCODE) { throw "Couldn't set the permissions of $dir" }
             $names = @($env:COMPUTERNAME, "$env:COMPUTERNAME.local", 'localhost')
             $ips = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
                 Where-Object { $_.IPAddress -notmatch '^(127\.|169\.254\.)' } | ForEach-Object IPAddress) + '127.0.0.1'

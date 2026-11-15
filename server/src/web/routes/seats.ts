@@ -61,6 +61,8 @@ export async function registerSeatRoutes(app: FastifyInstance) {
 
   app.post<{ Params: { name: string; op: string } }>("/api/admin/seats/:name/:op", { preHandler: requireAdmin }, async (req, reply) => {
     const { name, op } = req.params;
+    // Repair and retry rebuild a seat on this PC, like creating one.
+    if ((op === "repair" || op === "retry") && !homeOnly(req, reply, "Repairing a seat")) return;
     return attempt(reply, async () => {
       if (op === "repair") await repairSeat(name);
       else if (op === "retry") await retrySeat(name);

@@ -17,7 +17,23 @@ export function profilesInstalled(): boolean {
   return existsSync(PROFILES_SCRIPT);
 }
 
-export async function runProfiles(args: string[]): Promise<Record<string, unknown>> {
+// One call at a time: two save operations on the same folders (a snapshot
+// and a restore, say) must never overlap.
+const chain = { tail: Promise.resolve() as Promise<unknown> };
+
+export function runProfiles(args: string[]): Promise<Record<string, unknown>> {
+  return serialize(chain, () => runProfilesNow(args));
+}
+
+/** Runs tasks strictly one after another. A task that fails doesn't stop the
+ * ones queued behind it. (Exported for the test.) */
+export function serialize<T>(chain: { tail: Promise<unknown> }, task: () => Promise<T>): Promise<T> {
+  const result = chain.tail.then(task);
+  chain.tail = result.catch(() => undefined);
+  return result;
+}
+
+async function runProfilesNow(args: string[]): Promise<Record<string, unknown>> {
   let stdout = "";
   try {
     ({ stdout } = await run(

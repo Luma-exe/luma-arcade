@@ -4,7 +4,7 @@ import { gamesByUser } from "./games.js";
 import { notify } from "./notify.js";
 import { nameUnnamedApps, playSummary } from "./playLog.js";
 import { sunshineAppName } from "./sunshine.js";
-import { checkDiskSpace, checkSaveBackup, checkSunshine, restartSunshine } from "./routes/health.js";
+import { checkDiskSpace, checkSaveBackup, restartSunshine, sunshineHung } from "./routes/health.js";
 import { nobodyStreamingFor, status as sessionStatus } from "./sessions.js";
 
 // Keeping the PC right without anyone watching:
@@ -119,7 +119,7 @@ export function startWatchdog(log: FastifyBaseLogger): void {
   timer = setInterval(() => {
     void (async () => {
       const outcome = await watchSunshine(
-        async () => ({ hung: (await checkSunshine())[0]?.detail.startsWith("Stuck") ?? false }),
+        async () => ({ hung: await sunshineHung() }),
         restartSunshine
       );
       if (outcome === "restarted") {

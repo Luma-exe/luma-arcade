@@ -85,7 +85,7 @@ function Save-Download($Source, $Entry) {
     } catch {
         if (-not ($Source.Pinned -and $Entry)) { throw }
         Write-Note "The tested version ($($Source.Version)) can't be downloaded any more ($($_.Exception.Message)); using the newest one"
-        return Save-Download (Resolve-Latest $Entry)
+        return Save-Download (Resolve-Latest $Entry) $Entry
     }
     if ($Source.Sha256) {
         $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $file).Hash

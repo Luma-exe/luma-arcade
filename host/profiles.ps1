@@ -464,7 +464,27 @@ function Take-Snapshot($Who, [string]$Text, [bool]$IsAuto = $false) {
 
 # --- moving between PCs: one player's saves out to a folder, or in from one
 
+# The full path of a folder saves move through, which has to be inside the
+# profiles, sync or staging folders (never the folder itself, never a
+# ..\ way out), each part of it plain letters, digits, space, _ . -
+# (-Dir is a command line argument and the import folder comes from an HTTP
+# answer; a delete follows, so neither is trusted).
+function Resolve-MoveDir([string]$Path) {
+    if (-not $Path) { throw 'No folder given' }
+    $data = Split-Path $Root
+    $roots = @($Root, (Join-Path $data 'sync'), (Join-Path $data 'sync-out'), (Join-Path $data 'seats\staging'))
+    $full = [IO.Path]::GetFullPath($Path).TrimEnd('\')
+    foreach ($r in $roots) {
+        $base = [IO.Path]::GetFullPath($r).TrimEnd('\')
+        if (-not $full.StartsWith($base + '\', [StringComparison]::OrdinalIgnoreCase)) { continue }
+        $parts = $full.Substring($base.Length + 1).Split('\')
+        if (@($parts | Where-Object { $_ -notmatch '^[A-Za-z0-9 _.-]+$' -or $_ -match '^\.+$' }).Count -eq 0) { return $full }
+    }
+    throw "Refusing '$Path': saves are only moved through folders inside $($roots -join ', ')"
+}
+
 function Export-Saves([string]$Id, [string]$To) {
+    $To = Resolve-MoveDir $To
     if (Test-Path -LiteralPath $To) { Remove-Item -LiteralPath $To -Recurse -Force }
     New-Item -ItemType Directory -Force -Path $To | Out-Null
     $copied = @()
@@ -484,6 +504,7 @@ function Export-Saves([string]$Id, [string]$To) {
 }
 
 function Import-Saves([string]$Id, [string]$From) {
+    $From = Resolve-MoveDir $From
     $meta = Join-Path $From 'export.json'
     if (-not (Test-Path -LiteralPath $meta)) { throw "$From has no export.json" }
     $info = Get-Content $meta -Raw | ConvertFrom-Json

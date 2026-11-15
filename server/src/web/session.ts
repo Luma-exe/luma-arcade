@@ -1,6 +1,6 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { GUEST_SESSION_ENDED, checkGuestSession } from "./guestSessions.js";
-import { isGuest } from "./sessions.js";
+import { isGuest, mayStopSession } from "./sessions.js";
 import { streamUser } from "./streamUser.js";
 
 /** Signed in to moonlight-web-stream (its session cookie reaches LumaArcade
@@ -25,5 +25,7 @@ export async function requireOwnerOrFree(request: FastifyRequest, reply: Fastify
     reply.code(401).send({ error: "unauthorized" });
   } else if (isGuest(user)) {
     reply.code(403).send({ error: "You're playing along as a guest; only the person you joined can do that." });
+  } else if (!mayStopSession(user)) {
+    reply.code(403).send({ error: "This game belongs to someone else. Ask them to hand it over instead." });
   }
 }

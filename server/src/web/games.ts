@@ -329,10 +329,30 @@ const ART_TYPES = [".png", ".jpg", ".jpeg", ".webp"];
 
 /** ES-DE's picture for this play: media\<system>\<kind>\<same folders and
  * name as the ROM>.<png|jpg>. Null when it has none. */
-export function coverFile(play: Pick<GamePlay, "rom" | "system">, mediaDir = MEDIA_DIR): string | null {
+export function coverFile(play: Pick<GamePlay, "rom" | "system">, mediaDir = MEDIA_DIR, now = Date.now()): string | null {
   if (!play.rom) return null;
+  // Up to 12 file checks per call, and this runs on every poll: remember
+  // the answer (found or not) for a minute.
+  const key = `${mediaDir} ${play.rom}`;
+  const hit = coverMemo.get(key);
+  if (hit && hit.until > now) return hit.file;
+  const file = findCover(play.rom, mediaDir);
+  if (coverMemo.size > 2000) coverMemo.clear();
+  coverMemo.set(key, { file, until: now + COVER_MEMO_MS });
+  return file;
+}
+
+const COVER_MEMO_MS = 60_000;
+const coverMemo = new Map<string, { file: string | null; until: number }>();
+
+/** Tests. */
+export function clearCoverMemo(): void {
+  coverMemo.clear();
+}
+
+function findCover(rom: string, mediaDir: string): string | null {
   // (ES-DE writes \ on Windows and / on Linux)
-  const m = /[\\/]ROMs[\\/]([^\\/]+)[\\/](.+)$/i.exec(play.rom);
+  const m = /[\\/]ROMs[\\/]([^\\/]+)[\\/](.+)$/i.exec(rom);
   if (!m) return null;
   const system = m[1];
   const parts = m[2].replace(/\.[^.\\/]+$/, "").split(/[\\/]/);

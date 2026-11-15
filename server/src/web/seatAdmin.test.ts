@@ -114,6 +114,9 @@ describe("extra seats admin", () => {
   it("checks a new seat's settings", () => {
     const ok = validateNewSeat({ iso: "E:\\ISOs\\Win11.iso", memoryGb: 6, cpus: 6, diskGb: 120, gpuShare: 0.5 }, host);
     assert.deepEqual(ok, { iso: "E:\\ISOs\\Win11.iso", memoryGb: 6, cpus: 6, diskGb: 120, gpuShare: 0.5 });
+    assert.throws(() => validateNewSeat({ iso: "\\\\host\\share\\x.iso", memoryGb: 6, cpus: 6, diskGb: 120, gpuShare: 0.5 }, host), /full path/);
+    assert.throws(() => validateNewSeat({ iso: "\\\\?\\C:\\x.iso", memoryGb: 6, cpus: 6, diskGb: 120, gpuShare: 0.5 }, host), /full path/);
+    assert.ok(validateNewSeat({ iso: "C:\\x.iso", memoryGb: 6, cpus: 6, diskGb: 120, gpuShare: 0.5 }, host));
     assert.throws(() => validateNewSeat({ iso: "win11.iso", memoryGb: 6, cpus: 6, diskGb: 120, gpuShare: 0.5 }, host), /full path/);
     assert.throws(() => validateNewSeat({ iso: "E:\\a.iso", memoryGb: 2, cpus: 6, diskGb: 120, gpuShare: 0.5 }, host), /Memory/);
     // Leaves the main PC at least two processors.

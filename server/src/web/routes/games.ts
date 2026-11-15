@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
-import { readData } from "../../remote/moonlightData.js";
-import { createReadStream } from "node:fs";
+import { dataPath, readData } from "../../remote/moonlightData.js";
+import { createReadStream, statSync } from "node:fs";
 import path from "node:path";
 import { getDb } from "../../db/index.js";
 import { coverFile, currentGame, gamesByUser, lastGameFor, launchableGames, playById, takeQueuedLaunch, type GamePlay } from "../games.js";
@@ -14,14 +14,27 @@ import { runHome } from "./home.js";
 // "Continue playing": the home screen offers what you played last; the
 // stream page, once your stream is up (?continue=1), asks for it to start.
 
+// (data.json is only re-read when it changes on disk: this runs every poll)
+let hostIdMemo: { file: string; mtime: number; id: number | null } | null = null;
+
 /** The paired PC's id in moonlight-web-stream (its only host). */
 function localHostId(): number | null {
   try {
-    for (const [id, host] of Object.entries(readData().hosts ?? {})) {
-      if (/^(localhost|127\.0\.0\.1|::1)$/.test(host.address)) return Number(id);
+    const file = dataPath();
+    const mtime = statSync(file).mtimeMs;
+    if (hostIdMemo && hostIdMemo.file === file && hostIdMemo.mtime === mtime) return hostIdMemo.id;
+    let id: number | null = null;
+    for (const [hostId, host] of Object.entries(readData().hosts ?? {})) {
+      if (/^(localhost|127\.0\.0\.1|::1)$/.test(host.address)) {
+        id = Number(hostId);
+        break;
+      }
     }
-  } catch {}
-  return null;
+    hostIdMemo = { file, mtime, id };
+    return id;
+  } catch {
+    return null;
+  }
 }
 
 /** The stream a game is played in: this PC, and the app (ES-DE) it was

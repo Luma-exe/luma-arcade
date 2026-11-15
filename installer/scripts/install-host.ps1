@@ -46,6 +46,14 @@ Get-ChildItem $source -Filter *.ps1 | Where-Object { $_.Name -notlike '*.tests.p
 # The Luma star, the picture for "Luma Arcade on GitHub" in ES-DE (sync-pc-games.ps1).
 $star = if ($LumaDir) { Join-Path $LumaDir 'moonlight-web-stream\static\resources\luma-star-512.png' } else { '' }
 if ($star -and (Test-Path $star)) { Copy-Item $star (Join-Path $dataDir 'luma-star.png') -Force }
+# ProgramData lets every user create files in new folders; the elevated tasks
+# read requests from here, so only administrators and SYSTEM may write to the
+# top (the account gets Modify, other users read and run). SIDs, so it works
+# in any Windows language. Not in test mode: that folder isn't ProgramData.
+if (-not $TestRoot) {
+    & icacls.exe $dataDir /inheritance:r /grant:r '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-18:(OI)(CI)F' "${Account}:(OI)(CI)M" '*S-1-5-32-545:(OI)(CI)RX' /Q | Out-Null
+    if ($LASTEXITCODE) { throw "Couldn't set the permissions of $dataDir" }
+}
 # The account writes requests, results, logs and save state here.
 foreach ($dir in "$dataDir\home", "$dataDir\profiles") {
     & icacls.exe $dir /grant "${Account}:(OI)(CI)M" /T /C /Q | Out-Null

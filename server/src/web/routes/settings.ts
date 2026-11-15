@@ -16,6 +16,15 @@ const LOCAL_ONLY_KEYS: (keyof AppSettings)[] = [
   "port",
 ];
 
+/** The entries of `body` whose key is a real setting. Own-property check, so
+ * names like __proto__, constructor or toString don't count as settings. */
+export function pickKnownSettings(body: unknown, current: object): Partial<AppSettings> {
+  const has = (o: object, key: string) => Object.prototype.hasOwnProperty.call(o, key);
+  return Object.fromEntries(
+    Object.entries((body ?? {}) as Record<string, unknown>).filter(([key]) => has(current, key))
+  ) as Partial<AppSettings>;
+}
+
 export async function registerSettingsRoutes(app: FastifyInstance) {
   app.get("/api/settings", { preHandler: requireAdmin }, async () => getAllSettings());
 
@@ -26,12 +35,10 @@ export async function registerSettingsRoutes(app: FastifyInstance) {
       const current = getAllSettings();
       // Only known settings. The settings table also holds internal values
       // (e.g. cookieSecret) that must never be writable from this route.
-      const body = Object.fromEntries(
-        Object.entries(request.body ?? {}).filter(([key]) => key in current)
-      ) as Partial<AppSettings>;
+      const body = pickKnownSettings(request.body, current);
 
       const blocked = LOCAL_ONLY_KEYS.filter(
-        (key) => key in body && body[key] !== current[key]
+        (key) => Object.prototype.hasOwnProperty.call(body, key) && body[key] !== current[key]
       );
       if (blocked.length > 0 && !isLocalRequest(request)) {
         reply.code(403).send({

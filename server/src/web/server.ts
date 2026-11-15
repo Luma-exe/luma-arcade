@@ -1,4 +1,4 @@
-import Fastify from "fastify";
+import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import { requireAuth } from "./session.js";
 import { registerSettingsRoutes } from "./routes/settings.js";
 import { registerUpdateRoutes } from "./routes/update.js";
@@ -19,9 +19,64 @@ import { registerGameRoutes } from "./routes/games.js";
 import { registerWelcomeRoutes } from "./routes/welcome.js";
 import { registerStreamSetupRoutes } from "./routes/streamSetup.js";
 import { MOONLIGHT_PATH_PREFIX } from "../remote/moonlightWebStream.js";
-import { TRUSTED_PROXIES, httpsUpgradeUrl } from "./requestOrigin.js";
+import { TRUSTED_PROXIES, httpsUpgradeUrl, isViaTunnel } from "./requestOrigin.js";
 import { registerHttpsRoutes, startHttps } from "./https.js";
 import { problemLogHook } from "./diagnostics.js";
+
+function securityHeaders(request: FastifyRequest, reply: FastifyReply): void {
+  reply.header("X-Content-Type-Options", "nosniff");
+  reply.header("Referrer-Policy", "same-origin");
+  reply.header("X-Frame-Options", "SAMEORIGIN");
+  reply.header("Content-Security-Policy", "frame-ancestors 'self'");
+  // Only for the public name over the tunnel: HSTS covers every port of a
+  // host, and the LAN still uses plain http on :4500.
+  if (isViaTunnel(request) && !httpsUpgradeUrl(request)) reply.header("Strict-Transport-Security", "max-age=15552000");
+}
+
+function isLoopbackHost(host: string): boolean {
+  const name = host.replace(/:\d+$/, "").replace(/^\[|\]$/g, "").toLowerCase();
+  return name === "localhost" || name === "::1" || /^127\./.test(name);
+}
+
+/** A write (or WebSocket upgrade) a page on another site made with the
+ * visitor's cookies. No Origin at all is fine: LAN seat scripts and curl
+ * don't send one. */
+export function isCrossSiteWrite(request: FastifyRequest): boolean {
+  const upgrade = request.headers.upgrade?.toLowerCase() === "websocket";
+  if (!upgrade && ["GET", "HEAD", "OPTIONS"].includes(request.method)) return false;
+  if (request.headers["sec-fetch-site"] === "cross-site") return true;
+  const origin = request.headers.origin;
+  if (!origin) return false;
+  const host = String(request.headers.host ?? "").toLowerCase();
+  let originHost: string;
+  try {
+    originHost = new URL(origin).host.toLowerCase();
+  } catch {
+    return true; // "null" and other unusable origins
+  }
+  if (originHost === host) return false;
+  return !(isLoopbackHost(originHost) && isLoopbackHost(host));
+}
+
+/** Hooks every request goes through. */
+export function registerRequestHooks(app: FastifyInstance): void {
+  // From the internet it's https only (requestOrigin.ts: Safari on http://
+  // couldn't stay signed in). 308 keeps a POST a POST. The same hook sets
+  // the browser-hardening headers and refuses cross-site writes.
+  app.addHook("onRequest", async (request, reply) => {
+    securityHeaders(request, reply);
+    if (isCrossSiteWrite(request)) return reply.code(403).send({ error: "Cross-site request refused." });
+    const to = httpsUpgradeUrl(request);
+    if (to) return reply.redirect(to, request.method === "GET" || request.method === "HEAD" ? 301 : 308);
+  });
+
+  // The proxied /stream replies carry moonlight-web-stream's own headers,
+  // which are copied over the ones set above: set ours again on the way out.
+  app.addHook("onSend", async (request, reply, payload) => {
+    securityHeaders(request, reply);
+    return payload;
+  });
+}
 
 /** serverDir: the server folder (luma-arcade.db, https.json). */
 export async function createServer(opts: { port: number; serverDir: string }) {
@@ -41,12 +96,7 @@ export async function createServer(opts: { port: number; serverDir: string }) {
         : req.url ?? "/",
   });
 
-  // From the internet it's https only (requestOrigin.ts: Safari on http://
-  // couldn't stay signed in). 308 keeps a POST a POST.
-  app.addHook("onRequest", async (request, reply) => {
-    const to = httpsUpgradeUrl(request);
-    if (to) return reply.redirect(to, request.method === "GET" || request.method === "HEAD" ? 301 : 308);
-  });
+  registerRequestHooks(app);
 
   // The arcade is moonlight-web-stream under /stream, and its sign-in is the
   // only login. "/" is the welcome page (routes/welcome.ts); the tray's

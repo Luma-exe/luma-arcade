@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { execFile } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, statfsSync } from "node:fs";
+import { closeSync, existsSync, fstatSync, openSync, readSync, readdirSync, readFileSync, statfsSync } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
 import { getSetting } from "../../config/settings.js";
@@ -9,7 +9,7 @@ import { playerStream, status as sessionStatus } from "../sessions.js";
 import { requireAdmin, streamUser } from "../streamUser.js";
 import { requireAuth } from "../session.js";
 import { HOME_SCRIPT, HOME_TASK } from "./home.js";
-import { SUNSHINE_HTTPS_PORT, sunshineHttps } from "../sunshine.js";
+import { SUNSHINE_HTTPS_PORT, forgetAppListMisses, sunshineHttps } from "../sunshine.js";
 import { getActiveInput } from "./input.js";
 import { diagnosticsReport, redact } from "../diagnostics.js";
 import { IMPORT_PC_GAMES, checkPcGames, importPcGames } from "../pcGames.js";
@@ -54,6 +54,32 @@ async function output(file: string, args: string[]): Promise<string> {
   }
 }
 
+// Sunshine starts a new log each day (~100 KB), so this normally reads all of
+// it (its startup lines list the encoders); it only caps a runaway log.
+const LOG_TAIL_BYTES = 4 * 1024 * 1024;
+
+/** The last ~256 KB of a text file (sunshine.log grows for weeks, and every
+ * check only wants its newest lines). Throws if it can't be opened, like readFileSync. */
+export function tailFile(file: string, maxBytes = LOG_TAIL_BYTES): string {
+  const fd = openSync(file, "r");
+  try {
+    const size = fstatSync(fd).size;
+    const start = Math.max(0, size - maxBytes);
+    const buf = Buffer.alloc(size - start);
+    let got = 0;
+    while (got < buf.length) {
+      const n = readSync(fd, buf, got, buf.length - got, start + got);
+      if (n === 0) break;
+      got += n;
+    }
+    return buf.toString("utf8", 0, got);
+  } finally {
+    closeSync(fd);
+  }
+}
+
+const sunshineLog = () => tailFile(path.join(SUNSHINE_CONFIG_DIR, "sunshine.log"));
+
 function readSunshineConf(): Record<string, string> {
   try {
     const text = readFileSync(path.join(SUNSHINE_CONFIG_DIR, "sunshine.conf"), "utf8");
@@ -68,18 +94,35 @@ function readSunshineConf(): Record<string, string> {
   }
 }
 
+/** Does Sunshine answer plain HTTP? */
+async function sunshineReachable(): Promise<boolean> {
+  try {
+    const res = await fetch(`http://127.0.0.1:${SUNSHINE_HTTP_PORT}/serverinfo`, {
+      signal: AbortSignal.timeout(2000),
+    });
+    return res.status < 500;
+  } catch {
+    return false;
+  }
+}
+
+/** Just the "secure port hung" test (what the watchdog acts on), without
+ * checkSunshine's service query and log read. */
+export async function sunshineHung(): Promise<boolean> {
+  if (!(await sunshineReachable()) || (await sunshineHttps()) !== "hung") return false;
+  // Only now (rarely) ask the service manager: a Sunshine that answers while
+  // its service is stopped or mid-restart isn't the service hanging.
+  return IS_WINDOWS
+    ? /STATE\s*:\s*\d+\s+RUNNING/.test(await output("sc.exe", ["query", "SunshineService"]))
+    : await sunshineRunningLinux();
+}
+
 export async function checkSunshine(): Promise<HealthCheck[]> {
   const running = IS_WINDOWS
     ? /STATE\s*:\s*\d+\s+RUNNING/.test(await output("sc.exe", ["query", "SunshineService"]))
     : await sunshineRunningLinux();
 
-  let reachable = false;
-  try {
-    const res = await fetch(`http://127.0.0.1:${SUNSHINE_HTTP_PORT}/serverinfo`, {
-      signal: AbortSignal.timeout(2000),
-    });
-    reachable = res.status < 500;
-  } catch {}
+  const reachable = await sunshineReachable();
 
   // Sunshine's HTTPS side can hang on its own (TLS handshakes never finish)
   // while plain HTTP still answers: Moonlight then shows the PC as offline.
@@ -104,7 +147,7 @@ export async function checkSunshine(): Promise<HealthCheck[]> {
 
   // Sunshine logs which hardware encoders it found at startup.
   try {
-    const log = readFileSync(path.join(SUNSHINE_CONFIG_DIR, "sunshine.log"), "utf8");
+    const log = sunshineLog();
     // Sunshine re-probes (and re-logs) its encoders on some reconnects
     const found = [...new Set([...log.matchAll(/Found (\S+) encoder: (\S+)/g)].map((m) => `${m[1]} (${m[2]})`))];
     checks.push({
@@ -339,7 +382,7 @@ async function checkMoonlight(): Promise<HealthCheck> {
 function checkStream(): HealthCheck {
   let last: RegExpMatchArray | undefined;
   try {
-    const log = readFileSync(path.join(SUNSHINE_CONFIG_DIR, "sunshine.log"), "utf8");
+    const log = sunshineLog();
     // Quitting from the client ends the session without a CLIENT
     // DISCONNECTED line; Sunshine restoring the display marks the end then.
     last = [
@@ -382,7 +425,7 @@ async function checkScreenSize(): Promise<HealthCheck> {
   let game: string | null = null;
   if (streamSize) {
     try {
-      const log = readFileSync(path.join(SUNSHINE_CONFIG_DIR, "sunshine.log"), "utf8");
+      const log = sunshineLog();
       screenSize = [...log.matchAll(/Info: Desktop resolution \[(\d+x\d+)\]/g)].at(-1)?.[1] ?? null;
     } catch {}
     if (screenSize && screenSize !== streamSize) {
@@ -638,6 +681,45 @@ async function linuxHostChecks(): Promise<HealthCheck[]> {
   return [earlyTestingCheck(), checkStream(), ...sunshine, moonlight, encoder, uinputCheck(), checkDiskSpace()];
 }
 
+// hostChecks spawns ~10 processes (and calls the Cloudflare TURN API), so
+// requests share one run: a result is reused while it's fresh, and
+// overlapping requests wait on the same run.
+let hostCache: { at: number; value: HealthCheck[] } | null = null;
+let hostInflight: Promise<HealthCheck[]> | null = null;
+let hostCacheGen = 0;
+
+/** hostChecks, reusing a result up to maxAgeMs old. The result is the
+ * unredacted one; apply checksFor() per user afterwards. */
+export function cachedHostChecks(maxAgeMs: number, compute = hostChecks, now = Date.now): Promise<HealthCheck[]> {
+  if (hostCache && now() - hostCache.at < maxAgeMs) return Promise.resolve(hostCache.value);
+  if (!hostInflight) {
+    const gen = hostCacheGen;
+    const run = compute()
+      .then((value) => {
+        // (not kept if a fix ran while it was working: it may predate the fix)
+        if (gen === hostCacheGen) hostCache = { at: now(), value };
+        return value;
+      })
+      .finally(() => {
+        if (hostInflight === run) hostInflight = null;
+      });
+    hostInflight = run;
+  }
+  return hostInflight;
+}
+
+/** Forget the saved host checks (after something changed on the host),
+ * and let Sunshine's app list be asked for again (new PC games, a restart). */
+export function invalidateHostChecks(): void {
+  hostCache = null;
+  hostInflight = null;
+  hostCacheGen++;
+  forgetAppListMisses();
+}
+
+const PLAYER_CHECKS_MS = 30_000;
+const ADMIN_CHECKS_MS = 3_000;
+
 /** What a player sees on Host health: admins get it all, everyone else gets
  * the checks with names and addresses taken out (like Copy diagnostics). */
 export function checksFor(checks: HealthCheck[], admin: boolean, names?: string[]): HealthCheck[] {
@@ -656,19 +738,23 @@ export async function registerHealthRoutes(app: FastifyInstance) {
 
   // Everyone signed in can look (and copy diagnostics for a bug report);
   // only admins can press the fixes, and only admins see names and addresses.
-  app.get("/api/health/host", { preHandler: requireAuth }, async (req) => {
+  app.get("/api/health/host", { preHandler: requireAuth, logLevel: "warn" }, async (req) => {
     const admin = !!(await streamUser(req))?.admin;
-    return { checks: checksFor(await hostChecks(), admin), canFix: admin };
+    return { checks: checksFor(await cachedHostChecks(admin ? ADMIN_CHECKS_MS : PLAYER_CHECKS_MS), admin), canFix: admin };
   });
 
   /** Host health's "Copy diagnostics": text to paste into a GitHub issue. */
-  app.get("/api/health/diagnostics", { preHandler: requireAuth }, async () => ({ text: await diagnosticsReport(hostChecks) }));
+  app.get("/api/health/diagnostics", { preHandler: requireAuth, logLevel: "warn" }, async (req) => {
+    const admin = !!(await streamUser(req))?.admin;
+    return { text: await diagnosticsReport(() => cachedHostChecks(admin ? ADMIN_CHECKS_MS : PLAYER_CHECKS_MS)) };
+  });
 
   // Fixes offered next to a check (HealthCheck.action).
   app.post<{ Params: { id: string } }>("/api/health/action/:id", { preHandler: requireAdmin }, async (req, reply) => {
     if (req.params.id === IMPORT_PC_GAMES.id) {
       try {
         await importPcGames();
+        invalidateHostChecks();
         return { ok: true, message: "Importing PC games - Check again in a minute" };
       } catch (err) {
         return reply.code(500).send({ error: `Couldn't start the import: ${(err as Error).message}` });
@@ -680,6 +766,7 @@ export async function registerHealthRoutes(app: FastifyInstance) {
     }
     try {
       await restartSunshine();
+      invalidateHostChecks();
       return { ok: true, message: "Sunshine restarted" };
     } catch (err) {
       return reply.code(500).send({ error: `Couldn't restart Sunshine: ${(err as Error).message}` });

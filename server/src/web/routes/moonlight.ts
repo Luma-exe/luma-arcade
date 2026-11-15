@@ -12,6 +12,7 @@ import { moonlightProcess, MOONLIGHT_PATH_PREFIX } from "../../remote/moonlightW
 import { notify } from "../notify.js";
 import { GUEST_SESSION_ENDED, checkGuestSession } from "../guestSessions.js";
 import { sturdySetCookieHeader } from "../sessionCookie.js";
+import { proxyPath } from "../proxyPath.js";
 
 const PROXY_PREFIX = MOONLIGHT_PATH_PREFIX;
 
@@ -43,10 +44,22 @@ export async function registerMoonlightRoutes(app: FastifyInstance) {
     // 404 for bare / on its own port.
     rewritePrefix: PROXY_PREFIX,
     websocket: true,
+    // ~120 proxied files per page would each log twice at info; warnings and
+    // errors (and the stream started/ended lines, via app.log) still show.
+    logLevel: "warn",
     // No gate of LumaArcade's own any more: moonlight-web-stream's sign-in
     // is the only login, and it guards its own API. Its login does get the
     // rate limit LumaArcade's old portal password had.
     preHandler: async (request, reply) => {
+      // Every gate below reads the normalized path, because that is what
+      // moonlight-web-stream acts on (proxyPath.ts). An API path that only
+      // reaches the same place through escapes or dot segments isn't a
+      // request a browser makes, so it is refused rather than interpreted.
+      const normalized = proxyPath(request);
+      if (normalized === null || (normalized !== rawPath(request) && /^\/stream\/(luma-)?api\//i.test(normalized))) {
+        reply.code(400).send({ error: "Bad request." });
+        return;
+      }
       if (isLoginRequest(request)) {
         const ip = clientIp(request);
         if (isRateLimited(ip)) {
@@ -57,8 +70,7 @@ export async function registerMoonlightRoutes(app: FastifyInstance) {
       }
       // Its API (not its files): a guest's session that should be over ends
       // (guestSessions.ts); moonlight-web-stream then shows the sign-in.
-      const path = (request.url ?? "").split("?")[0];
-      if (path.startsWith(`${PROXY_PREFIX}/api/`) && !isLoginRequest(request)) {
+      if (normalized.toLowerCase().startsWith(`${PROXY_PREFIX}/api/`) && !isLoginRequest(request)) {
         if ((await checkGuestSession(request.headers.cookie)) === "ended") {
           reply.code(401).send({ error: GUEST_SESSION_ENDED });
           return;
@@ -85,7 +97,7 @@ export async function registerMoonlightRoutes(app: FastifyInstance) {
       rewriteHeaders: (headers, request) => {
         // Its sign-in cookie, so it sticks on every browser (sessionCookie.ts).
         if (headers["set-cookie"]) headers = { ...headers, "set-cookie": sturdySetCookieHeader(headers["set-cookie"]) };
-        const path = (request?.url ?? "").split("?")[0];
+        const path = (request ? proxyPath(request as unknown as FastifyRequest) : null)?.toLowerCase() ?? "";
         if (request?.method !== "GET" || path.startsWith(`${PROXY_PREFIX}/api/`) || !headers.etag) return headers;
         const longLived = /\/(libopus|libopenh264|resources)\//.test(path);
         const { pragma: _pragma, ...rest } = headers;
@@ -104,6 +116,17 @@ export async function registerMoonlightRoutes(app: FastifyInstance) {
         if (loginIp) {
           if (reply.statusCode === 401 || reply.statusCode === 404) recordFailedAttempt(loginIp);
           else if (reply.statusCode < 300) clearAttempts(loginIp);
+          // Its login answers 404 for a name that doesn't exist and 401 for a
+          // wrong password, which tells anyone which names are real. Both
+          // become the same 401 (its page treats them alike, static/api.js).
+          if (reply.statusCode === 404) {
+            (res as unknown as { stream: Readable }).stream.destroy();
+            for (const header of ["content-length", "content-type", "content-encoding", "transfer-encoding", "set-cookie", "etag"]) {
+              reply.removeHeader(header);
+            }
+            reply.code(401).send({ error: "Wrong username or password." });
+            return;
+          }
         }
         if (isAppListRequest(req, PROXY_PREFIX)) {
           void filterAppList(req, reply as never, res as unknown as { stream: Readable });
@@ -114,19 +137,19 @@ export async function registerMoonlightRoutes(app: FastifyInstance) {
     },
     wsHooks: {
       onConnect: (_context, source) => streamSocketOpened(source as never),
-      onIncomingMessage: (context, source, target, message) => {
+      onIncomingMessage: (_context, source, target, message) => {
         const before = streamOwnerName(source as never);
         checkStreamInit(source as never, target as never, message.data, message.binary);
         const who = streamOwnerName(source as never);
         if (who && !before) {
-          context.log.info({ player: who }, "stream started");
+          app.log.info({ player: who }, "stream started");
           // (Quality switches and reconnects start new streams: once per half hour.)
           void notify(`🎮 ${who} started playing`, `start:${who}`, 30 * 60_000);
         }
       },
-      onDisconnect: (context, source) => {
+      onDisconnect: (_context, source) => {
         const who = streamOwnerName(source as never);
-        if (who) context.log.info({ player: who }, "stream ended");
+        if (who) app.log.info({ player: who }, "stream ended");
         streamClosed(source as never);
       },
     },
@@ -156,9 +179,14 @@ export async function registerMoonlightRoutes(app: FastifyInstance) {
 }
 
 function isStopSessionRequest(request: FastifyRequest): boolean {
-  return request.method === "POST" && request.url.split("?")[0] === `${PROXY_PREFIX}/api/host/cancel`;
+  return request.method === "POST" && proxyPath(request)?.toLowerCase() === `${PROXY_PREFIX}/api/host/cancel`;
 }
 
 function isLoginRequest(request: FastifyRequest): boolean {
-  return request.method === "POST" && request.url.split("?")[0] === `${PROXY_PREFIX}/api/login`;
+  return request.method === "POST" && proxyPath(request)?.toLowerCase() === `${PROXY_PREFIX}/api/login`;
+}
+
+/** The URL's path as sent (query stripped), to tell if normalizing changed it. */
+function rawPath(request: FastifyRequest): string {
+  return (request.url ?? "").split("?")[0];
 }

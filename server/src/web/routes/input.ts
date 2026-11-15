@@ -113,7 +113,7 @@ function detect(processes: ProcessRow[]): ActiveInput {
 }
 
 // Every open stream polls this; one process scan serves them all.
-const CACHE_MS = 2500;
+const CACHE_MS = 10_000;
 let cached: { at: number; value: ActiveInput } | null = null;
 let inflight: Promise<ActiveInput> | null = null;
 
@@ -136,5 +136,5 @@ export async function getActiveInput(): Promise<ActiveInput> {
 
 /** What's being played on the host, for the touch controls' auto layout. */
 export async function registerInputRoutes(app: FastifyInstance) {
-  app.get("/api/input/active", { preHandler: requireAuth }, async () => getActiveInput());
+  app.get("/api/input/active", { preHandler: requireAuth, logLevel: "warn" }, async () => getActiveInput());
 }

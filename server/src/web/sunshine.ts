@@ -62,25 +62,68 @@ export async function sunshineHttps(): Promise<"ok" | "hung" | "unpaired"> {
 // --- app names (Sunshine's apps have numeric ids; the play log wants names)
 
 let appNames: { at: number; names: Map<number, string> } | null = null;
+/** When the app list was last asked for, successful or not. */
+let lastAsk = -Infinity;
 const APP_NAMES_MS = 10 * 60_000;
+/** An app that isn't in the list (or a list that won't load) is asked for
+ * again at most this often. */
+const MISSING_RETRY_MS = 30_000;
+
+/** The list fetch and clock, swappable so tests don't need Sunshine. */
+export const appListSource = {
+  get: (): Promise<SunshineAnswer> => sunshineGet("/applist?uniqueid=0123456789ABCDEF"),
+  now: (): number => Date.now(),
+};
+
+let inFlight: Promise<void> | null = null;
+
+/** Tests. */
+export function resetAppNames(): void {
+  appNames = null;
+  lastAsk = -Infinity;
+  inFlight = null;
+}
+
+/** Sunshine's apps just changed (e.g. PC games imported): the next lookup of
+ * a missing app asks again at once instead of waiting out MISSING_RETRY_MS. */
+export function forgetAppListMisses(): void {
+  lastAsk = -Infinity;
+}
 
 /** The name from the last app list, without asking (null if not seen). */
 export function knownAppName(appId: number): string | null {
   return appNames?.names.get(appId) ?? null;
 }
 
+/** Fetches the app list when it's old, or when something is missing from it
+ * (unless that was already tried within MISSING_RETRY_MS). */
+async function refreshAppList(missing: boolean): Promise<void> {
+  // Lookups made while the list is loading wait for that one fetch.
+  if (inFlight) return inFlight;
+  const now = appListSource.now();
+  const stale = !appNames || now - appNames.at > APP_NAMES_MS;
+  if (!stale && !missing) return;
+  if (now - lastAsk < MISSING_RETRY_MS) return;
+  lastAsk = now;
+  inFlight = (async () => {
+    const answer = await appListSource.get();
+    if (answer.status === "ok" && answer.code === 200) appNames = { at: now, names: parseAppList(answer.body) };
+  })().finally(() => {
+    inFlight = null;
+  });
+  return inFlight;
+}
+
 /** The Sunshine app with this id's name, or null if Sunshine doesn't say. */
 export async function sunshineAppName(appId: number): Promise<string | null> {
-  if (!appNames || Date.now() - appNames.at > APP_NAMES_MS || !appNames.names.has(appId)) {
-    const answer = await sunshineGet("/applist?uniqueid=0123456789ABCDEF");
-    if (answer.status === "ok" && answer.code === 200) appNames = { at: Date.now(), names: parseAppList(answer.body) };
-  }
+  await refreshAppList(!appNames?.names.has(appId));
   return appNames?.names.get(appId) ?? null;
 }
 
 /** The id of the Sunshine app with this name (e.g. "ES-DE"). */
 export async function sunshineAppId(name: string): Promise<number | null> {
-  if (!appNames || ![...appNames.names.values()].includes(name)) await sunshineAppName(-1);
+  const known = appNames && [...appNames.names.values()].includes(name);
+  await refreshAppList(!known);
   for (const [id, n] of appNames?.names ?? []) if (n === name) return id;
   return null;
 }

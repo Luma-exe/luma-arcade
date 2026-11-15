@@ -138,7 +138,7 @@ try {
             Get-NetConnectionProfile | Where-Object NetworkCategory -ne 'DomainAuthenticated' | Set-NetConnectionProfile -NetworkCategory Private -ErrorAction SilentlyContinue
             foreach ($proto in 'TCP', 'UDP') {
                 Get-NetFirewallRule -DisplayName "Luma Arcade seat: Sunshine $proto" -ErrorAction SilentlyContinue | Remove-NetFirewallRule
-                New-NetFirewallRule -DisplayName "Luma Arcade seat: Sunshine $proto" -Direction Inbound -Protocol $proto -LocalPort 47984-48010 -Profile Any -Action Allow | Out-Null
+                New-NetFirewallRule -DisplayName "Luma Arcade seat: Sunshine $proto" -Direction Inbound -Protocol $proto -LocalPort 47984-48010 -RemoteAddress LocalSubnet -Profile Any -Action Allow | Out-Null
             }
             $personalization = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization'
             New-Item -Path $personalization -Force | Out-Null

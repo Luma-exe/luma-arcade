@@ -8,11 +8,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // remote/ -> dist -> server -> install root
 const INSTALL_ROOT = path.join(__dirname, "..", "..", "..");
 
-function run(cmd: string, args: string[], cwd: string): Promise<string> {
+// Only npm gets a shell: on Windows it is npm.cmd, which execFile can't launch
+// directly. git runs without one so nothing in its arguments is re-parsed.
+function run(cmd: string, args: string[], cwd: string, shell = false): Promise<string> {
   return new Promise((resolve, reject) => {
-    // shell: true — npm on Windows is npm.cmd, which execFile can't launch
-    // directly without a shell to interpret it.
-    execFile(cmd, args, { cwd, maxBuffer: 20 * 1024 * 1024, shell: true }, (err, stdout, stderr) => {
+    execFile(cmd, args, { cwd, maxBuffer: 20 * 1024 * 1024, shell }, (err, stdout, stderr) => {
       if (err) reject(new Error(`${cmd} ${args.join(" ")} failed: ${stderr || err.message}`));
       else resolve(stdout);
     });
@@ -50,10 +50,10 @@ export async function applySelfUpdate(): Promise<SelfUpdateResult> {
     log.push(await run("git", ["pull"], devTreePath));
 
     log.push("Installing dependencies...");
-    log.push(await run("npm", ["install"], devTreePath));
+    log.push(await run("npm", ["install"], devTreePath, true));
 
     log.push("Building...");
-    log.push(await run("npm", ["run", "build"], devTreePath));
+    log.push(await run("npm", ["run", "build"], devTreePath, true));
 
     log.push("Deploying build...");
     cpSync(path.join(devTreePath, "server", "dist"), path.join(INSTALL_ROOT, "server", "dist"), {

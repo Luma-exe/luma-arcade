@@ -1159,10 +1159,34 @@ function Invoke-Sync($Request) {
 
 # ------------------------------------------------------------------ one job
 
+# Requests are dropped by the website (which runs as the games account) and
+# this runs as SYSTEM: check what it will use before using it.
+function Test-RequestFields($r) {
+    # Local drive paths only: no UNC share, no \\?\ or \\.\ device paths.
+    $local = '^[A-Za-z]:\\'
+    if ($null -ne $r.storage -and "$($r.storage)" -ne '') {
+        $p = "$($r.storage)"
+        if ($p -notmatch $local -or $p -match '^\\\\' -or $p.IndexOfAny([IO.Path]::GetInvalidPathChars()) -ge 0) { throw "Bad storage folder '$p': it has to be a folder on a local drive" }
+    }
+    if ($null -ne $r.iso -and "$($r.iso)" -ne '') {
+        $p = "$($r.iso)"
+        if ($p -notmatch $local -or $p -match '^\\\\' -or $p -notmatch '\.iso$' -or $p.IndexOfAny([IO.Path]::GetInvalidPathChars()) -ge 0) { throw "Bad Windows installation disc '$p': it has to be an .iso file on a local drive" }
+    }
+    if ($null -ne $r.port -and "$($r.port)" -ne '') {
+        $n = 0
+        if ("$($r.port)" -notmatch '^\d{1,5}$' -or -not [int]::TryParse("$($r.port)", [ref]$n) -or $n -lt 1 -or $n -gt 65535) { throw "Bad port '$($r.port)': it has to be a whole number from 1 to 65535" }
+    }
+    if ($null -ne $r.clientCert -and "$($r.clientCert)" -ne '') {
+        $pem = '^-----BEGIN CERTIFICATE-----\s+[A-Za-z0-9+/=\s]+-----END CERTIFICATE-----\s*$'
+        if ("$($r.clientCert)" -notmatch $pem) { throw 'Bad client certificate: it has to be a PEM certificate' }
+    }
+}
+
 function Read-Request([string]$File) {
     $r = Read-Json $File
     if (-not $r) { throw "Unreadable request $File" }
     if ($r.name -and $r.name -notmatch $SeatNamePattern) { throw "Bad seat name '$($r.name)'" }
+    Test-RequestFields $r
     $r
 }
 

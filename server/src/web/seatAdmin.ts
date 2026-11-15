@@ -210,7 +210,8 @@ function num(value: unknown, min: number, max: number, what: string): number {
 export function validateNewSeat(body: unknown, host: SeatHostInfo | null): NewSeat {
   const b = (body ?? {}) as Record<string, unknown>;
   const iso = typeof b.iso === "string" ? b.iso.trim().replace(/^"|"$/g, "") : "";
-  if (!/^[a-zA-Z]:\\.+\.iso$/i.test(iso) && !/^\\\\[^\\]+\\.+\.iso$/i.test(iso)) throw new Error("Give the full path of a Windows 10 or 11 .iso file on this PC");
+  // Local drive paths only: no network shares (\\server\share) and no \\?\ paths.
+  if (!/^[a-zA-Z]:\\.+\.iso$/i.test(iso)) throw new Error("Give the full path of a Windows 10 or 11 .iso file on this PC");
   const maxCpus = Math.max(2, (host?.cpus ?? 64) - 2);
   const seat: NewSeat = {
     iso,

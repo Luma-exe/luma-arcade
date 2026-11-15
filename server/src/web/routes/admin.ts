@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { SETTINGS_SECTIONS, deleteAccess, getAccess, getAllAccess, setAccess, type UserAccess } from "../access.js";
 import { requireAuth } from "../session.js";
@@ -30,6 +30,20 @@ interface SunshineApp {
   "image-path"?: string;
 }
 
+// Cover images as data URLs, kept while the file is unchanged (the admin
+// screen loads them all on every visit).
+const imageCache = new Map<string, { stamp: string; url: string }>();
+
+function imageDataUrl(file: string): string {
+  const st = statSync(file);
+  const stamp = `${st.mtimeMs}:${st.size}`;
+  const hit = imageCache.get(file);
+  if (hit?.stamp === stamp) return hit.url;
+  const url = `data:image/png;base64,${readFileSync(file).toString("base64")}`;
+  imageCache.set(file, { stamp, url });
+  return url;
+}
+
 /** Sunshine's apps (apps.json), with their cover images inlined. */
 function sunshineApps(): { name: string; image: string | null }[] {
   // PowerShell 5.1 (Setup, the helper scripts) saves it with a byte order mark.
@@ -43,7 +57,7 @@ function sunshineApps(): { name: string; image: string | null }[] {
     if (file) {
       for (const candidate of [file, path.join(SUNSHINE_DIR, "assets", file), path.join(SUNSHINE_DIR, "config", file)]) {
         try {
-          image = `data:image/png;base64,${readFileSync(candidate).toString("base64")}`;
+          image = imageDataUrl(candidate);
           break;
         } catch {
           // try the next location

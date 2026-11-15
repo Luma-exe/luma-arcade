@@ -38,10 +38,23 @@ $MAX_QUICK = 3          # ... this many times in a row means it can't start
 # An ES-DE left open outside Sunshine (the Home button starts one when it
 # isn't running) is closed first: Sunshine only closes what it started, and
 # the next player's saves can't be swapped in while ES-DE is open.
+# It also has the wrong size when the display changed since it started, so
+# it must really be gone: reusing it shows a small picture in a black frame.
 foreach ($stray in @(Get-Process $name -ErrorAction SilentlyContinue)) {
-  [void]$stray.CloseMainWindow()
-  if (-not $stray.WaitForExit(15000)) { Stop-Process -Id $stray.Id -Force -ErrorAction SilentlyContinue }
-  Log "closed an ES-DE that was open outside the stream (pid $($stray.Id))"
+  $id = $stray.Id
+  try { [void]$stray.CloseMainWindow() } catch {}
+  $deadline = (Get-Date).AddSeconds(15)
+  while ((Get-Process -Id $id -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 250 }
+  if (Get-Process -Id $id -ErrorAction SilentlyContinue) {
+    Stop-Process -Id $id -Force -ErrorAction SilentlyContinue
+    & taskkill.exe /F /PID $id 2>&1 | Out-Null
+    Start-Sleep -Seconds 1
+  }
+  if (Get-Process -Id $id -ErrorAction SilentlyContinue) {
+    Log "couldn't close the ES-DE open outside the stream (pid $id; started elevated?), it may not fit the screen"
+  } else {
+    Log "closed an ES-DE that was open outside the stream (pid $id)"
+  }
 }
 
 # Whether Sunshine asked the app to exit at or after $since: $true / $false,

@@ -2,11 +2,33 @@ import type { FastifyInstance } from "fastify";
 import { randomBytes } from "node:crypto";
 import { Readable } from "node:stream";
 import { requireAuth } from "../session.js";
+import { streamUser } from "../streamUser.js";
 
 // Random, so nothing along the way (Cloudflare, a proxy) can compress it and
 // make the connection look faster than it is.
 const CHUNK = randomBytes(256 * 1024);
 const MAX_BYTES = 64 * 1024 * 1024;
+
+// The client (auto_detect.js) downloads one block at a time, and starts the
+// next just as it drops the last, so allow that plus one.
+export const MAX_CONCURRENT_DOWNLOADS = 2;
+const active = new Map<string, number>();
+
+/** Takes a download slot for this user; null if they're at the limit.
+ * Calling the returned function gives the slot back (safe to call twice). */
+export function takeDownloadSlot(key: string, max = MAX_CONCURRENT_DOWNLOADS): (() => void) | null {
+  const n = active.get(key) ?? 0;
+  if (n >= max) return null;
+  active.set(key, n + 1);
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    const left = (active.get(key) ?? 1) - 1;
+    if (left <= 0) active.delete(key);
+    else active.set(key, left);
+  };
+}
 
 /** Download target for the stream settings' "Auto-detect" button, which
  * times it to pick a bitrate/resolution this connection can carry.
@@ -18,6 +40,16 @@ export async function registerSpeedtestRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const requested = Number(req.query.bytes ?? 0);
       const total = Number.isFinite(requested) ? Math.min(Math.max(0, Math.floor(requested)), MAX_BYTES) : 0;
+
+      // bytes=0 is just a ping, so it never counts against the limit.
+      let release: (() => void) | null = null;
+      if (total > 0) {
+        const user = await streamUser(req);
+        release = takeDownloadSlot(user ? `u${user.id}` : `ip${req.ip}`);
+        if (!release) {
+          return reply.code(429).send({ error: "Too many speed tests running at once" });
+        }
+      }
 
       reply
         .header("Cache-Control", "no-store")
@@ -38,7 +70,13 @@ export async function registerSpeedtestRoutes(app: FastifyInstance) {
           sent += size;
           this.push(size === CHUNK.length ? CHUNK : CHUNK.subarray(0, size));
         },
+        // Finished, cancelled by the client, or failed: the slot comes back.
+        destroy(err, callback) {
+          release?.();
+          callback(err);
+        },
       });
+      body.on("close", () => release?.());
       return reply.send(body);
     }
   );

@@ -7,6 +7,7 @@ import { knownAppName, sunshineAppName } from "./sunshine.js";
 import { isSeatHost, seatStreamEnded, seatStreamStarted } from "./seats.js";
 import { decide, guestStream, streamEnded, streamStarted } from "./sessions.js";
 import { streamUser, type StreamUser } from "./streamUser.js";
+import { proxyPath } from "./proxyPath.js";
 
 // Enforces "which apps may this person start" (admin screen) in the
 // /stream proxy: their app list only shows allowed apps, and a stream for
@@ -34,7 +35,7 @@ const openStreams = new Map<WsLike, { user: StreamUser; row: number | null }>();
 const LIMIT_CHECK_MS = 30_000;
 
 export function isAppListRequest(request: FastifyRequest, prefix: string): boolean {
-  return request.method === "GET" && request.url.split("?")[0] === `${prefix}/api/apps`;
+  return request.method === "GET" && proxyPath(request)?.toLowerCase() === `${prefix}/api/apps`;
 }
 
 /** Proxy preHandler part: remember who is behind a WebSocket upgrade. */
