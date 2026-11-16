@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>How Luma Arcade works</title>
-<meta name="description" content="How Luma Arcade streams a real gaming PC to your browser, and everything it does for the people playing.">
+<meta name="description" content="How Luma Arcade streams a real gaming PC to your browser, with the real delay numbers from its own stats panel.">
 <!--link-preview-->
 <link rel="icon" href="/stream/resources/luma-star-64.png" sizes="64x64" type="image/png">
 <link rel="icon" href="/stream/resources/luma-star-32.png" sizes="32x32" type="image/png">
@@ -12,7 +12,7 @@
 <meta name="theme-color" content="#090b10">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <!--
   arcade.lumaplayground.com/howitworks/ (LumaArcade web/routes/welcome.ts): what happens between a button press and the game, and every feature, for visitors. Linked from the welcome page ("/") and back.
   Gameplay clips, covers and stills come from <data dir>/landing-media/ (served
@@ -34,363 +34,340 @@
 </script>
 <style>
 :root{
-  --bg:#090b10; --win:#11151d; --win2:#171c27; --line:#222a38; --line2:#33405a;
-  --txt:#e9edf4; --mut:#8b95a7; --dim:#5b6577;
-  --b:#2f8cff; --b2:#1f6fd1; --bl:#8cc8ff; --live:#3ddc84;
-  --sans:"Schibsted Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --bg:#090b10; --bg2:#0e131d; --win:#11151d; --win2:#171c27; --line:#232b3a; --line2:#3a4764;
+  --txt:#e9edf4; --mut:#b4bece; --dim:#97a4b9;
+  --b:#2f8cff; --b2:#1f6fd1; --b3:#1a5fb8; --bl:#8cc8ff;
+  --p1:#2f8cff; --p2:#e8765c; --p3:#4cc2a1; --p4:#e2b04a; --ink:#07101f;
+  --sans:"Archivo",system-ui,-apple-system,"Segoe UI",sans-serif;
   --mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
-  --max:1344px;
+  --max:1344px; --g:48px;
 }
 *{box-sizing:border-box}
 html{background:var(--bg);scroll-padding-top:80px}
-body{margin:0;background:var(--bg);color:var(--txt);font:400 17px/1.55 var(--sans);-webkit-font-smoothing:antialiased;overflow-x:clip;
-  background-image:linear-gradient(rgba(47,140,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(47,140,255,.035) 1px,transparent 1px);background-size:32px 32px;background-position:-1px -1px}
-h1,h2,h3,p,ul,ol,figure{margin:0}
+body{margin:0;background:var(--bg);color:var(--txt);font:400 17px/1.55 var(--sans);-webkit-font-smoothing:antialiased;overflow-x:clip}
+h1,h2,h3,p,ul,ol,dl,dd,figure{margin:0}
 ul,ol{padding:0;list-style:none}
 a{color:inherit}
 canvas,video{display:block}
+img{display:block}
 ::selection{background:var(--b);color:#fff}
 :focus-visible{outline:2px solid var(--bl);outline-offset:3px}
-.wrap{max-width:var(--max);margin:0 auto;padding:0 24px}
-.skip{position:absolute;left:-999px;top:8px;background:var(--b);color:#fff;padding:6px 10px;z-index:100}
+.wrap{max-width:calc(var(--max) + var(--g)*2);margin:0 auto;padding:0 var(--g)}
+.skip{position:absolute;left:-999px;top:8px;background:var(--b2);color:#fff;padding:6px 10px;z-index:100}
 .skip:focus{left:8px}
-.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--live);flex:none;box-shadow:0 0 0 3px rgba(61,220,132,.16)}
 .v{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000}
 .v.fit{object-fit:contain}
+.disp{text-wrap:balance;font-stretch:125%;font-weight:700;letter-spacing:-.025em}
 
 /* nav */
-.nav{position:sticky;top:0;z-index:60;background:rgba(9,11,16,.94);border-bottom:1px solid var(--line)}
-.nav-in{display:flex;align-items:center;gap:18px;min-height:60px}
-.brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:18px;letter-spacing:-.015em;text-decoration:none;white-space:nowrap}
-.brand img{width:26px;height:26px;display:block}
+.nav{position:sticky;top:0;z-index:60;background:rgba(9,11,16,.96);border-bottom:1px solid var(--line)}
+.nav-in{display:flex;align-items:center;gap:18px;min-height:62px}
+.brand{display:flex;align-items:center;gap:10px;font-stretch:125%;font-weight:700;font-size:17px;letter-spacing:-.02em;text-decoration:none;white-space:nowrap}
+.brand img{width:26px;height:26px}
 .links{display:flex;gap:2px;margin-left:14px;margin-right:auto}
-.links a{padding:7px 12px;font-size:15px;color:var(--mut);text-decoration:none;border:1px solid transparent;transition:color .15s,border-color .15s,background .15s}
-.links a:hover{color:var(--txt);background:var(--win)}
-.links a[aria-current=page]{color:var(--txt);border-color:var(--line2);background:var(--win)}
-.signin{font-size:15px;color:var(--mut);text-decoration:none;padding:6px 4px;white-space:nowrap;transition:color .15s}
-.signin:hover{color:var(--txt)}
-.btn{display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 16px;border:1px solid var(--line2);border-radius:0;background:transparent;color:var(--txt);font:600 15px/1 var(--sans);text-decoration:none;cursor:pointer;white-space:nowrap;transition:background .15s,border-color .15s,transform .12s}
-.btn:hover{background:var(--win2);border-color:#4a5a7a}
-.btn:active{transform:translateY(1px)}
-.btn.p{background:var(--b);border-color:var(--b);color:#fff}
-.btn.p:hover{background:#4a9bff;border-color:#4a9bff}
-.btn.lg{height:50px;padding:0 26px;font-size:16px}
+.links a{padding:7px 12px;font-size:15px;color:var(--mut);text-decoration:none;border-bottom:2px solid transparent;transition:color .15s,border-color .15s}
+.links a:hover{color:var(--txt)}
+.links a[aria-current=page]{color:var(--txt);border-bottom-color:var(--b)}
+.signin{font-size:12.5px;color:var(--dim);text-decoration:none;padding:6px 4px;white-space:nowrap;transition:color .15s}
+.signin u{text-decoration:none;color:var(--dim)}
+.signin:hover,.signin:hover u{color:var(--txt)}.signin:hover u{text-decoration:underline;text-underline-offset:3px}
+.btn{display:inline-flex;align-items:center;justify-content:center;height:40px;padding:0 18px;border:1px solid var(--line2);border-radius:0;background:transparent;color:var(--txt);font:600 15px/1 var(--sans);text-decoration:none;cursor:pointer;white-space:nowrap;transition:background .15s,border-color .15s,transform .08s,box-shadow .08s}
+.btn:hover{background:var(--win2);border-color:#5870a0}
+/* the one filled button: a key cap that really presses */
+.btn.p{background:var(--b);border:0;color:var(--ink);font-weight:700;box-shadow:0 4px 0 var(--b3)}
+.btn.p:hover{background:#5aa5ff}
+.btn.p:active{transform:translateY(3px);box-shadow:0 1px 0 var(--b3)}
+.nav .btn.p{box-shadow:0 3px 0 var(--b3)}
+.nav .btn.p:active{transform:translateY(2px);box-shadow:0 1px 0 var(--b3)}
+.btn.lg{height:56px;padding:0 32px;font-size:17px}
+/* the download key carries a seat chip: the host takes P1 */
+.btn.dl{padding:0 22px 0 0}
+.btn.dl::before{content:"P1";align-self:stretch;display:grid;place-items:center;padding:0 12px;margin-right:16px;background:var(--ink);color:var(--b);font:800 12px/1 var(--sans);letter-spacing:.04em;transition:color .15s}
+.btn.dl:hover::before{color:#5aa5ff}
+.btn.dl.lg{padding:0 32px 0 0}
+.btn.dl.lg::before{padding:0 16px;margin-right:22px;font-size:14px}
+.nav .btn.dl::before{padding:0 9px;margin-right:12px;font-size:11px}
+.cta-row{display:flex;flex-wrap:wrap;align-items:center;gap:14px 28px;margin-top:30px}
+.tl{color:var(--txt);font-weight:600;text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:6px;text-decoration-thickness:2px;transition:text-decoration-color .15s,color .15s}
+.tl:hover{color:#fff;text-decoration-color:var(--bl)}
 
-/* windows */
-.win{background:var(--win);border:1px solid var(--line);min-width:0;position:relative;transition:border-color .2s}
-.win:hover{border-color:var(--line2)}
-.tb{display:flex;align-items:center;gap:12px;height:30px;padding:0 10px;border-bottom:1px solid var(--line);font:500 11.5px/1 var(--mono);color:var(--mut);white-space:nowrap;user-select:none}
-.dots{display:flex;gap:5px;flex:none}
-.dots i{width:7px;height:7px;border:1px solid var(--line2);display:block}
-.tb .t{overflow:hidden;text-overflow:ellipsis;min-width:0}
-.tb .end{margin-left:auto;display:flex;align-items:center;gap:7px;flex:none;color:var(--bl)}
-h2{font:600 clamp(30px,3.6vw,48px)/1.05 var(--sans);letter-spacing:-.035em}
-.sec{padding-top:112px}
-.sec-h{max-width:760px;margin-bottom:34px}
-.sec-h p{color:var(--mut);margin-top:14px;max-width:34em}
+/* player seats: P1 blue, P2 red, P3 green, P4 amber. Used only where a player is meant. */
+.chip{display:inline-block;font:800 12px/1 var(--sans);letter-spacing:.02em;padding:5px 7px;background:var(--c);color:var(--ink);margin-right:6px;transition:transform .1s,box-shadow .1s}
+.chip.on{transform:translateY(-2px);box-shadow:0 0 0 2px var(--c)}
+.chip.nb{background:transparent;color:var(--mut);border:1px solid var(--line2);padding:4px 6px;font-weight:600}
+.seatrow{display:inline-flex;gap:4px;vertical-align:middle}
+.seatrow .chip{margin:0}
+.ptags{position:absolute;left:0;top:0;z-index:3;display:flex}
+.ptags b{font:800 11px/1 var(--sans);padding:7px 9px 5px;background:rgba(9,11,16,.9);color:var(--txt);border-bottom:3px solid var(--c);transition:background .12s,color .12s}
+.ptags b.on{background:var(--c);color:var(--ink)}
+.ptags b.open{color:var(--dim)}
+
+/* device frames */
 .scr{position:relative;aspect-ratio:var(--ar,4/3);background:#000;overflow:hidden}
-.scr.hit::after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 0 2px var(--bl);z-index:4;pointer-events:none}
+.scr.hit::after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 0 3px var(--c,var(--bl));z-index:4;pointer-events:none}
+.mon .bez{border:2px solid #3a4764;border-radius:8px;padding:10px;background:#05070b}
+.mon .bez .scr{border-radius:2px}
+.mon .neck{width:11%;height:clamp(14px,2.4vw,34px);margin:0 auto;background:linear-gradient(90deg,#1b2233,#323d57,#1b2233)}
+.mon .foot2{width:30%;height:9px;margin:0 auto;background:#323d57;border-radius:4px 4px 2px 2px}
+.phone{background:#05070b;border:2px solid #3a4764;border-radius:28px;padding:10px 18px;position:relative}
+.phone::before{content:"";position:absolute;left:6px;top:50%;width:4px;height:30px;margin-top:-15px;background:#2a3550;border-radius:2px}
+.phone .scr{border-radius:12px;--ar:2.16;container-type:inline-size}
+.lid{border:2px solid #3a4764;border-bottom:0;border-radius:11px 11px 0 0;padding:10px 10px 8px;background:#05070b}
+.lid .scr{border-radius:2px}
+.deck{height:13px;margin:0 -4.5%;background:linear-gradient(#323d57,#1b2233);border-radius:0 0 14px 14px;position:relative}
+.deck::after{content:"";position:absolute;left:50%;top:0;width:15%;height:5px;margin-left:-7.5%;background:#0a0d14;border-radius:0 0 7px 7px}
+.tvb{border:2px solid #3a4764;border-radius:4px;padding:6px;background:#05070b}
+.feet{display:flex;justify-content:space-between;width:56%;margin:0 auto}
+.feet i{display:block;width:16%;height:9px;background:#323d57}
+.feet i:first-child{transform:skewX(-28deg);transform-origin:top}
+.feet i:last-child{transform:skewX(28deg);transform-origin:top}
+.shot{border:1px solid var(--line2);background:#000;display:block;width:100%}
+.shot.rnd{border-radius:6px}
+.tc{position:absolute;inset:0;z-index:2;pointer-events:none;background:linear-gradient(transparent 55%,rgba(5,9,18,.5))}
+.tc i{position:absolute;display:grid;place-items:center;font:800 4.6cqw/1 var(--sans);color:#e9edf4;font-style:normal}
+.tc .stk{left:4cqw;bottom:7cqw;width:23cqw;height:23cqw;border-radius:50%;background:rgba(233,237,244,.14);border:1.5px solid rgba(233,237,244,.55)}
+.tc .dpd{left:31cqw;bottom:6cqw;width:15cqw;height:15cqw}
+.tc .dpd::before,.tc .dpd::after{content:"";position:absolute;background:rgba(233,237,244,.4)}
+.tc .dpd::before{left:0;right:0;top:34%;height:32%}.tc .dpd::after{top:0;bottom:0;left:34%;width:32%}
+.tc .fb{width:11cqw;height:11cqw;border-radius:50%;border:1.5px solid var(--c);background:rgba(9,11,16,.35);transition:transform .08s,background .08s,color .08s}
+.tc .fb.y{--c:var(--p4);right:11cqw;bottom:25cqw}
+.tc .fb.x{--c:var(--p1);right:19cqw;bottom:16cqw}
+.tc .fb.b{--c:var(--p2);right:3cqw;bottom:16cqw}
+.tc .fb.a{--c:var(--p3);right:11cqw;bottom:7cqw}
+.tc .fb.down{background:var(--c);color:var(--ink);transform:scale(.86)}
+.tc .fb.a.down{--c:var(--p1);color:#fff;box-shadow:0 0 0 3px rgba(47,140,255,.45),0 0 14px var(--p1)}
 
-/* ---------- hero ---------- */
-.hero{padding-top:56px}
-.stage{position:relative;display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:0 64px;align-items:start}
-.hl{padding-top:6px}
-.hl h1{font:600 clamp(52px,min(9.2vw,132px),132px)/.9 var(--sans);letter-spacing:-.055em}
-.hl h1 span{display:block;white-space:nowrap}
-.pt{display:inline-block;width:.13em;height:.13em;background:var(--b);margin-left:.05em;vertical-align:baseline}
-.lede{font-size:19px;line-height:1.5;color:var(--mut);max-width:25em;margin-top:30px}
-.lede b{color:var(--txt);font-weight:500}
-.cta-row{display:flex;flex-wrap:wrap;gap:12px;margin-top:26px}
-.note{margin-top:16px;font-size:14px;color:var(--dim)}
-.pcwin{margin-top:0}
-.pcwin .tb .end{color:var(--live)}
-.cap{margin-top:10px;font-size:13.5px;line-height:1.3;color:var(--dim);white-space:nowrap}
-.cap b{color:var(--mut);font-weight:500;margin-right:6px}
-.devs{grid-column:1/-1;display:grid;grid-template-columns:.62fr 1.1fr 1.3fr;gap:44px;align-items:start;margin-top:84px}
-.dev{display:flex;flex-direction:column;min-width:0}
-.phone{border:1px solid var(--line2);background:var(--win);border-radius:9px;padding:6px 5px 7px;position:relative}
-.phone::before{content:"";display:block;width:26%;height:3px;background:var(--line2);margin:0 auto 5px}
-.phone .scr{--ar:.56;border-radius:4px;container-type:inline-size}
-.tc{position:absolute;left:0;right:0;bottom:0;height:36%;z-index:2;background:linear-gradient(transparent,rgba(5,9,18,.55))}
-.dp{position:absolute;left:11cqw;bottom:7cqw;width:30cqw;height:30cqw}
-.dp::before,.dp::after{content:"";position:absolute;background:rgba(233,237,244,.4)}
-.dp::before{left:0;right:0;top:35%;height:30%}.dp::after{top:0;bottom:0;left:35%;width:30%}
-.ab{position:absolute;right:9cqw;bottom:9cqw;width:20cqw;height:20cqw;border-radius:50%;border:1.5px solid rgba(233,237,244,.75);background:rgba(233,237,244,.12);color:#e9edf4;font:700 8cqw/1 var(--mono);display:grid;place-items:center;transition:transform .08s,background .08s,color .08s}
-.ab.s{right:30cqw;bottom:5cqw;width:14cqw;height:14cqw;font-size:5.4cqw;opacity:.75}
-.ab.down{background:var(--bl);border-color:var(--bl);color:#07101f;transform:scale(.88)}
-.laptop .body,.tv .body{border:1px solid var(--line)}
-.laptop .brw{display:flex;align-items:center;gap:7px;padding:5px 8px;border-bottom:1px solid var(--line);font:500 10px/1 var(--mono);color:var(--mut)}
-.laptop .brw span{flex:1;border:1px solid var(--line);padding:3px 7px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.laptop .base{height:7px;margin:0 -7%;border:1px solid var(--line2);border-top:0;background:var(--win2);border-radius:0 0 6px 6px}
-.tv .stand{width:22%;height:9px;margin:0 auto;border:1px solid var(--line2);border-top:0;background:var(--win2)}
-.tv .tvf{width:40%;height:3px;margin:0 auto;background:var(--line2)}
-.cn{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:5}
-.cn path.ln{fill:none;stroke:var(--b);stroke-width:1;opacity:.65}
-.cn path.stub{fill:none;stroke:var(--b);stroke-width:1.5}
-.cn circle{fill:var(--bg);stroke:var(--b);stroke-width:1.3}
-.cn .pk{fill:var(--b);stroke:var(--bl);stroke-width:.8}
-.cn .rk{fill:var(--bl);stroke:#fff;stroke-width:.6}
-.cn text{font:500 11px var(--mono);fill:var(--mut)}
-.legend{grid-column:1/-1;display:flex;gap:22px;margin-top:22px;font-size:13.5px;color:var(--dim)}
-.legend span{display:flex;gap:8px;align-items:center}
-.legend i{width:8px;height:8px;background:var(--b);border:1px solid var(--bl);display:block}
-.legend i.d{background:var(--bl);transform:rotate(45deg);border-color:#fff;width:7px;height:7px}
-
-/* ---------- what's on it ---------- */
-.shelf{display:grid;grid-template-columns:2fr 1px 1fr;gap:0 28px}
-.shelf .rule{background:var(--line2)}
-.shelf h3{font:600 18px/1.25 var(--sans);letter-spacing:-.01em;margin-bottom:16px}
-.cgrid{display:grid;gap:6px}
-.g4{grid-template-columns:repeat(4,1fr)}.g2{grid-template-columns:repeat(2,1fr)}
-.cv{position:relative;aspect-ratio:4/5;background:#0d1118;border:1px solid var(--line);overflow:hidden;transition:border-color .15s}
-.cv img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:center}
-.cv figcaption{position:absolute;left:0;right:0;bottom:0;padding:18px 8px 7px;font-size:13px;line-height:1.25;font-weight:500;background:linear-gradient(transparent,rgba(5,8,14,.94) 55%);transform:translateY(101%);transition:transform .18s}
-.cv:hover{border-color:var(--b)}
-.cv:hover figcaption,.cv:focus-within figcaption{transform:none}
-.shelf-note{margin-top:20px;color:var(--dim);font-size:14.5px}
-
-/* ---------- why ---------- */
-.why li{display:grid;grid-template-columns:70px minmax(0,1.05fr) minmax(0,1fr);gap:24px;align-items:baseline;padding:30px 0;border-top:1px solid var(--line2)}
-.why li:last-child{border-bottom:1px solid var(--line2)}
-.why .n{font:700 14px/1 var(--mono);color:var(--b)}
-.why h3{font:600 clamp(28px,3.2vw,44px)/1.02 var(--sans);letter-spacing:-.04em}
-.why p{color:var(--mut);font-size:17px;max-width:30em}
-
-/* stack + cta */
-.strip{display:grid;grid-template-columns:repeat(5,1fr)}
-.strip li{padding:22px 20px;border-left:1px solid var(--line);transition:background .2s}
-.strip li:first-child{border-left:0}
-.strip li:hover{background:var(--win2)}
-.strip b{display:block;font:600 19px/1.2 var(--sans);letter-spacing:-.015em}
-.strip span{display:block;margin-top:6px;font-size:14.5px;color:var(--mut)}
-.cta{display:grid;grid-template-columns:repeat(12,1fr);gap:24px;align-items:center;padding:48px 40px}
-.cta .txt{grid-column:1/8}
-.cta h2{font-size:clamp(32px,4vw,56px)}
-.cta .txt p{margin-top:16px;color:var(--mut);max-width:30em}
-.cta .acts{grid-column:8/13;display:flex;flex-direction:column;gap:12px}
-.cta .acts small{font-size:14px;color:var(--dim)}
-.foot{padding:48px 24px 56px;font-size:14px;line-height:1.7;color:var(--dim)}
+/* type: one voice, Archivo. The h1 is the widest and largest, the h2s the same family a step narrower and smaller */
+h2{font-size:clamp(25px,2.5vw,35px);line-height:1.14;font-weight:700;font-stretch:112%;letter-spacing:-.022em;text-wrap:balance}
+h3{font:650 18px/1.25 var(--sans);font-stretch:100%;letter-spacing:-.01em}
+.sec{padding-top:104px}
+.sec-h{max-width:44em}
+.sec-h .big{margin-top:14px}
+.big{font-size:clamp(18px,1.55vw,21px);line-height:1.5;color:var(--mut)}
+.big b{color:var(--txt);font-weight:600}
+.foot{padding-top:80px;padding-bottom:56px;font-size:14px;line-height:1.75;color:var(--dim)}
+.foot p{margin:0}
 .foot a{color:var(--mut)}
+.foot .kofi{color:var(--mut);font-weight:600;text-decoration-color:#ff5e5b;text-underline-offset:3px}
+.nomedia{background:#000}
+video.gone,img.gone{display:none!important}
+[hidden]{display:none!important}
+.xs{display:none}
+:root{--live:#3ddc84}
+.pv{position:relative;aspect-ratio:var(--ar,16/9);background:#000;border:1px solid var(--line2);overflow:hidden}
+.shotimg{width:100%;max-width:720px;height:auto;border:1px solid var(--line2);background:#000}
+figcaption{font-size:14.5px;line-height:1.4;color:var(--mut);max-width:34em}
+figcaption b{color:var(--txt);font-weight:600}
+.pv+figcaption,.shotimg+figcaption{margin-top:12px}
 
-/* ---------- how ---------- */
-.how-h{padding-top:72px}
-.how-h h1{font:600 clamp(42px,5.4vw,78px)/.98 var(--sans);letter-spacing:-.05em;max-width:13em}
-.how-h p{margin-top:22px;color:var(--mut);font-size:19px;max-width:30em}
-.demo{padding-top:88px;display:grid;grid-template-columns:repeat(12,1fr);gap:24px;align-items:center}
-.demo .dwin{grid-column:1/9}
-.demo .dtext{grid-column:10/13}
-.demo.r .dwin{grid-column:5/13}
-.demo.r .dtext{grid-column:1/4;order:-1}
-.demo.full .dwin{grid-column:1/-1}
-.demo.full .dtext{grid-column:1/-1;order:-1;max-width:640px}
-.dtext .n{font:700 13px/1 var(--mono);color:var(--b);margin-bottom:14px}
-.dtext h2{font-size:clamp(26px,2.5vw,34px);line-height:1.1;letter-spacing:-.03em}
-.dtext p{margin-top:14px;color:var(--mut);font-size:16px}
-.dbody{padding:26px 28px}
-.dbody.flush{padding:0}
-.read{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:14px;color:var(--mut);margin-top:22px;padding-top:14px;border-top:1px solid var(--line)}
-.read b{font:700 22px/1 var(--mono);color:var(--bl);min-width:4.6em;text-align:right}
-.read em{font-style:normal;color:var(--dim)}
-.lab{font-size:13.5px;line-height:1.3;color:var(--mut)}
-
-/* d1 */
+/* hero: the round trip */
+.how-h{padding-top:72px;max-width:calc(var(--max) + var(--g)*2)}
+.how-h h1{font-size:clamp(32px,4.4vw,62px);line-height:1.03;max-width:12em}
+.how-h p{margin-top:22px;color:var(--mut);font-size:19px;max-width:36em}
+.rtsec{padding-top:56px}
 .rt{position:relative;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0 4px}
-.rt svg{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:2}
-.rt .ln0{stroke:var(--line2);stroke-width:1;fill:none}
-.rt .lit{stroke:var(--b);stroke-width:1.5;fill:none}
-.rt .lit.ret{stroke:var(--bl)}
+.rt svg{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:0}
+.rt .ln0{stroke:var(--line2);stroke-width:2;fill:none}
+.rt .lit{stroke:var(--b);stroke-width:3;fill:none;filter:drop-shadow(0 0 5px var(--b))}
+.rt .lit.ret{stroke:var(--p1);stroke-width:4}
 .nd{position:relative;z-index:1;background:var(--win);border:1px solid var(--line2);text-align:center;transition:border-color .2s,background .2s}
-.nd.sm{padding:12px 10px;min-width:0;flex:1 1 0;max-width:140px}
-.nd.sm b{display:block;font-size:14px;font-weight:600;line-height:1.2}
-.nd.sm small{display:block;margin-top:4px;font-size:12px;line-height:1.3;color:var(--dim)}
+.nd.sm{padding:16px 12px;min-width:0;flex:1 1 0;max-width:210px}
+.nd.sm b{display:block;font-size:15.5px;font-weight:600;line-height:1.2}
+.nd.sm small{display:block;margin-top:4px;font-size:13px;line-height:1.3;color:var(--dim)}
+.nd .ms{display:block;margin-top:8px;font:700 20px/1 var(--sans);font-style:normal;font-variant-numeric:tabular-nums;color:var(--dim);transition:color .15s}
 .nd.on{border-color:var(--b);background:#0f1e36}
-.nd .nl{padding:6px 8px;font:500 10.5px/1 var(--mono);color:var(--mut);text-align:left}
-.nd.big{width:216px;flex:none}
-.nd.ph{width:100px;flex:none;border-radius:8px;overflow:hidden}
-.nd.ph .scr{--ar:.56;container-type:inline-size}
-.nd.ph .nl{text-align:center}
-.pdot{position:absolute;z-index:4;width:10px;height:10px;margin:-5px 0 0 -5px;background:var(--b);border:1px solid var(--bl);opacity:0}
-.pdot.r{background:var(--bl);border-color:#fff;transform:rotate(45deg);width:9px;height:9px}
-/* d2 */
-.play2{position:relative;aspect-ratio:3/2;background:#000;overflow:hidden}
-.play2 .v{transition:filter .5s}
-.play2.wait .v{filter:brightness(.28) saturate(.4)}
-.ovp{position:absolute;left:14px;top:14px;bottom:14px;width:min(46%,340px);background:rgba(9,11,16,.9);border:1px solid var(--line2);padding:8px;display:flex;flex-direction:column;justify-content:center;z-index:3}
-.steps{display:grid;gap:3px}
-.steps li{display:grid;grid-template-columns:18px 1fr;gap:12px;padding:8px 10px;border:1px solid transparent;align-items:start;transition:border-color .2s,background .2s}
-.steps .chk{width:16px;height:16px;border:1px solid var(--line2);margin-top:2px;position:relative}
-.steps b{font-size:15.5px;font-weight:600;line-height:1.3}
-.steps span{display:none;font-size:13px;line-height:1.4;color:var(--mut);margin-top:2px}
-.steps .pg{display:none;height:2px;background:var(--line);margin-top:8px}.steps .pg u{display:block;height:100%;width:0;background:var(--b)}
-.steps li.act{border-color:var(--line2);background:var(--win2)}
-.steps li.act span,.steps li.act .pg{display:block}
-.steps li.act .chk{border-color:var(--b);background:rgba(47,140,255,.25)}
-.steps li.done{color:var(--mut)}
-.steps li.done .chk{background:var(--b);border-color:var(--b)}
-.steps li.done .chk::after{content:"";position:absolute;left:4px;top:0;width:5px;height:9px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
-/* d3 */
-.d3{display:grid;grid-template-columns:1.3fr 1fr;gap:26px;align-items:center}
-.d3-pic{position:relative;border:1px solid var(--line2);aspect-ratio:960/538;background:#000}
+.nd.on .ms{color:#fff}
+.nd .nl{padding:9px 0 0;font:600 13.5px/1.2 var(--sans);color:var(--mut);text-align:center}
+.nd .nl em{display:block;margin-top:5px;font:700 20px/1 var(--sans);font-style:normal;color:var(--dim);transition:color .15s}
+.nd.on .nl em{color:#fff}
+.nd .nl .st{display:block;margin-top:9px;min-height:2.7em;font:500 13.5px/1.35 var(--sans);color:var(--bl)}
+.nd.big{width:clamp(220px,25vw,340px);flex:none;border:0;background:none}
+.nd.ph{width:clamp(200px,22vw,300px);flex:none;border:0;background:none}
+.nd.big.on .bez,.nd.ph.on .phone{border-color:var(--b)}
+.nd.big .neck{height:12px}
+.pdot{position:absolute;z-index:4;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;background:#d6eaff;box-shadow:0 0 12px 2px rgba(140,200,255,.8);opacity:0}
+.pdot.r{background:var(--p1);box-shadow:0 0 14px 3px rgba(47,140,255,.9)}
+.read{display:grid;grid-template-columns:minmax(0,1fr);gap:18px 56px;margin-top:26px;padding-top:16px;border-top:1px solid var(--line);font-size:15px;color:var(--mut)}
+.read .tot{color:var(--txt);font-weight:600}
+.read .tot.pulse b{color:#fff;text-shadow:0 0 14px rgba(47,140,255,.9)}
+.read .tot b{transition:text-shadow .2s}
+.read .tot b{font-size:22px;margin-right:6px;font-variant-numeric:tabular-nums}
+.read small{display:block;max-width:34em;margin-top:4px;font-size:15px;line-height:1.45;font-weight:400;color:var(--mut)}
+.read .tot2{color:var(--txt);font-weight:600}
+.read .tot2 b{font-size:22px;margin-right:6px;font-variant-numeric:tabular-nums}
+
+/* press play: the real recording, the dialog as text, then the steps */
+.pp{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,720px);gap:0 64px;align-items:center}
+.pp-l{display:flex;flex-direction:column;min-width:0}
+.pp-l .big{margin-top:14px;max-width:30em}
+.pp-v figcaption{margin-top:12px}
+.dlg-h{margin-top:28px;font-size:16px;font-weight:600;color:var(--txt)}
+.dlg{margin-top:12px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 28px;counter-reset:d;max-width:32em}
+.dlg li{counter-increment:d;padding-left:30px;position:relative;font-size:17px;line-height:1.35;color:var(--txt)}
+.dlg li::before{content:counter(d);position:absolute;left:0;top:1px;font:800 14px/1.4 var(--sans);color:var(--bl)}
+.steps{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:28px 24px;margin-top:64px;counter-reset:s}
+.steps li{position:relative;padding-top:40px;counter-increment:s}
+.steps li::before{content:counter(s);position:absolute;left:0;top:-11px;z-index:1;width:24px;height:24px;display:grid;place-items:center;background:var(--bg);border:2px solid var(--line2);font:700 12px/1 var(--mono);color:var(--dim);transition:color .2s,border-color .2s}
+.steps .chk{display:none}
+.steps .pg{position:absolute;left:0;right:-24px;top:0;height:2px;background:var(--line2);display:block}
+.steps li:last-child .pg{right:0}
+.steps .pg u{display:block;height:100%;width:0;background:var(--b)}
+.steps b{display:block;font-size:clamp(18px,1.5vw,21px);font-weight:650;font-stretch:108%;line-height:1.2;letter-spacing:-.015em;color:var(--mut);transition:color .2s}
+.steps span{display:block;margin-top:8px;font-size:15.5px;line-height:1.45;color:var(--dim)}
+.steps li.act b,.steps li.done b{color:var(--txt)}
+.steps li.act span,.steps li.done span{color:var(--mut)}
+.steps li.act::before{color:var(--bl);border-color:var(--b)}
+.steps li.done::before{color:var(--ink);background:var(--b);border-color:var(--b)}
+.steps li.done .pg u{background:var(--bl)}
+
+/* saves and the queue: one timeline, four seats */
+.tln{--lw:150px;--gp:18px;margin-top:40px;position:relative}
+.tl-st{min-height:1.5em;margin-bottom:16px;font-size:16.5px;font-weight:600;color:var(--txt)}
+.tl-g{position:relative;display:grid;gap:8px}
+.tl-r{display:grid;grid-template-columns:var(--lw) minmax(0,1fr);gap:0 var(--gp);align-items:center}
+.phw{z-index:0;position:absolute;top:0;bottom:0;left:calc(var(--lw) + var(--gp));right:0;pointer-events:none}
+.tl-w{display:flex;align-items:center;gap:9px;min-width:0}
+.tl-w b{font-weight:600;font-size:16px;white-space:nowrap}
+.tl-w small{font-size:13px;color:var(--dim);white-space:nowrap}
+.tl-w .chip{margin:0}
+.tl-t{position:relative;z-index:1;height:42px;border-bottom:1px solid var(--line)}
+.blk{position:absolute;top:3px;bottom:3px;display:flex;align-items:center;padding:0 3px;border:1.5px solid color-mix(in srgb,var(--c) 40%,transparent);color:var(--dim);font:600 14px/1.2 var(--sans);font-style:normal;white-space:nowrap;overflow:hidden;transition:border-color .3s,color .3s}
+.blk s{position:relative;z-index:5;text-decoration:none;background:var(--bg);padding:0 9px;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.blk.past{border-color:color-mix(in srgb,var(--c) 65%,transparent)}.blk.on{border-color:var(--c);color:var(--txt)}
+.blk.q{--c:var(--line2);border:1.5px dashed var(--line2);color:var(--mut)}
+.blk.q.on,.blk.q.past{border-color:var(--line2);color:var(--mut)}
+.blk.q.past{opacity:.35}
+.snp{position:absolute;top:-1px;bottom:-1px;width:3px;margin-left:-1px;background:#fff;opacity:0;transition:opacity .3s;z-index:2}
+.snp.on{opacity:.8}
+.tl-q .tl-t{height:38px}
+.pht{position:absolute;top:0;bottom:0;width:0;pointer-events:none;display:block}
+.pht::before{content:"";position:absolute;left:-1px;top:-8px;bottom:-8px;width:2px;background:#fff;box-shadow:0 0 10px rgba(255,255,255,.6)}
+.tl-k{margin-top:18px;display:flex;flex-wrap:wrap;gap:6px 26px;font-size:14px;color:var(--dim)}
+.tl-k span::before{content:"";display:inline-block;vertical-align:middle;margin-right:8px;width:14px;height:12px;border:2px solid var(--b)}
+.tl-k .s::before{width:3px;height:14px;background:#fff}
+.tl-k .w::before{background:transparent;border:2px dashed var(--line2);width:14px;height:12px}
+
+/* quality stepping */
+.q3{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:0 72px;align-items:center}
+.q3-t .big{margin-top:14px}
+.d3-pic{position:relative;border:1px solid var(--line2);aspect-ratio:960/540;background:#000}
 .d3-pic video,.d3-pic canvas{position:absolute;inset:0;width:100%;height:100%}
 .d3-pic canvas{image-rendering:pixelated}
-.lv{position:absolute;right:0;top:0;font:700 11px/1 var(--mono);color:#fff;background:var(--b);padding:6px 8px;letter-spacing:.04em;z-index:3}
-.bars{position:relative;height:104px;display:grid;grid-template-columns:repeat(6,1fr);gap:7px;align-items:end;border-bottom:1px solid var(--line2);margin-top:12px}
-.bars i{display:block;position:relative;height:100%;background:repeating-linear-gradient(0deg,var(--line) 0 1px,transparent 1px 26px)}
-.bars u{position:absolute;left:0;right:0;bottom:0;background:var(--b);height:0;transition:height .3s}
-.sweep{position:absolute;top:-4px;bottom:0;width:1px;background:var(--bl)}
-.segs{display:grid;grid-template-columns:repeat(3,1fr);margin-top:14px;border:1px solid var(--line2);font-size:13.5px;line-height:1;color:var(--mut)}
-.segs span{padding:9px 4px;text-align:center;border-right:1px solid var(--line2)}.segs span:last-child{border-right:0}
-.segs span.on{background:var(--b);color:#fff}
-.evt{margin-top:12px;font-size:14px;line-height:1.4;min-height:1.4em;color:var(--bl)}
-/* d4 */
-.d4{display:grid;grid-template-columns:1fr 2.4fr 1fr;gap:18px;align-items:center}
-.dvs{display:grid;gap:22px;justify-items:center}
-.dv{position:relative;display:grid;justify-items:center;gap:8px;font-size:13px;line-height:1;color:var(--dim)}
-.dv .sh{border:1px solid var(--line2);background:var(--win);position:relative;transition:box-shadow .12s,border-color .12s}
-.dv .sh::before{content:"";position:absolute;inset:4px;background:#0a1226}
-.dv.on .sh{border-color:var(--c);box-shadow:0 0 0 1px var(--c)}
-.dv.on{color:var(--txt)}
-.dv.phn .sh{width:30px;height:54px;border-radius:5px}
-.dv.tab .sh{width:64px;height:46px;border-radius:3px}
-.dv.lap .sh{width:68px;height:44px;border-radius:2px 2px 0 0}
-.dv.lap .sh::after{content:"";position:absolute;left:-9px;right:-9px;bottom:-6px;height:5px;border:1px solid var(--line2);background:var(--win2)}
-.dv.gp .sh{width:70px;height:40px;border-radius:14px}.dv.gp .sh::before{inset:0;background:radial-gradient(circle at 78% 36%,var(--mut) 0 3px,transparent 3.5px),radial-gradient(circle at 88% 56%,var(--mut) 0 3px,transparent 3.5px),linear-gradient(var(--mut),var(--mut)) 20% 50%/12px 3px no-repeat,linear-gradient(var(--mut),var(--mut)) 20% 50%/3px 12px no-repeat}
-.bdg{position:absolute;left:-8px;top:-8px;z-index:2;font:700 10px/1 var(--mono);padding:3px 5px;background:var(--c);color:var(--fg,#fff)}
-.d4-scr{border:1px solid var(--line2);aspect-ratio:4/3;position:relative;background:#000}
-.ptags{position:absolute;left:0;top:0;z-index:3;display:flex}
-.ptags b{font:700 11px/1 var(--mono);padding:6px 8px;background:rgba(9,11,16,.9);color:var(--mut);border-right:1px solid var(--line2);border-bottom:1px solid var(--line2);transition:background .12s,color .12s}
-.ptags b.on{background:var(--c);color:var(--fg,#fff)}
-/* d5 */
-.d5{display:grid;grid-template-columns:1.2fr 1.1fr .8fr;gap:22px;align-items:stretch}
-.d5-clip{border:1px solid var(--line2);position:relative}
-.d5-clip .scr{height:100%;aspect-ratio:4/3}
-.d5-ov{position:absolute;left:0;right:0;bottom:0;z-index:3;background:rgba(9,11,16,.9);border-top:1px solid var(--line2);padding:8px 10px;font-size:13px;display:flex;justify-content:space-between;gap:10px;color:var(--txt)}
-.d5-ov b{font:600 12px/1.4 var(--mono);color:var(--bl);font-weight:500}
-.acct{border:1px solid var(--line2);padding:16px 16px 18px;position:relative;background:var(--win2)}
-.srow{display:grid;grid-template-columns:62px 1fr 74px;gap:12px;align-items:center;margin-top:14px;position:relative}
-.srow .who{font:500 11.5px var(--mono);color:var(--mut)}
-.svb{height:10px;border:1px solid var(--line2);padding:1px}.svb i{display:block;height:100%;width:0;background:var(--b)}
-.snap{font-size:12.5px;font-weight:600;color:var(--live);opacity:0;display:flex;gap:6px;align-items:center}
-.snap::before{content:"";width:6px;height:6px;background:var(--live)}
-.probe{position:absolute;left:100%;top:50%;width:10px;height:10px;margin:-5px 0 0 0;background:var(--bl);border:1px solid #fff;opacity:0}
-.owner{border:1px dashed var(--line2);padding:16px;background:repeating-linear-gradient(135deg,transparent 0 6px,rgba(139,149,167,.07) 6px 7px);display:flex;flex-direction:column;gap:8px}
-.owner li{font:400 12px/1.4 var(--mono);color:var(--dim);text-decoration:line-through}
-.owner .deny{margin-top:auto;font-size:13px;line-height:1.2;font-weight:600;display:flex;gap:8px;align-items:center;color:var(--mut);transition:color .1s}
-.owner.flash{border-color:var(--bl)}.owner.flash .deny{color:var(--bl)}
-/* d6 */
-.q-stage{position:relative;height:236px}
-.q-play{position:absolute;left:0;top:0;width:40%;height:100%;border:1px solid var(--b);background:#000;overflow:hidden}
-.q-play .v{opacity:0;transition:opacity .3s}.q-play .v.cur{opacity:1}
-.q-bar{position:absolute;left:0;right:0;bottom:0;z-index:3;background:rgba(9,11,16,.9);border-top:1px solid var(--line2);padding:8px 10px 10px;font-size:13px;line-height:1.2}
-.lim{display:block;height:6px;border:1px solid var(--line2);margin-top:7px}.lim u{display:block;height:100%;width:0;background:var(--b)}
-.slot{position:absolute;top:92px;width:52px;height:52px;margin-left:-26px;border:1px dashed var(--line2);display:grid;place-items:center;font:500 12px var(--mono);color:var(--dim)}
-.qp{position:absolute;top:92px;width:52px;height:52px;margin-left:-26px;border:1px solid var(--line2);display:grid;place-items:center;font:700 16px/1 var(--mono);background:var(--c);color:var(--fg,#fff);z-index:4;transition:left .7s cubic-bezier(.6,0,.2,1),top .7s cubic-bezier(.6,0,.2,1)}
-.qp small{position:absolute;top:60px;left:50%;transform:translateX(-50%);font:500 12px/1 var(--sans);color:var(--mut);white-space:nowrap}
-.qp.play small{display:none}
+.lv{position:absolute;right:0;top:0;font:800 11px/1 var(--sans);color:#fff;background:var(--b2);padding:6px 8px;letter-spacing:.06em;z-index:3}
+.qc{margin-top:26px}
+.qs{display:block;width:100%;max-width:660px;height:auto;overflow:visible}
+.qs text{font:500 12px/1 var(--sans);fill:var(--mut)}
+.qs .ax{fill:var(--dim);font-size:12px}
+.qs .gl{stroke:var(--line);stroke-width:1}
+.qs .cw{fill:rgba(140,200,255,.1)}
+.qs .ar{fill:rgba(47,140,255,.2)}
+.qs .da{fill:none;stroke:var(--b);stroke-width:2.5}
+.qs .th{stroke:var(--p4);stroke-width:1.5;stroke-dasharray:5 4}
+.qs .th.lo{opacity:.55}
+.qs .thl{fill:var(--p4);font-weight:700;font-size:13px}
+.qs .ths{fill:var(--mut);font-size:11.5px}
+.qs .sw{stroke:#fff;stroke-width:1.5;opacity:.85}
+.qs .lb text{font-size:11px;font-weight:700;letter-spacing:.05em;fill:var(--dim)}
+.qs .lb text.on{fill:#fff}
+.qc figcaption{margin-top:10px;max-width:36em;color:var(--dim);font-size:13.5px}
+.evt{margin-top:10px;font-size:14px;line-height:1.4;min-height:1.4em;color:var(--bl)}
 
-/* features */
-.feat{display:grid;grid-template-columns:repeat(12,1fr);gap:24px;align-items:start}
-.f-list{grid-column:1/9}.f-sec{grid-column:9/13}
-.fl{display:grid;grid-template-columns:1fr 1fr;column-gap:30px;padding:10px 24px 14px}
-.fl li{padding:9px 0 9px 18px;border-bottom:1px solid var(--line);font-size:15px;line-height:1.35;position:relative}
-.fl li::before,.sl li::before{content:"";position:absolute;left:0;top:16px;width:7px;height:7px;background:var(--b)}
-.fl b,.sl b{font-weight:600}
-.fl span{color:var(--mut)}
-.sl{padding:10px 22px 16px}
-.sl li{padding:11px 0 11px 18px;border-bottom:1px solid var(--line);font-size:15px;line-height:1.4;position:relative;color:#c4cbd8}
-.sl li:last-child,.fl li:nth-last-child(-n+2){border-bottom:0}
+/* what the host needs */
+.needs{display:grid;grid-template-columns:minmax(0,720px) minmax(0,1fr);gap:0 72px;align-items:center}
+.needs figcaption{margin-top:12px}
+.sheet{margin-top:26px}
+.sheet div{display:grid;grid-template-columns:84px minmax(0,1fr);gap:18px;padding:13px 0;border-top:1px solid var(--line)}
+.sheet div:last-child{border-bottom:1px solid var(--line)}
+.sheet dt{font:600 14.5px/1.55 var(--sans);color:var(--bl)}
+.sheet dd{font-size:16px;line-height:1.5;color:var(--txt)}
+.sheet dd span{color:var(--mut)}
 
-/* ---------- responsive ---------- */
+/* security: a wire diagram. friend -> tunnel -> front door -> games only */
+.sw{margin-top:48px;display:grid;grid-template-columns:minmax(0,.75fr) minmax(150px,.8fr) minmax(0,1.9fr);gap:0;align-items:start}
+.sw-b,.sw-t,.sw-door{min-height:132px}
+.sw-b{margin-top:76px;border:2px solid #2f6db8;background:var(--win);padding:18px 18px;display:flex;flex-direction:column;justify-content:center}
+.sw-b b,.sw-door b,.sw-games b,.sw-no b{display:block;font-size:18px;font-weight:650;line-height:1.25}
+.sw small{display:block;margin-top:6px;font-size:15px;line-height:1.45;color:var(--mut)}
+.sw-t{margin-top:76px;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 14px}
+.sw-t::before{content:"";position:absolute;left:0;right:0;top:50%;height:3px;margin-top:-1px;background:var(--p1);opacity:.85}
+.sw-t::after{content:"";position:absolute;left:0;top:50%;width:10px;height:10px;margin:-5px 0 0 -5px;background:#d6eaff;box-shadow:0 0 12px 2px rgba(140,200,255,.8);animation:swgo 3.4s ease-in-out infinite}
+@keyframes swgo{0%{left:0;opacity:1}85%{left:100%;opacity:1}100%{left:100%;opacity:0}}
+.sw-lock{position:relative;z-index:1;background:var(--bg);border:2px solid var(--p1);padding:12px 14px;display:flex;flex-direction:column;align-items:center;gap:6px}
+.sw-lock svg{width:26px;height:26px;color:var(--bl)}
+.sw-lock b{font-size:16px;font-weight:650;line-height:1.2}
+.sw-lock small{margin-top:0;font-size:13.5px}
+.sw-pc{border:2px solid var(--line2);background:var(--win);padding:16px 20px 20px;display:grid;gap:22px}
+.sw-pcl{font:700 14px/1 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+.sw-ok{position:relative;border:2px dashed var(--p3);padding:30px 18px 16px;display:grid;gap:14px}
+.sw-tag{position:absolute;left:14px;top:-12px;background:var(--p3);color:var(--ink);font:800 13px/1 var(--sans);letter-spacing:.04em;padding:6px 9px;text-transform:uppercase}
+.sw-door{border:1px solid var(--line2);background:var(--bg);padding:16px 18px;display:flex;flex-direction:column;justify-content:center}
+.sw-games{padding:2px 2px 0}
+.sw-no{border:1px dashed var(--line2);padding:14px 18px;color:var(--dim)}
+.sw-no b{color:var(--mut)}
+.sw-no small{color:var(--dim)}
+.sw-n{margin-top:26px;font-size:17px;max-width:44em;color:var(--mut)}
+.sw-n b{color:var(--txt);font-weight:600}
+
+/* the ending: plain text beside the heading, no card */
+.final{padding-top:104px}
+.fin2{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:24px 72px;align-items:start;border-top:1px solid var(--line2);padding-top:48px}
+.final p.s{color:var(--mut);max-width:34em;font-size:18px}
+.final .cta-row{margin-top:26px}
+.final .note{margin-top:16px;font-size:14.5px;color:var(--dim)}
+
 @media (max-width:1100px){
-  .strip{grid-template-columns:repeat(3,1fr)}.strip li{border-top:1px solid var(--line)}.strip li:nth-child(3n+1){border-left:0}.strip li:nth-child(-n+3){border-top:0}
-  .demo .dwin,.demo:not(.r) .dwin{grid-column:1/8}.demo .dtext{grid-column:8/13}.demo.r .dtext{grid-column:1/6}.demo.r .dwin{grid-column:6/13}
-  .f-list,.f-sec{grid-column:1/13}
-  .stage{gap:0 40px}.devs{gap:24px}
-  .d5{grid-template-columns:1fr 1fr}.d5 .owner{grid-column:1/-1}
+  :root{--g:32px}
+  .q3,.needs{gap:0 44px}
 }
 @media (max-width:900px){
-  .stage{grid-template-columns:1fr}
-  .hl h1{font-size:clamp(46px,13.2vw,110px)}
-  .pcwin{margin-top:44px;max-width:560px}
-  .devs{margin-top:72px;gap:10px;grid-template-columns:.62fr 1.15fr 1.3fr}
-  .why li{grid-template-columns:44px 1fr;gap:10px 14px}.why p{grid-column:2}
-  .shelf{grid-template-columns:1fr;gap:26px 0}.shelf .rule{height:1px;width:100%}
-  .cta .txt,.cta .acts{grid-column:1/-1}.cta{padding:30px 22px}
-  .demo,.demo.r{padding-top:60px;gap:20px}
-  .demo .dwin,.demo:not(.r) .dwin,.demo.r .dwin,.demo .dtext,.demo.r .dtext{grid-column:1/-1}
-  .demo .dtext,.demo.r .dtext{order:-1}
-  .sec{padding-top:76px}
+  .sec{padding-top:80px}.final{padding-top:80px}
+  .q3,.needs{grid-template-columns:1fr;gap:30px 0}
+  .sw{grid-template-columns:1fr}
+  .sw-b,.sw-t{margin-top:0}
+  .sw-b{min-height:0}
+  .sw-t{min-height:150px}
+  .sw-t::before{left:50%;right:auto;top:0;bottom:0;width:3px;height:auto;margin:0 0 0 -1px}
+  .sw-t::after{left:50%;top:0;margin:0 0 0 -5px;animation-name:swdn}
+  @keyframes swdn{0%{top:0;opacity:1}85%{top:100%;opacity:1}100%{top:100%;opacity:0}}
+  .q3-t{order:-1}
+  .needs .sp-m{order:2}
+  .pp{grid-template-columns:1fr;gap:30px 0}
+  .steps{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .steps li:nth-child(3n) .pg{right:0}
+  .fin2{grid-template-columns:1fr;gap:24px 0}
 }
 @media (max-width:700px){
-  .wrap{padding-left:16px;padding-right:16px}
-  .nav-in{flex-wrap:wrap;gap:6px 12px;padding-top:10px;padding-bottom:8px;min-height:0}
-  .brand{order:1;margin-right:auto}.signin{order:2}.nav .btn{order:3;height:34px;padding:0 12px;font-size:14px}.links{order:4;flex-basis:100%;margin:0 -12px}
-  .hero{padding-top:34px}
-  .lede{font-size:17px;margin-top:22px}
-  .strip{grid-template-columns:1fr}.strip li,.strip li:nth-child(n){border-left:0;border-top:1px solid var(--line)}.strip li:first-child{border-top:0}
-  .fl{grid-template-columns:1fr}.fl li:nth-last-child(2){border-bottom:1px solid var(--line)}
-  .dbody{padding:18px 14px}
-  .read{flex-direction:column;gap:8px;align-items:flex-start}.read b{text-align:left}
-  .d3,.d5{grid-template-columns:1fr}
-  .d4{grid-template-columns:repeat(4,1fr);gap:14px 4px}.dvs{display:contents}.d4-scr{grid-column:1/-1;order:-1}
-  .srow{grid-template-columns:50px 1fr 62px;gap:8px}
-  .q-stage{height:220px}.q-play{width:44%}.qp,.slot{width:42px;height:42px;margin-left:-21px}.slot,.qp{top:96px}.qp small{top:48px}
-  .steps li{padding:6px 6px;gap:8px}.steps b{font-size:14px}
-  .play2{aspect-ratio:auto;height:430px}.ovp{left:8px;top:8px;bottom:8px;width:72%;padding:4px}
-  .devs{gap:8px;margin-top:64px}
-  .cap{font-size:11.5px;white-space:normal;margin-top:7px}.cap b{display:block}
-  .tb{font-size:10px;gap:8px;padding:0 7px}.tb .end span{display:none}
-  .laptop .brw{padding:3px 5px;font-size:7px}.laptop .brw .nb{display:none}
-  .phone{border-radius:7px;padding:4px 3px 5px}.phone::before{height:2px;margin-bottom:3px}.phone .scr{border-radius:3px}
-  .legend{flex-wrap:wrap;gap:8px 18px}
+  .read small{max-width:none}
+  .steps{grid-template-columns:1fr;gap:22px}
+  .steps .pg{display:none}
+  .steps li{padding-top:0;padding-left:40px}
+  .steps li::before{top:0}
+  :root{--g:20px}
+  .nav-in{flex-wrap:wrap;gap:4px 12px;padding-top:10px;padding-bottom:6px;min-height:0}
+  .nav-in::before{content:"";order:3;flex-basis:100%;height:0}
+  .brand{order:1;margin-right:auto}.nav .btn{order:2;height:34px;padding:0 12px;font-size:14px;margin-bottom:4px}.links{order:4;flex:1 1 auto;margin:0 0 0 -12px}.signin{order:5;font-size:12.5px;padding:6px 0}
+  .lg-only{display:none}.xs{display:inline}
+  .how-h{padding-top:36px}
+  .how-h p{font-size:17px}
+  .rtsec{padding-top:36px}
+  .cta-row .btn.lg{flex:1 1 100%;justify-content:flex-start}
   .rt{flex-direction:column;gap:30px}
   .nd.sm{max-width:none;width:100%;flex:none;padding:10px 8px}
-  .nd.big{width:min(216px,70%)}
-  .cn text{display:none}
-  .cgrid{gap:4px}
+  .nd.big,.nd.ph{width:min(240px,80%)}
+  .steps{grid-template-columns:1fr;gap:28px;margin-top:44px}
+  .dlg{grid-template-columns:1fr}
+  .tln{--lw:104px;--gp:10px}
+  .tl-q .tl-w b{display:none}
+  .tl-w small{display:none}.tl-w b{font-size:14px}
+  .tl-t{height:40px}.blk{font-size:12.5px}.blk s{padding:0 6px}
+  .sheet div{grid-template-columns:1fr;gap:2px}
+  .fin2{padding-top:36px}
+  .sec{padding-top:72px}.final{padding-top:72px}
 }
 @media (prefers-reduced-motion:reduce){
   html{scroll-behavior:auto}
   *,*::before,*::after{transition:none!important;animation:none!important}
 }
-/* ---------- real pages: missing media, account panel ---------- */
-.nomedia{background:#000}
-video.gone,img.gone{display:none!important}
-body.checking main{visibility:hidden}
-[hidden]{display:none!important}
-.hl .priv{margin-top:20px;max-width:30em}
-.notice{border:1px dashed var(--line2);padding:14px 16px;font-size:15px;line-height:1.5;color:var(--mut);background:repeating-linear-gradient(135deg,transparent 0 6px,rgba(139,149,167,.06) 6px 7px)}
-.notice strong{display:block;color:var(--txt);font-weight:600;margin-bottom:3px}
-.notice p{margin:0 0 8px}
-.notice a{color:var(--bl);font-weight:600}
-.now{margin-top:22px;border:1px solid var(--line);background:var(--win);padding:10px 14px;max-width:30em}
-.now ul{display:grid;gap:6px}
-.now li{display:flex;align-items:center;gap:10px;font-size:14.5px;color:var(--mut)}
-.now li::before{content:"";flex:none;width:7px;height:7px;border-radius:50%;background:var(--live);box-shadow:0 0 0 3px rgba(61,220,132,.16)}
-#access .win{max-width:640px}
-.abody{padding:22px 24px 26px}
-.abody h2{font-size:clamp(24px,2.4vw,32px);line-height:1.1;letter-spacing:-.03em}
-.abody .lead{margin-top:10px;color:var(--mut);font-size:16px}
-.abody form label{display:grid;gap:6px;margin-top:16px;font-size:14.5px;font-weight:600}
-.abody .opt{font-weight:400;color:var(--dim)}
-.abody input,.abody textarea{width:100%;background:var(--bg);color:var(--txt);border:1px solid var(--line2);border-radius:0;padding:11px 12px;font:400 16px/1.4 var(--sans)}
-.abody textarea{min-height:96px;resize:vertical}
-.abody input::placeholder,.abody textarea::placeholder{color:var(--dim)}
-.abody input:focus,.abody textarea:focus{outline:none;border-color:var(--bl);box-shadow:0 0 0 1px var(--bl)}
-.count{justify-self:end;font:400 12px var(--mono);color:var(--dim)}
-.status{margin-top:14px;font-size:14.5px;line-height:1.45}
-.status.bad{color:#ff8f86}
-.row{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap}
-.row .btn{flex:1 1 140px}
-.done{display:flex;gap:12px;align-items:flex-start;padding:14px;border:1px solid rgba(61,220,132,.35);background:rgba(61,220,132,.07);font-size:15px;line-height:1.45}
-.done strong{display:block;margin-bottom:2px}
-.done i{flex:none;width:8px;height:8px;margin-top:7px;background:var(--live)}
-.abody .acts{margin-top:16px;display:flex;gap:10px}
-.abody .notice{margin-top:16px}
-.handle{border:0;padding:0;background:none;color:var(--bl);font:inherit;font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
-.foot .kofi{color:var(--mut);font-weight:600;text-decoration-color:#ff5e5b;text-underline-offset:3px}
-@media (max-width:700px){.abody{padding:18px 16px 22px}.cta-row .btn.lg{flex:1 1 auto}}
-
 </style>
 </head>
 <body>
@@ -402,9 +379,10 @@ body.checking main{visibility:hidden}
     <nav class="links" aria-label="Pages">
       <a class="back" href="/">Home</a>
       <a aria-current="page" href="/howitworks/">How it works</a>
+      <a href="/docs/">Setup guide</a>
     </nav>
-    <a class="signin" href="/stream/">Sign in</a>
-    <a class="btn p" href="https://github.com/Luma-exe/luma-arcade">Set up your own</a>
+    <a class="signin" href="/stream/">Have an account? <u>Sign in</u></a>
+    <a class="btn p" href="https://github.com/Luma-exe/luma-arcade/releases/latest/download/LumaArcadeSetup.exe">Download for Windows</a>
   </div>
 </header>
 
@@ -413,209 +391,147 @@ body.checking main{visibility:hidden}
 <!-- ================================ HOW ================================ -->
 
   <div class="wrap how-h">
-    <h1>Follow one button press across the wire.</h1>
-    <p>Six small demos, each looping like a GIF, each on real footage from our arcade. Start with the diagram you just saw: a frame goes out, a press comes back.</p>
+    <h1 class="disp">Follow one button press across the wire.</h1>
+    <p>Your PC runs the game and sends the picture to a browser. A friend's press travels back, and the PC keeps the game fair for everyone. Watch it run once, with the real numbers from one session on Luma's stats panel.</p>
   </div>
 
-  <section class="wrap demo full" aria-labelledby="t1">
-    <article class="win dwin">
-      <div class="tb"><span class="dots"><i></i><i></i><i></i></span><span class="t">01-round-trip.gif</span><span class="end"><span>slow motion</span></span></div>
-      <div class="dbody" role="img" aria-label="Animation: a frame leaves your PC through capture, the live link and the front door to a phone. The player on the phone presses A, the press travels back to the PC, and the new frame travels out to the phone.">
-        <div class="rt" id="rt">
-          <svg id="rtSvg" aria-hidden="true"><path class="ln0" id="rtLn"/><path class="lit" id="rtLit"/></svg>
-          <div class="nd big" data-i="0"><div class="nl">your-pc</div><div class="scr" id="rtPcScr"><video class="v rv" src="/landing-media/clips/mk64.mp4" poster="/landing-media/shots/mk64.png" autoplay muted loop playsinline preload="auto"></video></div></div>
-          <div class="nd sm" data-i="1"><b>Capture</b><small>H.265 / H.264 on the GPU</small></div>
-          <div class="nd sm" data-i="2"><b>Live link</b><small>WebRTC</small></div>
-          <div class="nd sm" data-i="3"><b>Front door</b><small>sign-in, turns</small></div>
-          <div class="nd ph" data-i="4"><div class="scr" id="rtPhScr"><video class="v rv" src="/landing-media/clips/mk64.mp4" poster="/landing-media/shots/mk64.png" autoplay muted loop playsinline preload="auto"></video><div class="tc"><i class="dp"></i><i class="ab" id="rtA">A</i></div></div><div class="nl">phone</div></div>
-          <i class="pdot" id="rtP"></i>
-        </div>
-        <div class="read"><span id="rtSt">frame out</span><span><em>button press &rarr; new frame&nbsp;</em><b id="rtMs">0 ms</b></span></div>
+  <section class="wrap rtsec" aria-label="Round trip diagram">
+    <div role="img" aria-label="Animation: a frame leaves your PC through the GPU encoder, the front door and the network to a phone, adding up to about 5 milliseconds of stream delay on a home network: host encode 3.1, server 0.7, network 0.5, decode 0.4. The player on the phone presses A, the press travels back to the PC, and a new frame travels out to the phone.">
+      <div class="rt" id="rt">
+        <svg id="rtSvg" aria-hidden="true"><path class="ln0" id="rtLn"/><path class="lit" id="rtLit"/></svg>
+        <div class="nd big" data-i="0"><div class="mon"><div class="bez"><div class="scr" id="rtPcScr"><video class="v rv" src="/landing-media/clips/rocket-hd.mp4" poster="/landing-media/shots/rocket-hd.jpg" autoplay muted loop playsinline preload="auto"></video></div></div><div class="neck"></div><div class="foot2"></div></div><div class="nl">your PC</div></div>
+        <div class="nd sm" data-i="1" data-v="3.1"><b>Encode</b><small>H.265 on the GPU</small><em class="ms">3.1 ms</em></div>
+        <div class="nd sm" data-i="2" data-v="0.7"><b>Front door</b><small>sign-in, turns</small><em class="ms">0.7 ms</em></div>
+        <div class="nd sm" data-i="3" data-v="0.5"><b>Network</b><small>direct UDP, WebRTC</small><em class="ms">0.5 ms</em></div>
+        <div class="nd ph" data-i="4" data-v="0.4"><div class="phone"><div class="scr" id="rtPhScr"><video class="v rv" src="/landing-media/clips/rocket-hd.mp4" poster="/landing-media/shots/rocket-hd.jpg" autoplay muted loop playsinline preload="auto"></video><div class="tc"><i class="dpd"></i><i class="fb a" id="rtA">A</i></div></div></div><div class="nl">phone<em>decode 0.4 ms</em><span class="st" id="rtSt">frame out</span></div></div>
+        <i class="pdot" id="rtP"></i>
       </div>
-    </article>
-    <div class="dtext"><p class="n">01</p><h2 id="t1">The round trip of a button press</h2><p>The frame leaves your PC, crossing capture, the live link and the front door. A friend presses A. The press comes back as a virtual controller, your graphics card encodes the next frame in a few milliseconds, and it goes out again.</p></div>
-  </section>
-
-  <section class="wrap demo r" aria-labelledby="t2">
-    <article class="win dwin">
-      <div class="tb"><span class="dots"><i></i><i></i><i></i></span><span class="t">02-press-play.gif</span></div>
-      <div class="play2 wait" id="play2" role="img" aria-label="Animation: steps tick off over a dimmed game clip, from sign-in to the game coming up bright, then leaving.">
-        <video class="v solo" src="/landing-media/clips/smw.mp4" poster="/landing-media/shots/smw.png" autoplay muted loop playsinline preload="metadata"></video>
-        <div class="ovp"><ol class="steps" id="d2">
-          <li><i class="chk"></i><div><b>Sign in</b><span>the front door checks who you are</span><em class="pg"><u></u></em></div></li>
-          <li><i class="chk"></i><div><b>Pick an app</b><span>ES-DE, Steam, Xbox app and friends</span><em class="pg"><u></u></em></div></li>
-          <li><i class="chk"></i><div><b>Speed test</b><span>about 1 second</span><em class="pg"><u></u></em></div></li>
-          <li><i class="chk"></i><div><b>The PC gets ready</b><span>loads your saves, resizes its screen to yours, brings the game to the front</span><em class="pg"><u></u></em></div></li>
-          <li><i class="chk"></i><div><b>Play</b><span>any controller joins on the first button press</span><em class="pg"><u></u></em></div></li>
-          <li><i class="chk"></i><div><b>Leave</b><span>the game waits for you; saves are snapshotted on close</span><em class="pg"><u></u></em></div></li>
-        </ol></div>
-      </div>
-    </article>
-    <div class="dtext"><p class="n">02</p><h2 id="t2">What happens when you press Play</h2><p>A quick speed test, while your PC loads your saves, matches its screen to your device and puts the game up front. When you leave, the game waits for you.</p></div>
-  </section>
-
-  <section class="wrap demo" aria-labelledby="t3">
-    <article class="win dwin">
-      <div class="tb"><span class="dots"><i></i><i></i><i></i></span><span class="t">03-auto-quality.gif</span></div>
-      <div class="dbody" id="d3" role="img" aria-label="Animation: the connection strength changes every 2 seconds and the real clip steps between sharp and blocky while the game keeps running.">
-        <div class="d3">
-          <div class="d3-pic"><video class="solo" id="v3" src="/landing-media/clips/mk8.mp4" poster="/landing-media/shots/mk8.jpg" autoplay muted loop playsinline preload="metadata"></video><canvas id="gQ"></canvas><span class="lv" id="d3lv">HIGH</span></div>
-          <div>
-            <p class="lab">Connection, checked every 2 seconds</p>
-            <div class="bars" id="d3bars"><i><u></u></i><i><u></u></i><i><u></u></i><i><u></u></i><i><u></u></i><i><u></u></i><b class="sweep" id="d3sw"></b></div>
-            <div class="segs" id="d3segs"><span>Low</span><span>Medium</span><span>High</span></div>
-            <p class="evt" id="d3ev"></p>
-          </div>
-        </div>
-      </div>
-    </article>
-    <div class="dtext"><p class="n">03</p><h2 id="t3">The picture steps up and down</h2><p>Every 2 seconds we check the connection and step the picture up or down. A blocky moment beats a frozen one, and the game keeps running.</p></div>
-  </section>
-
-  <section class="wrap demo r" aria-labelledby="t4">
-    <article class="win dwin">
-      <div class="tb"><span class="dots"><i></i><i></i><i></i></span><span class="t">04-four-couches.gif</span></div>
-      <div class="dbody" id="d4" role="img" aria-label="Animation: four different devices each take a turn lighting up as one of the four players on a single shared screen.">
-        <div class="d4">
-          <div class="dvs">
-            <div class="dv phn" style="--c:#2f8cff"><i class="bdg">P1</i><div class="sh"></div>phone</div>
-            <div class="dv tab" style="--c:#8cc8ff"><i class="bdg" style="--fg:#07101f">P2</i><div class="sh"></div>tablet</div>
-          </div>
-          <div class="d4-scr"><video class="v solo" src="/landing-media/clips/melee.mp4" poster="/landing-media/shots/melee.png" autoplay muted loop playsinline preload="metadata"></video>
-            <div class="ptags" id="d4t"><b style="--c:#2f8cff">P1</b><b style="--c:#8cc8ff;--fg:#07101f">P2</b><b style="--c:#e9edf4;--fg:#07101f">P3</b><b style="--c:#8896ad">P4</b></div></div>
-          <div class="dvs">
-            <div class="dv lap" style="--c:#e9edf4"><i class="bdg" style="--fg:#07101f">P3</i><div class="sh"></div><span style="margin-top:6px">laptop</span></div>
-            <div class="dv gp" style="--c:#8896ad"><i class="bdg">P4</i><div class="sh"></div>gamepad</div>
-          </div>
-        </div>
-      </div>
-    </article>
-    <div class="dtext"><p class="n">04</p><h2 id="t4">Four couches, one screen</h2><p>Co-op for up to 4 players on the same screen, each from their own device. Anyone else can spectate, and guest links expire.</p></div>
-  </section>
-
-  <section class="wrap demo" aria-labelledby="t5">
-    <article class="win dwin">
-      <div class="tb"><span class="dots"><i></i><i></i><i></i></span><span class="t">05-mine-not-yours.gif</span></div>
-      <div class="dbody" id="d5" role="img" aria-label="Animation: three players each build their own save while the owner's files stay out of reach.">
-        <div class="d5">
-          <div class="d5-clip"><div class="scr"><video class="v solo" src="/landing-media/clips/dkc.mp4" poster="/landing-media/shots/dkc.png" autoplay muted loop playsinline preload="metadata"></video></div>
-            <div class="d5-ov"><span>mia is playing</span><b id="d5ov">saving...</b></div></div>
-          <div class="acct" id="d5acct">
-            <span class="lab">Games-only Windows account</span>
-            <div class="srow"><span class="who">mia/save</span><span class="svb"><i></i></span><span class="snap">snapshot</span></div>
-            <div class="srow"><span class="who">dev/save</span><span class="svb"><i></i></span><span class="snap">snapshot</span></div>
-            <div class="srow"><span class="who">kit/save</span><span class="svb"><i></i></span><span class="snap">snapshot</span><i class="probe" id="d5p"></i></div>
-          </div>
-          <div class="owner" id="d5own">
-            <span class="lab">Owner's files</span>
-            <ul><li>documents/</li><li>photos/</li><li>passwords/</li></ul>
-            <p class="deny"><svg width="12" height="14" viewBox="0 0 12 14" aria-hidden="true"><rect x="0.5" y="6" width="11" height="7.5" fill="currentColor"/><path d="M3 6V4a3 3 0 016 0v2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>not visible to players</p>
-          </div>
-        </div>
-      </div>
-    </article>
-    <div class="dtext"><p class="n">05</p><h2 id="t5">Saves that stay separate</h2><p>Everyone gets their own saves, with snapshots to roll back to. Players run as a games-only Windows account, so your own files are never on the menu.</p></div>
-  </section>
-
-  <section class="wrap demo r" aria-labelledby="t6">
-    <article class="win dwin">
-      <div class="tb"><span class="dots"><i></i><i></i><i></i></span><span class="t">06-please-hold.gif</span></div>
-      <div class="dbody" id="d6" role="img" aria-label="Animation: friends wait in a line and take turns on the one PC, each turn showing their own game.">
-        <div class="q-stage" id="d6st">
-          <div class="q-play">
-            <video class="v qv cur" src="/landing-media/clips/crash.mp4" poster="/landing-media/shots/crash.png" muted loop playsinline preload="metadata"></video>
-            <video class="v qv" src="/landing-media/clips/sonic.mp4" poster="/landing-media/shots/sonic.png" muted loop playsinline preload="metadata"></video>
-            <video class="v qv" src="/landing-media/clips/smb.mp4" poster="/landing-media/shots/smb.png" muted loop playsinline preload="metadata"></video>
-            <video class="v qv" src="/landing-media/clips/metroid.mp4" poster="/landing-media/shots/metroid.png" muted loop playsinline preload="metadata"></video>
-            <div class="q-bar"><span id="d6s">Now playing: Mia</span><i class="lim"><u id="d6lim"></u></i></div>
-          </div>
-          <i class="slot" style="left:56%">1</i><i class="slot" style="left:72%">2</i><i class="slot" style="left:88%">3</i>
-          <b class="qp play" style="--c:#2f8cff">M<small>Mia</small></b>
-          <b class="qp" style="--c:#8cc8ff;--fg:#07101f">D<small>Dev</small></b>
-          <b class="qp" style="--c:#e9edf4;--fg:#07101f">K<small>Kit</small></b>
-          <b class="qp" style="--c:#6b7686">S<small>Sol</small></b>
-        </div>
-      </div>
-    </article>
-    <div class="dtext"><p class="n">06</p><h2 id="t6">A fair queue for one PC</h2><p>The queue holds the PC for you and hands it over in order. Play-time limits keep one person from having it all night, and if your connection drops, the game stays yours for a while.</p></div>
-  </section>
-
-  <section class="wrap sec" aria-labelledby="h-feat">
-    <div class="sec-h"><h2 id="h-feat">Features and security</h2></div>
-    <div class="feat">
-      <article class="win f-list">
-        <div class="tb"><span class="dots"><i></i><i></i><i></i></span><span class="t">features.txt</span></div>
-        <ul class="fl">
-          <li><b>Any controller</b> <span>joins on the first button press</span></li>
-          <li><b>Touch controls</b> <span>change layout per console</span></li>
-          <li><b>Auto quality</b> <span>steps up or down every 2 s</span></li>
-          <li><b>Screen resize</b> <span>up to 4K, up to 240 fps at smaller sizes</span></li>
-          <li><b>Home button</b> <span>and a window picker (Alt+Tab)</span></li>
-          <li><b>Co-op</b> <span>up to 4 players, each on their own device</span></li>
-          <li><b>Spectate</b> <span>watch someone else play</span></li>
-          <li><b>Guest links</b> <span>that expire</span></li>
-          <li><b>Admin messages</b> <span>a note from the owner</span></li>
-          <li><b>Fair queue</b> <span>holds the PC for you</span></li>
-          <li><b>Weekly play stats</b></li>
-          <li><b>Per-player saves</b> <span>with snapshots</span></li>
-          <li><b>Play-time limits</b></li>
-          <li><b>Lockdown</b> <span>only games are reachable</span></li>
-          <li><b>Health checks</b> <span>and self-repair</span></li>
-          <li><b>Nightly backups</b></li>
-          <li><b>Reconnect</b> <span>the game stays yours for a while</span></li>
-          <li><b>Accounts and roles</b></li>
-          <li><b>Retro</b> <span>ES-DE and emulators</span></li>
-          <li><b>Modern</b> <span>Steam, Epic, Xbox app, EA, GOG, Ubisoft</span></li>
-        </ul>
-      </article>
-      <article class="win f-sec">
-        <div class="tb"><span class="dots"><i></i><i></i><i></i></span><span class="t">security.txt</span></div>
-        <ul class="sl">
-          <li><b>Encrypted</b> from the browser to the front door.</li>
-          <li><b>The front door</b> handles sign-in, turns, play-time limits and messages.</li>
-          <li><b>Games-only Windows account.</b> Players can't see your files.</li>
-          <li><b>Lockdown mode:</b> only games are reachable.</li>
-          <li><b>Guest links expire.</b> Accounts have roles.</li>
-          <li><b>Cloudflare Tunnel</b> is the way in.</li>
-        </ul>
-      </article>
+      <div class="read"><span class="tot"><b id="rtMs">&asymp;5 ms</b>stream delay, home network<small>One real session, read from Luma's stats panel: the frame's trip from the encoder to the browser's screen buffer (3.1 + 0.7 + 0.5 + 0.4 ms). It is not total input lag. A friend in another house adds their own trip across the internet: 22 ms there and back, typically, in our play log.</small></span></div>
     </div>
   </section>
-</section>
 
-<section class="wrap sec" aria-labelledby="h-stack">
-  <div class="sec-h" style="margin-bottom:28px"><h2 id="h-stack">Built on open-source parts.</h2></div>
-  <article class="win">
-    <div class="tb"><span class="dots"><i></i><i></i><i></i></span><span class="t">built-on.txt</span></div>
-    <ul class="strip">
-      <li><b>Sunshine</b><span>streaming host</span></li>
-      <li><b>WebRTC</b><span>the live link</span></li>
-      <li><b>H.265 / H.264</b><span>encoded on the GPU</span></li>
-      <li><b>ES-DE</b><span>console menu</span></li>
-      <li><b>Cloudflare Tunnel</b><span>the way in</span></li>
-    </ul>
-  </article>
-</section>
+  <section class="wrap sec" aria-labelledby="t2">
+    <div class="pp">
+      <div class="pp-l">
+        <h2 id="t2">What happens when you press Play</h2>
+        <p class="big">A friend opens the link and lands in the lobby. One click on an app, and the PC does the rest while a short dialog counts the steps off. When they leave, the game waits for them.</p>
+        <p class="dlg-h">The dialog a friend sees while the PC gets ready</p>
+        <ol class="dlg"><li>Reaching your PC</li><li>Setting up the connection</li><li>Starting ES-DE</li><li>Getting the picture ready</li></ol>
+      </div>
+      <figure class="pp-v"><div class="pv" style="--ar:720/390"><video class="v" id="joinClip" src="/landing-media/ui/friend-arrives.mp4" poster="/landing-media/ui/friend-arrives.png" autoplay muted loop playsinline preload="metadata"></video></div><figcaption><b>ES-DE arriving.</b> A friend picks ES-DE in the lobby; a few seconds later its menu is on their screen. Recorded from the real app.</figcaption></figure>
+    </div>
+    <div class="play2 wait" id="play2" role="img" aria-label="Animation: six steps tick off in order, from sign-in to the game coming up, then leaving.">
+      <ol class="steps" id="d2">
+        <li><i class="chk"></i><em class="pg"><u></u></em><b>Sign in</b><span>the front door checks who you are</span></li>
+        <li><i class="chk"></i><em class="pg"><u></u></em><b>Pick an app</b><span>ES-DE, Steam, Xbox app and friends</span></li>
+        <li><i class="chk"></i><em class="pg"><u></u></em><b>Speed test</b><span>about 1 second</span></li>
+        <li><i class="chk"></i><em class="pg"><u></u></em><b>The PC gets ready</b><span>loads your saves, resizes its screen to yours, brings the game to the front</span></li>
+        <li><i class="chk"></i><em class="pg"><u></u></em><b>Play</b><span>any controller joins on the first button press</span></li>
+        <li><i class="chk"></i><em class="pg"><u></u></em><b>Leave</b><span>the game waits for you, and saves are snapshotted on close</span></li>
+      </ol>
+    </div>
+  </section>
 
-<section class="wrap sec" aria-labelledby="h-cta">
-  <article class="win">
-    <div class="tb"><span class="dots"><i></i><i></i><i></i></span><span class="t">read-me-first.txt</span></div>
-    <div class="cta">
-      <div class="txt"><h2 id="h-cta">Put the arcade in your house.</h2><p>Free, open source and yours. Install it on the PC you already game on, then send your friends a link.</p></div>
-      <div class="acts">
-        <a class="btn p lg" href="https://github.com/Luma-exe/luma-arcade">Set up your own</a>
-        <a class="btn lg" href="/stream/">Sign in</a>
-        <small>github.com/Luma-exe/luma-arcade</small>
+  <section class="wrap sec" aria-labelledby="t5">
+    <div class="sec-h"><h2 id="t5">Four seats, their own saves, and a fair queue</h2><p class="big">Up to four people play one game from one picture. Each keeps their own saves, with snapshots to roll back to. When more people want in than there are seats, the queue hands a seat over in order.</p></div>
+    <div class="tln" id="tl" role="img" aria-label="Timeline: four seats, P1 to P4, held by you, Ben, Phoebe and Slurpy, each playing on their own save with snapshots along the way. Partway through, Ben leaves, and the next person in the queue takes seat P2 with a save of their own.">
+      <p class="tl-st" id="tlSt">All four seats are taken. Everyone plays on their own save.</p>
+      <div class="tl-g">
+        <div class="tl-r" style="--c:var(--p1)"><div class="tl-w"><span class="chip" style="--c:var(--p1)">P1</span><b>You</b><small>the host</small></div><div class="tl-t"><i class="blk" data-a="0" data-b="100" style="left:0;width:100%"><s>Your save</s></i><u class="snp" data-a="38" style="left:38%"></u><u class="snp" data-a="76" style="left:76%"></u></div></div>
+        <div class="tl-r" style="--c:var(--p2)"><div class="tl-w"><span class="chip" style="--c:var(--p2)">P2</span><b>Ben</b></div><div class="tl-t"><i class="blk" data-a="0" data-b="52" style="left:0;width:52%"><s>Ben's save</s></i><u class="snp" data-a="52" style="left:52%"></u><i class="blk" data-a="52" data-b="100" style="left:52.6%;width:47.4%"><s>Sam's turn<span class="lg-only">, Sam's own save</span></s></i><u class="snp" data-a="88" style="left:88%"></u></div></div>
+        <div class="tl-r" style="--c:var(--p3)"><div class="tl-w"><span class="chip" style="--c:var(--p3)">P3</span><b>Phoebe</b></div><div class="tl-t"><i class="blk" data-a="0" data-b="100" style="left:0;width:100%"><s>Phoebe's save</s></i><u class="snp" data-a="30" style="left:30%"></u><u class="snp" data-a="64" style="left:64%"></u></div></div>
+        <div class="tl-r" style="--c:var(--p4)"><div class="tl-w"><span class="chip" style="--c:var(--p4)">P4</span><b>Slurpy</b></div><div class="tl-t"><i class="blk" data-a="0" data-b="100" style="left:0;width:100%"><s>Slurpy's save</s></i><u class="snp" data-a="46" style="left:46%"></u><u class="snp" data-a="82" style="left:82%"></u></div></div>
+        <div class="tl-r tl-q"><div class="tl-w"><span class="chip nb">queue</span><b>Sam</b></div><div class="tl-t"><i class="blk q" data-a="0" data-b="52" style="left:0;width:52%"><s>Sam waits<span class="lg-only"> for a free seat, then takes P2</span></s></i></div></div>
+        <div class="phw" aria-hidden="true"><b class="pht" id="tlPh"></b></div>
+      </div>
+      <p class="tl-k"><span>playing on their own save</span><span class="s">snapshot taken</span><span class="w">waiting in the queue</span></p>
+    </div>
+  </section>
+
+  <section class="wrap sec" aria-labelledby="t3">
+    <div class="q3">
+      <div class="d3-pic" id="d3"><video class="solo" id="v3" src="/landing-media/clips/forza.mp4" poster="/landing-media/shots/forza.jpg" autoplay muted loop playsinline preload="metadata"></video><canvas id="gQ" aria-label="The same clip at the current quality level"></canvas><span class="lv" id="d3lv">HIGH</span></div>
+      <div class="q3-t">
+        <h2 id="t3">The picture steps up and down</h2>
+        <p class="big">Every 2 seconds Luma checks the connection and steps the picture up or down. A blocky moment beats a frozen one, and the game keeps running.</p>
+        <figure class="qc">
+          <svg class="qs" id="qs" viewBox="0 0 660 250" role="img" aria-label="Chart: available bandwidth in megabits per second over twelve seconds, checked every 2 seconds. It starts near 16, drops to 8 and then 3, which is below the 10 Mbps comfort mark, so the picture steps down to medium and then low, then recovers to 15 and steps back up to high.">
+          <text x="0" y="12" class="ax">Mbps</text>
+          <rect id="qcw" x="56" y="24" width="76" height="166" class="cw"/>
+          <line x1="56" x2="512" y1="190.0" y2="190.0" class="gl"/><text x="48" y="194.0" text-anchor="end">0</text><line x1="56" x2="512" y1="148.5" y2="148.5" class="gl"/><text x="48" y="152.5" text-anchor="end">5</text><line x1="56" x2="512" y1="107.0" y2="107.0" class="gl"/><text x="48" y="111.0" text-anchor="end">10</text><line x1="56" x2="512" y1="65.5" y2="65.5" class="gl"/><text x="48" y="69.5" text-anchor="end">15</text><line x1="56" x2="512" y1="24.0" y2="24.0" class="gl"/><text x="48" y="28.0" text-anchor="end">20</text>
+          <path d="M56 57.2 H132 V65.5 H208 V123.6 H284 V165.1 H360 V131.9 H436 V65.5 H512 V190 H56 Z" class="ar"/><path d="M56 57.2 H132 V65.5 H208 V123.6 H284 V165.1 H360 V131.9 H436 V65.5 H512" class="da"/>
+          <line x1="56" x2="512" y1="107.0" y2="107.0" class="th"/>
+          <line x1="56" x2="512" y1="148.5" y2="148.5" class="th lo"/>
+          <text x="524" y="105.0" class="thl">10 Mbps</text><text x="524" y="120.0" class="ths">steps down below</text>
+          <text x="524" y="152.5" class="ths">and again here</text>
+          <line id="qsw" x1="56" x2="56" y1="20" y2="190" class="sw"/>
+          <text x="56" y="208" text-anchor="middle">0s</text><text x="132" y="208" text-anchor="middle">2s</text><text x="208" y="208" text-anchor="middle">4s</text><text x="284" y="208" text-anchor="middle">6s</text><text x="360" y="208" text-anchor="middle">8s</text><text x="436" y="208" text-anchor="middle">10s</text><text x="512" y="208" text-anchor="middle">12s</text>
+          <g id="qlb" class="lb"><text x="94" y="226" text-anchor="middle">HIGH</text><text x="170" y="226" text-anchor="middle">HIGH</text><text x="246" y="226" text-anchor="middle">MEDIUM</text><text x="322" y="226" text-anchor="middle">LOW</text><text x="398" y="226" text-anchor="middle">MEDIUM</text><text x="474" y="226" text-anchor="middle">HIGH</text></g>
+          <text x="56" y="246" class="ax">time, one check every 2 seconds</text>
+        </svg>
+          <figcaption>Illustration of one connection dipping and recovering. 10 Mbps is the comfortable level for 1080p60; Luma picks the real steps itself.</figcaption>
+        </figure>
+        <p class="evt" id="d3ev"></p>
       </div>
     </div>
-  </article>
-</section>
+  </section>
+
+  <section class="wrap sec" aria-labelledby="h-need">
+    <div class="needs">
+      <figure class="sp-m">
+        <img class="shotimg" src="/landing-media/ui/stats.png" alt="Luma's in-stream quick controls: Fullscreen, Stats, Alt+Tab, Keyboard, Send keys, Windows key, Exit, a volume slider and the list of players, over Forza Horizon 2." width="720" height="406" loading="lazy">
+        <figcaption><b>Quick controls and the stats panel.</b> Luma shows how the connection is doing over a running game, so you can check the numbers above yourself.</figcaption>
+      </figure>
+      <div>
+        <h2 id="h-need">What to bring: one PC and about twenty minutes</h2>
+        <dl class="sheet">
+          <div><dt>PC</dt><dd>Windows 10 or 11 (64-bit), or Windows Server. <span>There is a Linux early beta.</span></dd></div>
+          <div><dt>GPU</dt><dd>One with a hardware video encoder: NVIDIA NVENC, AMD VCE/VCN, or Intel Quick Sync on 6th-gen or newer.</dd></div>
+          <div><dt>Setup</dt><dd>About 20 minutes, mostly downloads. <span>Admin rights to install.</span></dd></div>
+          <div><dt>Picture</dt><dd>1080p60 at 10 to 15 Mbps is comfortable on a wired host with a modern GPU.</dd></div>
+          <div><dt>Friends</dt><dd>A browser on a phone, laptop or TV. <span>Phones get on-screen touch controls, and gamepads work too.</span></dd></div>
+          <div><dt>Away from home</dt><dd>A free Cloudflare account and a domain you own. <span>Optional: without it, the arcade works on your home network.</span></dd></div>
+          <div><dt>Under it</dt><dd>Sunshine encodes on your GPU, WebRTC carries it to the browser, and a Cloudflare Tunnel is the way in. <span>No port forwarding, all open source.</span></dd></div>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap sec" aria-labelledby="h-sec">
+    <div class="sec-h"><h2 id="h-sec">Players can reach your games and nothing else on the PC</h2><p class="big">Everything a friend does goes through one encrypted tunnel and one front door.</p></div>
+    <div class="sw" role="group" aria-label="Diagram: a friend's browser connects through a Cloudflare Tunnel, which is encrypted, to the front door on your PC. Only the games-only area behind the front door is reachable. Your files, desktop and other accounts are not.">
+      <div class="sw-b"><b>A friend's browser</b><small>Phone, laptop or TV, with a guest link or an account</small></div>
+      <div class="sw-t"><div class="sw-lock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="11" width="14" height="10"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><b>Cloudflare Tunnel</b><small>Encrypted. Nothing on your router opens.</small></div></div>
+      <div class="sw-pc">
+        <p class="sw-pcl">Your PC</p>
+        <div class="sw-ok"><span class="sw-tag">Games only</span>
+          <div class="sw-door"><b>Front door</b><small>Handles sign-in, turns, play-time limits and messages. Guest links expire, and accounts have roles.</small></div>
+          <div class="sw-games"><b>What players can reach</b><small>Your games, run in a games-only Windows account. Lockdown mode makes only games reachable.</small></div>
+        </div>
+        <div class="sw-no"><b>Not reachable</b><small>Your files, your desktop and your other accounts.</small></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap final" aria-labelledby="h-cta">
+    <div class="fin2">
+      <h2 id="h-cta">Set it up in about 20 minutes</h2>
+      <div>
+        <p class="s">Run the installer on the PC with admin rights. It brings in Sunshine and a Cloudflare Tunnel. Point ES-DE at games you own, and Steam, Epic and the other launchers show up as apps. Then send your friends the link. Setup takes about 20 minutes, mostly downloads, and the guide walks through it.</p>
+        <div class="cta-row">
+          <a class="btn p lg" href="https://github.com/Luma-exe/luma-arcade/releases/latest/download/LumaArcadeSetup.exe">Download for Windows</a>
+          <a class="tl" href="/docs/">Read the setup guide</a>
+        </div>
+        <p class="note">v1.4.0 &middot; Windows 10/11 or Windows Server &middot; GPL-3.0 &middot; free and open source</p>
+      </div>
+    </div>
+  </section>
 </main>
 
 <footer class="wrap foot">
-  Luma Arcade &middot; free and open source &middot; <a href="https://github.com/Luma-exe/luma-arcade">github.com/Luma-exe/luma-arcade</a><br>
-  Our own instance, <a href="/stream/">arcade.lumaplayground.com</a>, is private and run for friends. Bring games you own.<br>
-  Enjoying Luma Arcade? <a class="kofi" href="https://ko-fi.com/lumaexe" target="_blank" rel="noopener">Support it on Ko-fi</a>
+  <p>Luma Arcade is made by luma_exe. Free and open source: <a href="https://github.com/Luma-exe/luma-arcade">github.com/Luma-exe/luma-arcade</a></p>
+  <p>arcade.lumaplayground.com is our own private arcade. Want one? <a href="https://github.com/Luma-exe/luma-arcade/releases/latest/download/LumaArcadeSetup.exe">Download Luma Arcade</a>.</p>
+  <p>Enjoying Luma Arcade? <a class="kofi" href="https://ko-fi.com/lumaexe" target="_blank" rel="noopener">Support it on Ko-fi</a></p>
 </footer>
 
 <script>
@@ -677,10 +593,12 @@ if(RM){
 },150);
 
 
-/* ---------- DEMO 1: the round trip, on real footage ---------- */
-var rt=$('#rt'),rtSvg=$('#rtSvg'),rtLn=$('#rtLn'),rtLit=$('#rtLit'),rtP=$('#rtP'),rtA=$('#rtA'),rtMs=$('#rtMs'),rtSt=$('#rtSt');
+/* ---------- HERO: the round trip, on real footage and real numbers ---------- */
+var rt=$('#rt'),rtSvg=$('#rtSvg'),rtLn=$('#rtLn'),rtLit=$('#rtLit'),rtP=$('#rtP'),rtA=$('#rtA'),rtMs=$('#rtMs'),rtTotEl=$('.read .tot'),rtSt=$('#rtSt');
 var rtNodes=$$('.nd',rt),rtPts=[],rtCum=[],rtTot=1,rtPc=$('#rtPcScr'),rtPh=$('#rtPhScr');
+var rtV=rtNodes.map(function(n){return parseFloat(n.getAttribute('data-v'))||0});
 group($$('.rv'),rt);
+solo($('#joinClip'));
 function rtBuild(){
   if(!shown(rt))return;
   var r0=rt.getBoundingClientRect();
@@ -700,19 +618,20 @@ function rtLitTo(u,rev){
   return 'M'+pts.map(function(p){return p[0]+' '+p[1]}).join(' L')}
 function rtDraw(t){
   if(!rtPts.length)return;
-  t=t%7;var u=null,rev=false,st='frame out',ms=0;
-  if(t<1.6){u=eio(t/1.6)}
+  t=t%7;var u=null,rev=false,st='frame out',out=null;
+  if(t<1.6){u=eio(t/1.6);out=u}
   else if(t<2.4){st='the friend sees the frame'}
-  else if(t<2.7){st='press A';ms=0}
-  else if(t<4.0){u=1-eio((t-2.7)/1.3);rev=true;st='press travels back';ms=lp(0,18,(t-2.7)/1.3)}
-  else if(t<4.8){st='virtual controller to game';ms=lp(18,20,(t-4)/.8)}
-  if(t>=4.4&&t<5.8){u=eio((t-4.4)/1.4);rev=false;st='encoded, sent back';ms=lp(20,24,(t-4.4)/1.4)}
-  if(t>=5.8){ms=24;st=t<6.6?'new frame arrives':''}
-  if(t>=4.0&&t<4.4)ms=lp(18,20,(t-4)/.4);
+  else if(t<2.7){st='press A'}
+  else if(t<4.0){u=1-eio((t-2.7)/1.3);rev=true;st='the press travels back'}
+  else if(t<4.4){st='virtual controller to game'}
+  else if(t<5.8){u=eio((t-4.4)/1.4);out=u;st='the PC encodes the next frame'}
+  else st=t<6.6?'new frame arrives':'';
   rtA.classList.toggle('down',t>=2.4&&t<2.75);
   rtPc.classList.toggle('hit',t>=4.0&&t<4.8);
   rtPh.classList.toggle('hit',t>=5.8&&t<6.6);
-  rtMs.textContent=Math.round(ms)+' ms';rtSt.textContent=st;
+  /* the figure is always the real one; it only lights up while a frame is on its way out */
+  rtTotEl.classList.toggle('pulse',out!==null&&out>.6);
+  rtSt.textContent=st;
   if(u!==null){var p=rtAt(u);rtP.style.left=p[0]+'px';rtP.style.top=p[1]+'px';rtP.style.opacity=1;rtP.className='pdot'+(rev?' r':'');
     rtLit.setAttribute('d',rtLitTo(u,rev));rtLit.setAttribute('class','lit'+(rev?' ret':''));
     rtNodes.forEach(function(n,i){var nu=rtCum[i]/rtTot,near=Math.abs((rev?1-nu:nu)-(rev?1-u:u))<.09||(rev?nu>=u:nu<=u)&&Math.abs(nu-u)<.2;n.classList.toggle('on',near)})}
@@ -721,27 +640,38 @@ function rtDraw(t){
 reg(rt,rtDraw,5.9);
 if('ResizeObserver' in window)new ResizeObserver(rtBuild).observe(rt);
 
-/* ---------- DEMO 2: press play, over a real clip ---------- */
+/* ---------- press play: the steps tick off ---------- */
 (function(){
-  var lis=$$('#d2 li'),bars=$$('#d2 .pg u'),box=$('#d2'),stg=$('#play2'),DUR=[1.1,1.3,1.0,1.8,1.6,1.4],TOT=DUR.reduce(function(a,b){return a+b},0)+1.2;
-  solo($('#play2 video'));
-  function draw(t){t=t%TOT;var acc=0,cur=-1;
+  var lis=$$('#d2 li'),bars=$$('#d2 .pg u'),stg=$('#play2'),DUR=[1.1,1.3,1.0,1.8,1.6,1.4],TOT=DUR.reduce(function(a,b){return a+b},0)+1.2;
+  function draw(t){t=t%TOT;var acc=0;
     lis.forEach(function(li,i){var a=acc,b=acc+DUR[i];acc=b;
-      if(t>=a&&t<b)cur=i;
-      li.className=t>=b?'done':(t>=a?'act':'');bars[i].style.width=(t>=a&&t<b?sg(t,a,b)*100:0)+'%'});
-    stg.classList.toggle('wait',cur!==4)}
-  reg(stg,draw,6.0);
+      li.className=t>=b?'done':(t>=a?'act':'');bars[i].style.width=(t>=b?100:(t>=a?sg(t,a,b)*100:0))+'%'})}
+  reg(stg,draw,TOT-.3);
 })();
 
-/* ---------- DEMO 3: auto quality, a real clip at real resolutions ---------- */
+/* ---------- saves and the queue: one timeline ---------- */
 (function(){
-  var v=$('#v3'),cv=$('#gQ'),ctx=cv.getContext('2d'),us=$$('#d3bars u'),sw=$('#d3sw'),segs=$$('#d3segs span'),lv=$('#d3lv'),ev=$('#d3ev');
+  var box=$('#tl'),ph=$('#tlPh'),st=$('#tlSt'),blks=$$('#tl .blk'),snps=$$('#tl .snp'),TOT=16,
+    ev=[[0,'All four seats are taken. Everyone plays on their own save.'],[30,'Snapshots are taken as people play, so a bad hour can be rolled back.'],[52,'Ben leaves. The queue hands P2 to the next in line, who gets a save of their own.'],[80,'Everyone is back on their own save, and the owner’s files were never in the way.']],last=-1;
+  function f(t){var p=RM?64:((t%TOT)/TOT*100);
+    ph.style.left=p+'%';
+    blks.forEach(function(b){var a=+b.getAttribute('data-a'),e=+b.getAttribute('data-b');
+      b.classList.toggle('on',p>=a&&p<e);b.classList.toggle('past',p>=e)});
+    snps.forEach(function(s){s.classList.toggle('on',p>=+s.getAttribute('data-a'))});
+    var k=0;ev.forEach(function(x,i){if(p>=x[0])k=i});
+    if(k!==last){last=k;st.textContent=ev[k][1]}}
+  reg(box,f,10);
+})();
+
+/* ---------- auto quality, a real clip at real resolutions ---------- */
+(function(){
+  var v=$('#v3'),cv=$('#gQ'),ctx=cv.getContext('2d'),cw=$('#qcw'),sw=$('#qsw'),lbs=$$('#qlb text'),lv=$('#d3lv'),ev=$('#d3ev'),X0=56,W=76;
   solo(v);
-  var seq=[[.95,2],[.9,2],[.5,1],[.2,0],[.45,1],[.9,2]],names=['LOW','MEDIUM','HIGH'],res=[160,400,960],evs=['','','stepping down: medium','stepping down: low','stepping up: medium','stepping up: high'],last=-1;
-  function f(t){var T=seq.length*2,tt=t%T,idx=Math.floor(tt/2),q=seq[idx][1];
-    if(idx!==last){last=idx;us.forEach(function(u,i){u.style.height=(i<=idx?seq[i][0]*100:0)+'%'});
-      segs.forEach(function(s,i){s.className=i===q?'on':''});lv.textContent=names[q];ev.textContent=evs[idx]}
-    sw.style.left=(tt/T*100)+'%';
+  var seq=[2,2,1,0,1,2],names=['LOW','MEDIUM','HIGH'],res=[160,400,960],evs=['','','stepping down: medium','stepping down: low','stepping up: medium','stepping up: high'],last=-1;
+  function f(t){var T=seq.length*2,tt=t%T,idx=Math.floor(tt/2),q=seq[idx];
+    if(idx!==last){last=idx;cw.setAttribute('x',X0+idx*W);
+      lbs.forEach(function(l,i){l.setAttribute('class',i===idx?'on':'')});lv.textContent=names[q];ev.textContent=evs[idx]}
+    var x=X0+tt/T*W*6;sw.setAttribute('x1',x);sw.setAttribute('x2',x);
     if(v.readyState<2)return;
     var w=res[q],h=Math.round(w*v.videoHeight/v.videoWidth);
     if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h}
@@ -751,46 +681,6 @@ if('ResizeObserver' in window)new ResizeObserver(rtBuild).observe(rt);
   v.addEventListener('loadeddata',function(){if(RM)still()});
 })();
 
-/* ---------- DEMO 4: four couches ---------- */
-(function(){
-  var dv=$$('#d4 .dv'),tg=$$('#d4t b');
-  solo($('#d4 video'));
-  function f(t){var k=Math.floor(t/1.3)%4;
-    dv.forEach(function(d,i){d.classList.toggle('on',i===k)});
-    tg.forEach(function(b,i){b.classList.toggle('on',i===k)})}
-  reg($('#d4'),f,0);
-})();
-
-/* ---------- DEMO 5: saves ---------- */
-(function(){
-  var box=$('#d5'),fills=$$('#d5 .svb i'),snaps=$$('#d5 .snap'),probe=$('#d5p'),own=$('#d5own'),ov=$('#d5ov'),TOT=9;
-  solo($('#d5 video'));
-  function f(t){t=t%TOT;
-    fills.forEach(function(b,i){var a=.4+i*.6,e=a+3.4,k=sg(t,a,e);b.style.width=(k*100)+'%';snaps[i].style.opacity=(k>=1&&t<8.2)?1:0});
-    ov.textContent=t<3.8?'saving...':(t<8.2?'snapshot taken':'');
-    var pk=sg(t,5.2,6.6),go=pk<.5?pk*2:1-(pk-.5)*2;
-    probe.style.opacity=(t>5.2&&t<6.6)?1:0;probe.style.transform='translateX('+(eio(go)*18)+'px)';
-    own.classList.toggle('flash',t>5.65&&t<6.4);
-    if(t>8.2){fills.forEach(function(b){b.style.width=lp(100,0,sg(t,8.2,8.8))+'%'})}}
-  reg(box,f,4.6);
-})();
-
-/* ---------- DEMO 6: queue, each turn its own game ---------- */
-(function(){
-  var qp=$$('#d6 .qp'),qv=$$('#d6 .qv'),lim=$('#d6lim'),st=$('#d6s'),names=['Mia','Dev','Kit','Sol'],last=-1,cur=0;
-  var slots=['34px','56%','72%','88%'],tops=[8,92,92,92];
-  qv.forEach(function(v,i){solo(v,function(){return cur===i})});
-  function f(t){var k=Math.floor(t/3)%4,u=(t%3)/3;
-    if(k!==last){last=k;cur=k;
-      qp.forEach(function(q,i){var s=((i-k)%4+4)%4;q.style.left=slots[s];q.style.top=tops[s]+'px';q.classList.toggle('play',s===0)});
-      qv.forEach(function(v,i){v.classList.toggle('cur',i===k);if(i===k){try{v.currentTime=0}catch(e){}}});
-      st.textContent='Now playing: '+names[k]}
-    lim.style.width=(u*100)+'%'}
-  reg($('#d6st'),f,0);
-})();
-
-
-if(RM)D.querySelectorAll('.qp').forEach(function(q){q.style.transition='none'});
 requestAnimationFrame(function(){rtBuild();still()});
 if(D.fonts&&D.fonts.ready)D.fonts.ready.then(function(){rtBuild();if(RM)still()});
 addEventListener('load',function(){rtBuild();still()});

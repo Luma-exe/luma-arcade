@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Luma Arcade: one PC, every screen</title>
+<title>Luma Arcade: play together from one gaming PC</title>
 <meta name="description" content="Luma Arcade is a free, open-source arcade you host on your own gaming PC. Friends play in any browser. Nothing to install.">
 <!--link-preview-->
 <link rel="icon" href="/stream/resources/luma-star-64.png" sizes="64x64" type="image/png">
@@ -12,7 +12,7 @@
 <meta name="theme-color" content="#090b10">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <!--
   arcade.lumaplayground.com's front page (LumaArcade web/routes/welcome.ts). Signed in already: straight on to the arcade. Otherwise Sign in, or ask for an account (sent to the admins on Discord, once per visitor).
   Gameplay clips, covers and stills come from <data dir>/landing-media/ (served
@@ -34,341 +34,353 @@
 </script>
 <style>
 :root{
-  --bg:#090b10; --win:#11151d; --win2:#171c27; --line:#222a38; --line2:#33405a;
-  --txt:#e9edf4; --mut:#8b95a7; --dim:#5b6577;
-  --b:#2f8cff; --b2:#1f6fd1; --bl:#8cc8ff; --live:#3ddc84;
-  --sans:"Schibsted Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --bg:#090b10; --bg2:#0e131d; --win:#11151d; --win2:#171c27; --line:#232b3a; --line2:#3a4764;
+  --txt:#e9edf4; --mut:#b4bece; --dim:#97a4b9;
+  --b:#2f8cff; --b2:#1f6fd1; --b3:#1a5fb8; --bl:#8cc8ff;
+  --p1:#2f8cff; --p2:#e8765c; --p3:#4cc2a1; --p4:#e2b04a; --ink:#07101f;
+  --sans:"Archivo",system-ui,-apple-system,"Segoe UI",sans-serif;
   --mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
-  --max:1344px;
+  --max:1344px; --g:48px;
 }
 *{box-sizing:border-box}
 html{background:var(--bg);scroll-padding-top:80px}
-body{margin:0;background:var(--bg);color:var(--txt);font:400 17px/1.55 var(--sans);-webkit-font-smoothing:antialiased;overflow-x:clip;
-  background-image:linear-gradient(rgba(47,140,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(47,140,255,.035) 1px,transparent 1px);background-size:32px 32px;background-position:-1px -1px}
-h1,h2,h3,p,ul,ol,figure{margin:0}
+body{margin:0;background:var(--bg);color:var(--txt);font:400 17px/1.55 var(--sans);-webkit-font-smoothing:antialiased;overflow-x:clip}
+h1,h2,h3,p,ul,ol,dl,dd,figure{margin:0}
 ul,ol{padding:0;list-style:none}
 a{color:inherit}
 canvas,video{display:block}
+canvas.v{object-fit:fill}
+img{display:block}
 ::selection{background:var(--b);color:#fff}
 :focus-visible{outline:2px solid var(--bl);outline-offset:3px}
-.wrap{max-width:var(--max);margin:0 auto;padding:0 24px}
-.skip{position:absolute;left:-999px;top:8px;background:var(--b);color:#fff;padding:6px 10px;z-index:100}
+.wrap{max-width:calc(var(--max) + var(--g)*2);margin:0 auto;padding:0 var(--g)}
+.skip{position:absolute;left:-999px;top:8px;background:var(--b2);color:#fff;padding:6px 10px;z-index:100}
 .skip:focus{left:8px}
-.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--live);flex:none;box-shadow:0 0 0 3px rgba(61,220,132,.16)}
 .v{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000}
 .v.fit{object-fit:contain}
+.disp{text-wrap:balance;font-stretch:125%;font-weight:700;letter-spacing:-.025em}
 
 /* nav */
-.nav{position:sticky;top:0;z-index:60;background:rgba(9,11,16,.94);border-bottom:1px solid var(--line)}
-.nav-in{display:flex;align-items:center;gap:18px;min-height:60px}
-.brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:18px;letter-spacing:-.015em;text-decoration:none;white-space:nowrap}
-.brand img{width:26px;height:26px;display:block}
+.nav{position:sticky;top:0;z-index:60;background:rgba(9,11,16,.96);border-bottom:1px solid var(--line)}
+.nav-in{display:flex;align-items:center;gap:18px;min-height:62px}
+.brand{display:flex;align-items:center;gap:10px;font-stretch:125%;font-weight:700;font-size:17px;letter-spacing:-.02em;text-decoration:none;white-space:nowrap}
+.brand img{width:26px;height:26px}
 .links{display:flex;gap:2px;margin-left:14px;margin-right:auto}
-.links a{padding:7px 12px;font-size:15px;color:var(--mut);text-decoration:none;border:1px solid transparent;transition:color .15s,border-color .15s,background .15s}
-.links a:hover{color:var(--txt);background:var(--win)}
-.links a[aria-current=page]{color:var(--txt);border-color:var(--line2);background:var(--win)}
-.signin{font-size:15px;color:var(--mut);text-decoration:none;padding:6px 4px;white-space:nowrap;transition:color .15s}
-.signin:hover{color:var(--txt)}
-.btn{display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 16px;border:1px solid var(--line2);border-radius:0;background:transparent;color:var(--txt);font:600 15px/1 var(--sans);text-decoration:none;cursor:pointer;white-space:nowrap;transition:background .15s,border-color .15s,transform .12s}
-.btn:hover{background:var(--win2);border-color:#4a5a7a}
-.btn:active{transform:translateY(1px)}
-.btn.p{background:var(--b);border-color:var(--b);color:#fff}
-.btn.p:hover{background:#4a9bff;border-color:#4a9bff}
-.btn.lg{height:50px;padding:0 26px;font-size:16px}
+.links a{padding:7px 12px;font-size:15px;color:var(--mut);text-decoration:none;border-bottom:2px solid transparent;transition:color .15s,border-color .15s}
+.links a:hover{color:var(--txt)}
+.links a[aria-current=page]{color:var(--txt);border-bottom-color:var(--b)}
+.signin{font-size:12.5px;color:var(--dim);text-decoration:none;padding:6px 4px;white-space:nowrap;transition:color .15s}
+.signin u{text-decoration:none;color:var(--dim)}
+.signin:hover,.signin:hover u{color:var(--txt)}.signin:hover u{text-decoration:underline;text-underline-offset:3px}
+.btn{display:inline-flex;align-items:center;justify-content:center;height:40px;padding:0 18px;border:1px solid var(--line2);border-radius:0;background:transparent;color:var(--txt);font:600 15px/1 var(--sans);text-decoration:none;cursor:pointer;white-space:nowrap;transition:background .15s,border-color .15s,transform .08s,box-shadow .08s}
+.btn:hover{background:var(--win2);border-color:#5870a0}
+/* the one filled button: a key cap that really presses */
+.btn.p{background:var(--b);border:0;color:var(--ink);font-weight:700;box-shadow:0 4px 0 var(--b3)}
+.btn.p:hover{background:#5aa5ff}
+.btn.p:active{transform:translateY(3px);box-shadow:0 1px 0 var(--b3)}
+.nav .btn.p{box-shadow:0 3px 0 var(--b3)}
+.nav .btn.p:active{transform:translateY(2px);box-shadow:0 1px 0 var(--b3)}
+.btn.lg{height:56px;padding:0 32px;font-size:17px}
+/* the download key carries a seat chip: the host takes P1 */
+.btn.dl{padding:0 22px 0 0}
+.btn.dl::before{content:"P1";align-self:stretch;display:grid;place-items:center;padding:0 12px;margin-right:16px;background:var(--ink);color:var(--b);font:800 12px/1 var(--sans);letter-spacing:.04em;transition:color .15s}
+.btn.dl:hover::before{color:#5aa5ff}
+.btn.dl.lg{padding:0 32px 0 0}
+.btn.dl.lg::before{padding:0 16px;margin-right:22px;font-size:14px}
+.cta-row{display:flex;flex-wrap:wrap;align-items:center;gap:14px 28px;margin-top:30px}
+.tl{color:var(--txt);font-weight:600;text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:6px;text-decoration-thickness:2px;transition:text-decoration-color .15s,color .15s}
+.tl:hover{color:#fff;text-decoration-color:var(--bl)}
 
-/* windows */
-.win{background:var(--win);border:1px solid var(--line);min-width:0;position:relative;transition:border-color .2s}
-.win:hover{border-color:var(--line2)}
-.tb{display:flex;align-items:center;gap:12px;height:30px;padding:0 10px;border-bottom:1px solid var(--line);font:500 11.5px/1 var(--mono);color:var(--mut);white-space:nowrap;user-select:none}
-.dots{display:flex;gap:5px;flex:none}
-.dots i{width:7px;height:7px;border:1px solid var(--line2);display:block}
-.tb .t{overflow:hidden;text-overflow:ellipsis;min-width:0}
-.tb .end{margin-left:auto;display:flex;align-items:center;gap:7px;flex:none;color:var(--bl)}
-h2{font:600 clamp(30px,3.6vw,48px)/1.05 var(--sans);letter-spacing:-.035em}
-.sec{padding-top:112px}
-.sec-h{max-width:760px;margin-bottom:34px}
-.sec-h p{color:var(--mut);margin-top:14px;max-width:34em}
+/* player seats: P1 blue, P2 red, P3 green, P4 amber. Used only where a player is meant. */
+.chip{display:inline-block;font:800 12px/1 var(--sans);letter-spacing:.02em;padding:5px 7px;background:var(--c);color:var(--ink);margin-right:6px;transition:transform .1s,box-shadow .1s}
+.chip.on{transform:translateY(-2px);box-shadow:0 0 0 2px var(--c)}
+.chip.nb{background:transparent;color:var(--mut);border:1px solid var(--line2);padding:4px 6px;font-weight:600}
+.seatrow{display:inline-flex;gap:4px;vertical-align:middle}
+.seatrow .chip{margin:0}
+.ptags{position:absolute;right:0;top:0;z-index:3;display:flex}
+.ptags b{font:800 11px/1 var(--sans);padding:7px 9px 5px;background:rgba(9,11,16,.9);color:var(--txt);border-bottom:3px solid var(--c);transition:background .12s,color .12s}
+.ptags b.on{background:var(--c);color:var(--ink)}
+.ptags b.open{color:var(--dim)}
+
+/* device frames */
 .scr{position:relative;aspect-ratio:var(--ar,4/3);background:#000;overflow:hidden}
-.scr.hit::after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 0 2px var(--bl);z-index:4;pointer-events:none}
+.scr.hit::after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 0 3px var(--c,var(--bl));z-index:4;pointer-events:none}
+.mon .bez{border:2px solid #3a4764;border-radius:8px;padding:10px;background:#05070b}
+.mon .bez .scr{border-radius:2px}
+.mon .neck{width:11%;height:clamp(14px,2.4vw,34px);margin:0 auto;background:linear-gradient(90deg,#1b2233,#323d57,#1b2233)}
+.mon .foot2{width:30%;height:9px;margin:0 auto;background:#323d57;border-radius:4px 4px 2px 2px}
+.phone{background:#05070b;border:2px solid #3a4764;border-radius:28px;padding:10px 18px;position:relative}
+.phone.s1{border-color:#2f6db8}.lid.s2{border-color:#a9604f}.tvb.s3{border-color:#6b7690}
+.phone::before{content:"";position:absolute;left:6px;top:50%;width:4px;height:30px;margin-top:-15px;background:#2a3550;border-radius:2px}
+.phone .scr{border-radius:12px;--ar:2.16;container-type:inline-size}
+.lid{border:2px solid #3a4764;border-bottom:0;border-radius:11px 11px 0 0;padding:10px 10px 8px;background:#05070b}
+.lid .scr{border-radius:2px}
+.deck{height:13px;margin:0 -4.5%;background:linear-gradient(#323d57,#1b2233);border-radius:0 0 14px 14px;position:relative}
+.deck::after{content:"";position:absolute;left:50%;top:0;width:15%;height:5px;margin-left:-7.5%;background:#0a0d14;border-radius:0 0 7px 7px}
+.tvb{border:2px solid #3a4764;border-radius:4px;padding:6px;background:#05070b}
+.feet{display:flex;justify-content:space-between;width:56%;margin:0 auto}
+.feet i{display:block;width:16%;height:9px;background:#323d57}
+.feet i:first-child{transform:skewX(-28deg);transform-origin:top}
+.feet i:last-child{transform:skewX(28deg);transform-origin:top}
+.shot{border:1px solid var(--line2);background:#000;display:block;width:100%}
+.shot.rnd{border-radius:6px}
+.tc{position:absolute;inset:0;z-index:2;pointer-events:none;background:linear-gradient(transparent 55%,rgba(5,9,18,.5))}
+.tc i{position:absolute;display:grid;place-items:center;font:800 4.6cqw/1 var(--sans);color:#e9edf4;font-style:normal}
+.tc .stk{left:4cqw;bottom:7cqw;width:23cqw;height:23cqw;border-radius:50%;background:rgba(233,237,244,.14);border:1.5px solid rgba(233,237,244,.55)}
+.tc .dpd{left:31cqw;bottom:6cqw;width:15cqw;height:15cqw}
+.tc .dpd::before,.tc .dpd::after{content:"";position:absolute;background:rgba(233,237,244,.4)}
+.tc .dpd::before{left:0;right:0;top:34%;height:32%}.tc .dpd::after{top:0;bottom:0;left:34%;width:32%}
+.tc .fb{width:11cqw;height:11cqw;border-radius:50%;border:1.5px solid var(--c);background:rgba(9,11,16,.35);transition:transform .08s,background .08s,color .08s}
+.tc .fb.y{--c:var(--p4);right:11cqw;bottom:25cqw}
+.tc .fb.x{--c:var(--p1);right:19cqw;bottom:16cqw}
+.tc .fb.b{--c:var(--p2);right:3cqw;bottom:16cqw}
+.tc .fb.a{--c:var(--p3);right:11cqw;bottom:7cqw}
+.tc .fb.down{background:var(--c);color:var(--ink);transform:scale(.86)}
+.tc .fb.a.down{--c:var(--p1);color:#fff;box-shadow:0 0 0 3px rgba(47,140,255,.45),0 0 14px var(--p1)}
 
-/* ---------- hero ---------- */
-.hero{padding-top:56px}
-.stage{position:relative;display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:0 64px;align-items:start}
-.hl{padding-top:6px}
-.hl h1{font:600 clamp(52px,min(9.2vw,132px),132px)/.9 var(--sans);letter-spacing:-.055em}
-.hl h1 span{display:block;white-space:nowrap}
-.pt{display:inline-block;width:.13em;height:.13em;background:var(--b);margin-left:.05em;vertical-align:baseline}
-.lede{font-size:19px;line-height:1.5;color:var(--mut);max-width:25em;margin-top:30px}
-.lede b{color:var(--txt);font-weight:500}
-.cta-row{display:flex;flex-wrap:wrap;gap:12px;margin-top:26px}
-.note{margin-top:16px;font-size:14px;color:var(--dim)}
-.pcwin{margin-top:0}
-.pcwin .tb .end{color:var(--live)}
-.cap{margin-top:10px;font-size:13.5px;line-height:1.3;color:var(--dim);white-space:nowrap}
-.cap b{color:var(--mut);font-weight:500;margin-right:6px}
-.devs{grid-column:1/-1;display:grid;grid-template-columns:.62fr 1.1fr 1.3fr;gap:44px;align-items:start;margin-top:84px}
-.dev{display:flex;flex-direction:column;min-width:0}
-.phone{border:1px solid var(--line2);background:var(--win);border-radius:9px;padding:6px 5px 7px;position:relative}
-.phone::before{content:"";display:block;width:26%;height:3px;background:var(--line2);margin:0 auto 5px}
-.phone .scr{--ar:.56;border-radius:4px;container-type:inline-size}
-.tc{position:absolute;left:0;right:0;bottom:0;height:36%;z-index:2;background:linear-gradient(transparent,rgba(5,9,18,.55))}
-.dp{position:absolute;left:11cqw;bottom:7cqw;width:30cqw;height:30cqw}
-.dp::before,.dp::after{content:"";position:absolute;background:rgba(233,237,244,.4)}
-.dp::before{left:0;right:0;top:35%;height:30%}.dp::after{top:0;bottom:0;left:35%;width:30%}
-.ab{position:absolute;right:9cqw;bottom:9cqw;width:20cqw;height:20cqw;border-radius:50%;border:1.5px solid rgba(233,237,244,.75);background:rgba(233,237,244,.12);color:#e9edf4;font:700 8cqw/1 var(--mono);display:grid;place-items:center;transition:transform .08s,background .08s,color .08s}
-.ab.s{right:30cqw;bottom:5cqw;width:14cqw;height:14cqw;font-size:5.4cqw;opacity:.75}
-.ab.down{background:var(--bl);border-color:var(--bl);color:#07101f;transform:scale(.88)}
-.laptop .body,.tv .body{border:1px solid var(--line)}
-.laptop .brw{display:flex;align-items:center;gap:7px;padding:5px 8px;border-bottom:1px solid var(--line);font:500 10px/1 var(--mono);color:var(--mut)}
-.laptop .brw span{flex:1;border:1px solid var(--line);padding:3px 7px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.laptop .base{height:7px;margin:0 -7%;border:1px solid var(--line2);border-top:0;background:var(--win2);border-radius:0 0 6px 6px}
-.tv .stand{width:22%;height:9px;margin:0 auto;border:1px solid var(--line2);border-top:0;background:var(--win2)}
-.tv .tvf{width:40%;height:3px;margin:0 auto;background:var(--line2)}
-.cn{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:5}
-.cn path.ln{fill:none;stroke:var(--b);stroke-width:1;opacity:.65}
-.cn path.stub{fill:none;stroke:var(--b);stroke-width:1.5}
-.cn circle{fill:var(--bg);stroke:var(--b);stroke-width:1.3}
-.cn .pk{fill:var(--b);stroke:var(--bl);stroke-width:.8}
-.cn .rk{fill:var(--bl);stroke:#fff;stroke-width:.6}
-.cn text{font:500 11px var(--mono);fill:var(--mut)}
-.legend{grid-column:1/-1;display:flex;gap:22px;margin-top:22px;font-size:13.5px;color:var(--dim)}
-.legend span{display:flex;gap:8px;align-items:center}
-.legend i{width:8px;height:8px;background:var(--b);border:1px solid var(--bl);display:block}
-.legend i.d{background:var(--bl);transform:rotate(45deg);border-color:#fff;width:7px;height:7px}
-
-/* ---------- what's on it ---------- */
-.shelf{display:grid;grid-template-columns:2fr 1px 1fr;gap:0 28px}
-.shelf .rule{background:var(--line2)}
-.shelf h3{font:600 18px/1.25 var(--sans);letter-spacing:-.01em;margin-bottom:16px}
-.cgrid{display:grid;gap:6px}
-.g4{grid-template-columns:repeat(4,1fr)}.g2{grid-template-columns:repeat(2,1fr)}
-.cv{position:relative;aspect-ratio:4/5;background:#0d1118;border:1px solid var(--line);overflow:hidden;transition:border-color .15s}
-.cv img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:center}
-.cv figcaption{position:absolute;left:0;right:0;bottom:0;padding:18px 8px 7px;font-size:13px;line-height:1.25;font-weight:500;background:linear-gradient(transparent,rgba(5,8,14,.94) 55%);transform:translateY(101%);transition:transform .18s}
-.cv:hover{border-color:var(--b)}
-.cv:hover figcaption,.cv:focus-within figcaption{transform:none}
-.shelf-note{margin-top:20px;color:var(--dim);font-size:14.5px}
-
-/* ---------- why ---------- */
-.why li{display:grid;grid-template-columns:70px minmax(0,1.05fr) minmax(0,1fr);gap:24px;align-items:baseline;padding:30px 0;border-top:1px solid var(--line2)}
-.why li:last-child{border-bottom:1px solid var(--line2)}
-.why .n{font:700 14px/1 var(--mono);color:var(--b)}
-.why h3{font:600 clamp(28px,3.2vw,44px)/1.02 var(--sans);letter-spacing:-.04em}
-.why p{color:var(--mut);font-size:17px;max-width:30em}
-
-/* stack + cta */
-.strip{display:grid;grid-template-columns:repeat(5,1fr)}
-.strip li{padding:22px 20px;border-left:1px solid var(--line);transition:background .2s}
-.strip li:first-child{border-left:0}
-.strip li:hover{background:var(--win2)}
-.strip b{display:block;font:600 19px/1.2 var(--sans);letter-spacing:-.015em}
-.strip span{display:block;margin-top:6px;font-size:14.5px;color:var(--mut)}
-.cta{display:grid;grid-template-columns:repeat(12,1fr);gap:24px;align-items:center;padding:48px 40px}
-.cta .txt{grid-column:1/8}
-.cta h2{font-size:clamp(32px,4vw,56px)}
-.cta .txt p{margin-top:16px;color:var(--mut);max-width:30em}
-.cta .acts{grid-column:8/13;display:flex;flex-direction:column;gap:12px}
-.cta .acts small{font-size:14px;color:var(--dim)}
-.foot{padding:48px 24px 56px;font-size:14px;line-height:1.7;color:var(--dim)}
+/* type: one voice, Archivo. The h1 is the widest and largest, the h2s the same family a step narrower and smaller */
+h2{font-size:clamp(25px,2.5vw,35px);line-height:1.14;font-weight:700;font-stretch:112%;letter-spacing:-.022em;text-wrap:balance}
+h3{font:650 18px/1.25 var(--sans);font-stretch:100%;letter-spacing:-.01em}
+.sec{padding-top:104px}
+.big{font-size:clamp(18px,1.55vw,21px);line-height:1.5;color:var(--mut)}
+.big b{color:var(--txt);font-weight:600}
+.lede{font-size:19px;line-height:1.5;color:var(--mut);max-width:27em;margin-top:24px}
+.lede b{color:var(--txt);font-weight:600}
+.foot{padding-top:80px;padding-bottom:56px;font-size:14px;line-height:1.75;color:var(--dim)}
+.foot p{margin:0}
 .foot a{color:var(--mut)}
+.foot .kofi{color:var(--mut);font-weight:600;text-decoration-color:#ff5e5b;text-underline-offset:3px}
+.handle{border:0;padding:0;background:none;color:var(--bl);font:inherit;font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.nomedia{background:#000}
+video.gone,img.gone{display:none!important}
+[hidden]{display:none!important}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.xs{display:none}
+:root{--live:#3ddc84}
+.win{background:var(--win);border:1px solid var(--line);min-width:0;position:relative}
+body.checking main{visibility:hidden}
 
-/* ---------- how ---------- */
-.how-h{padding-top:72px}
-.how-h h1{font:600 clamp(42px,5.4vw,78px)/.98 var(--sans);letter-spacing:-.05em;max-width:13em}
-.how-h p{margin-top:22px;color:var(--mut);font-size:19px;max-width:30em}
-.demo{padding-top:88px;display:grid;grid-template-columns:repeat(12,1fr);gap:24px;align-items:center}
-.demo .dwin{grid-column:1/9}
-.demo .dtext{grid-column:10/13}
-.demo.r .dwin{grid-column:5/13}
-.demo.r .dtext{grid-column:1/4;order:-1}
-.demo.full .dwin{grid-column:1/-1}
-.demo.full .dtext{grid-column:1/-1;order:-1;max-width:640px}
-.dtext .n{font:700 13px/1 var(--mono);color:var(--b);margin-bottom:14px}
-.dtext h2{font-size:clamp(26px,2.5vw,34px);line-height:1.1;letter-spacing:-.03em}
-.dtext p{margin-top:14px;color:var(--mut);font-size:16px}
-.dbody{padding:26px 28px}
-.dbody.flush{padding:0}
-.read{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:14px;color:var(--mut);margin-top:22px;padding-top:14px;border-top:1px solid var(--line)}
-.read b{font:700 22px/1 var(--mono);color:var(--bl);min-width:4.6em;text-align:right}
-.read em{font-style:normal;color:var(--dim)}
-.lab{font-size:13.5px;line-height:1.3;color:var(--mut)}
+/* hero */
+.hero{padding-top:64px}
+.stage{position:relative;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 72px;align-items:center}
+.hl h1{font-size:clamp(32px,3.8vw,56px);line-height:1.03;max-width:10.5em}
+.note{margin-top:14px;font-size:14.5px;color:var(--dim);max-width:34em}
+.friend{margin-top:20px;font-size:17px;line-height:1.45;color:var(--mut);max-width:36em}
+.friend b{color:var(--txt);font-weight:600}
+.proof{margin-top:16px;font-size:15.5px;line-height:1.5;color:var(--mut);max-width:30em}
+.pcwrap{min-width:0}
+.pcwrap .scr{--ar:16/9}
+.cap{margin-top:14px;font-size:14.5px;line-height:1.35;color:var(--mut)}
+.cap em{font-style:normal;color:var(--dim)}
+.devs{grid-column:1/-1;display:grid;grid-template-columns:.92fr 1.08fr 1.2fr;gap:56px;align-items:start;margin-top:104px}
+.dev{display:flex;flex-direction:column;min-width:0}
+.cn{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:5}
+.cn path.ln{fill:none;stroke-width:2;opacity:.75}
+.cn .pls{fill:none;stroke-width:4;opacity:0}
+.cn .pls.dn{stroke-width:4.5}
+.cn .pls.up{stroke:var(--p1);stroke-width:5;filter:drop-shadow(0 0 6px var(--p1))}
+.legend{grid-column:1/-1;margin-top:30px;font-size:14.5px;color:var(--mut)}
+/* wide screens: the headline runs across the top, and the diagram is the hero */
+@media (min-width:1101px){
+  .hero{padding-top:52px}
+  .stage{grid-template-columns:minmax(0,1fr) minmax(0,1fr);row-gap:0}
+  .hl{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);column-gap:72px;align-items:end}
+  .hl h1{grid-column:1;grid-row:1/span 5;font-size:clamp(48px,5vw,76px);max-width:none;align-self:center}
+  .hl>*:not(h1){grid-column:2}
+  .hl .lede{margin-top:0}
+  .pcwrap{grid-column:1/-1;justify-self:center;width:min(640px,100%);margin-top:48px}
+  .devs{margin-top:72px}
+}
+.legend b{color:var(--txt);font-weight:600}
+.now{margin-top:22px;border-left:3px solid var(--p3);padding:2px 0 2px 14px;max-width:30em}
+.now ul{display:grid;gap:4px}
+.now li{font-size:14.5px;color:var(--mut)}
+/* Luma's own stats pill, as the real app draws it, over the PC screen */
+.pill{position:absolute;left:12px;top:12px;z-index:3;display:flex;align-items:center;gap:0;padding:0 4px;height:28px;border-radius:14px;background:rgba(12,14,20,.82);color:#e9edf4;font:500 12.5px/1 var(--sans);font-variant-numeric:tabular-nums;white-space:nowrap;pointer-events:none}
+.pillcap{position:absolute;left:12px;top:46px;z-index:3;padding:5px 9px;background:rgba(12,14,20,.82);color:#e9edf4;font:500 12px/1.2 var(--sans);pointer-events:none}
+.pill span{padding:0 9px;border-left:1px solid rgba(233,237,244,.22)}
+.pill span:first-child{border-left:0;color:#3ddc84;font-weight:700;padding-left:8px}
+.pill span:first-child::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:#3ddc84;margin-right:7px}
 
-/* d1 */
-.rt{position:relative;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0 4px}
-.rt svg{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:2}
-.rt .ln0{stroke:var(--line2);stroke-width:1;fill:none}
-.rt .lit{stroke:var(--b);stroke-width:1.5;fill:none}
-.rt .lit.ret{stroke:var(--bl)}
-.nd{position:relative;z-index:1;background:var(--win);border:1px solid var(--line2);text-align:center;transition:border-color .2s,background .2s}
-.nd.sm{padding:12px 10px;min-width:0;flex:1 1 0;max-width:140px}
-.nd.sm b{display:block;font-size:14px;font-weight:600;line-height:1.2}
-.nd.sm small{display:block;margin-top:4px;font-size:12px;line-height:1.3;color:var(--dim)}
-.nd.on{border-color:var(--b);background:#0f1e36}
-.nd .nl{padding:6px 8px;font:500 10.5px/1 var(--mono);color:var(--mut);text-align:left}
-.nd.big{width:216px;flex:none}
-.nd.ph{width:100px;flex:none;border-radius:8px;overflow:hidden}
-.nd.ph .scr{--ar:.56;container-type:inline-size}
-.nd.ph .nl{text-align:center}
-.pdot{position:absolute;z-index:4;width:10px;height:10px;margin:-5px 0 0 -5px;background:var(--b);border:1px solid var(--bl);opacity:0}
-.pdot.r{background:var(--bl);border-color:#fff;transform:rotate(45deg);width:9px;height:9px}
-/* d2 */
-.play2{position:relative;aspect-ratio:3/2;background:#000;overflow:hidden}
-.play2 .v{transition:filter .5s}
-.play2.wait .v{filter:brightness(.28) saturate(.4)}
-.ovp{position:absolute;left:14px;top:14px;bottom:14px;width:min(46%,340px);background:rgba(9,11,16,.9);border:1px solid var(--line2);padding:8px;display:flex;flex-direction:column;justify-content:center;z-index:3}
-.steps{display:grid;gap:3px}
-.steps li{display:grid;grid-template-columns:18px 1fr;gap:12px;padding:8px 10px;border:1px solid transparent;align-items:start;transition:border-color .2s,background .2s}
-.steps .chk{width:16px;height:16px;border:1px solid var(--line2);margin-top:2px;position:relative}
-.steps b{font-size:15.5px;font-weight:600;line-height:1.3}
-.steps span{display:none;font-size:13px;line-height:1.4;color:var(--mut);margin-top:2px}
-.steps .pg{display:none;height:2px;background:var(--line);margin-top:8px}.steps .pg u{display:block;height:100%;width:0;background:var(--b)}
-.steps li.act{border-color:var(--line2);background:var(--win2)}
-.steps li.act span,.steps li.act .pg{display:block}
-.steps li.act .chk{border-color:var(--b);background:rgba(47,140,255,.25)}
-.steps li.done{color:var(--mut)}
-.steps li.done .chk{background:var(--b);border-color:var(--b)}
-.steps li.done .chk::after{content:"";position:absolute;left:4px;top:0;width:5px;height:9px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
-/* d3 */
-.d3{display:grid;grid-template-columns:1.3fr 1fr;gap:26px;align-items:center}
-.d3-pic{position:relative;border:1px solid var(--line2);aspect-ratio:960/538;background:#000}
-.d3-pic video,.d3-pic canvas{position:absolute;inset:0;width:100%;height:100%}
-.d3-pic canvas{image-rendering:pixelated}
-.lv{position:absolute;right:0;top:0;font:700 11px/1 var(--mono);color:#fff;background:var(--b);padding:6px 8px;letter-spacing:.04em;z-index:3}
-.bars{position:relative;height:104px;display:grid;grid-template-columns:repeat(6,1fr);gap:7px;align-items:end;border-bottom:1px solid var(--line2);margin-top:12px}
-.bars i{display:block;position:relative;height:100%;background:repeating-linear-gradient(0deg,var(--line) 0 1px,transparent 1px 26px)}
-.bars u{position:absolute;left:0;right:0;bottom:0;background:var(--b);height:0;transition:height .3s}
-.sweep{position:absolute;top:-4px;bottom:0;width:1px;background:var(--bl)}
-.segs{display:grid;grid-template-columns:repeat(3,1fr);margin-top:14px;border:1px solid var(--line2);font-size:13.5px;line-height:1;color:var(--mut)}
-.segs span{padding:9px 4px;text-align:center;border-right:1px solid var(--line2)}.segs span:last-child{border-right:0}
-.segs span.on{background:var(--b);color:#fff}
-.evt{margin-top:12px;font-size:14px;line-height:1.4;min-height:1.4em;color:var(--bl)}
-/* d4 */
-.d4{display:grid;grid-template-columns:1fr 2.4fr 1fr;gap:18px;align-items:center}
-.dvs{display:grid;gap:22px;justify-items:center}
-.dv{position:relative;display:grid;justify-items:center;gap:8px;font-size:13px;line-height:1;color:var(--dim)}
-.dv .sh{border:1px solid var(--line2);background:var(--win);position:relative;transition:box-shadow .12s,border-color .12s}
-.dv .sh::before{content:"";position:absolute;inset:4px;background:#0a1226}
-.dv.on .sh{border-color:var(--c);box-shadow:0 0 0 1px var(--c)}
-.dv.on{color:var(--txt)}
-.dv.phn .sh{width:30px;height:54px;border-radius:5px}
-.dv.tab .sh{width:64px;height:46px;border-radius:3px}
-.dv.lap .sh{width:68px;height:44px;border-radius:2px 2px 0 0}
-.dv.lap .sh::after{content:"";position:absolute;left:-9px;right:-9px;bottom:-6px;height:5px;border:1px solid var(--line2);background:var(--win2)}
-.dv.gp .sh{width:70px;height:40px;border-radius:14px}.dv.gp .sh::before{inset:0;background:radial-gradient(circle at 78% 36%,var(--mut) 0 3px,transparent 3.5px),radial-gradient(circle at 88% 56%,var(--mut) 0 3px,transparent 3.5px),linear-gradient(var(--mut),var(--mut)) 20% 50%/12px 3px no-repeat,linear-gradient(var(--mut),var(--mut)) 20% 50%/3px 12px no-repeat}
-.bdg{position:absolute;left:-8px;top:-8px;z-index:2;font:700 10px/1 var(--mono);padding:3px 5px;background:var(--c);color:var(--fg,#fff)}
-.d4-scr{border:1px solid var(--line2);aspect-ratio:4/3;position:relative;background:#000}
-.ptags{position:absolute;left:0;top:0;z-index:3;display:flex}
-.ptags b{font:700 11px/1 var(--mono);padding:6px 8px;background:rgba(9,11,16,.9);color:var(--mut);border-right:1px solid var(--line2);border-bottom:1px solid var(--line2);transition:background .12s,color .12s}
-.ptags b.on{background:var(--c);color:var(--fg,#fff)}
-/* d5 */
-.d5{display:grid;grid-template-columns:1.2fr 1.1fr .8fr;gap:22px;align-items:stretch}
-.d5-clip{border:1px solid var(--line2);position:relative}
-.d5-clip .scr{height:100%;aspect-ratio:4/3}
-.d5-ov{position:absolute;left:0;right:0;bottom:0;z-index:3;background:rgba(9,11,16,.9);border-top:1px solid var(--line2);padding:8px 10px;font-size:13px;display:flex;justify-content:space-between;gap:10px;color:var(--txt)}
-.d5-ov b{font:600 12px/1.4 var(--mono);color:var(--bl);font-weight:500}
-.acct{border:1px solid var(--line2);padding:16px 16px 18px;position:relative;background:var(--win2)}
-.srow{display:grid;grid-template-columns:62px 1fr 74px;gap:12px;align-items:center;margin-top:14px;position:relative}
-.srow .who{font:500 11.5px var(--mono);color:var(--mut)}
-.svb{height:10px;border:1px solid var(--line2);padding:1px}.svb i{display:block;height:100%;width:0;background:var(--b)}
-.snap{font-size:12.5px;font-weight:600;color:var(--live);opacity:0;display:flex;gap:6px;align-items:center}
-.snap::before{content:"";width:6px;height:6px;background:var(--live)}
-.probe{position:absolute;left:100%;top:50%;width:10px;height:10px;margin:-5px 0 0 0;background:var(--bl);border:1px solid #fff;opacity:0}
-.owner{border:1px dashed var(--line2);padding:16px;background:repeating-linear-gradient(135deg,transparent 0 6px,rgba(139,149,167,.07) 6px 7px);display:flex;flex-direction:column;gap:8px}
-.owner li{font:400 12px/1.4 var(--mono);color:var(--dim);text-decoration:line-through}
-.owner .deny{margin-top:auto;font-size:13px;line-height:1.2;font-weight:600;display:flex;gap:8px;align-items:center;color:var(--mut);transition:color .1s}
-.owner.flash{border-color:var(--bl)}.owner.flash .deny{color:var(--bl)}
-/* d6 */
-.q-stage{position:relative;height:236px}
-.q-play{position:absolute;left:0;top:0;width:40%;height:100%;border:1px solid var(--b);background:#000;overflow:hidden}
-.q-play .v{opacity:0;transition:opacity .3s}.q-play .v.cur{opacity:1}
-.q-bar{position:absolute;left:0;right:0;bottom:0;z-index:3;background:rgba(9,11,16,.9);border-top:1px solid var(--line2);padding:8px 10px 10px;font-size:13px;line-height:1.2}
-.lim{display:block;height:6px;border:1px solid var(--line2);margin-top:7px}.lim u{display:block;height:100%;width:0;background:var(--b)}
-.slot{position:absolute;top:92px;width:52px;height:52px;margin-left:-26px;border:1px dashed var(--line2);display:grid;place-items:center;font:500 12px var(--mono);color:var(--dim)}
-.qp{position:absolute;top:92px;width:52px;height:52px;margin-left:-26px;border:1px solid var(--line2);display:grid;place-items:center;font:700 16px/1 var(--mono);background:var(--c);color:var(--fg,#fff);z-index:4;transition:left .7s cubic-bezier(.6,0,.2,1),top .7s cubic-bezier(.6,0,.2,1)}
-.qp small{position:absolute;top:60px;left:50%;transform:translateX(-50%);font:500 12px/1 var(--sans);color:var(--mut);white-space:nowrap}
-.qp.play small{display:none}
+/* proof: plain prose */
+.proof2{padding-top:104px}
+.pf{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 72px;align-items:start}
+.pf-n{grid-column:1/-1}
+.pf-s{font-size:clamp(22px,2.3vw,31px);line-height:1.34;font-weight:420;color:var(--mut);text-wrap:pretty}
+.pf-s b{color:var(--txt);font-weight:700}
 
-/* features */
-.feat{display:grid;grid-template-columns:repeat(12,1fr);gap:24px;align-items:start}
-.f-list{grid-column:1/9}.f-sec{grid-column:9/13}
-.fl{display:grid;grid-template-columns:1fr 1fr;column-gap:30px;padding:10px 24px 14px}
-.fl li{padding:9px 0 9px 18px;border-bottom:1px solid var(--line);font-size:15px;line-height:1.35;position:relative}
-.fl li::before,.sl li::before{content:"";position:absolute;left:0;top:16px;width:7px;height:7px;background:var(--b)}
-.fl b,.sl b{font-weight:600}
-.fl span{color:var(--mut)}
-.sl{padding:10px 22px 16px}
-.sl li{padding:11px 0 11px 18px;border-bottom:1px solid var(--line);font-size:15px;line-height:1.4;position:relative;color:#c4cbd8}
-.sl li:last-child,.fl li:nth-last-child(-n+2){border-bottom:0}
+.pf-n{margin-top:30px;font-size:15px;color:var(--dim);max-width:46em}
 
-/* ---------- responsive ---------- */
+/* the gameplay wall: full width, dense, one moving clip */
+.wall{padding-top:104px}
+.wall-h{padding-bottom:40px}
+.wall-h h2{font-size:clamp(30px,3.7vw,54px);line-height:1.06;font-stretch:125%;letter-spacing:-.025em;max-width:15em}
+.wall-h .big{margin-top:18px;max-width:36em}
+.wall-g{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3px;grid-auto-flow:dense;max-width:1920px;margin:0 auto}
+.wt{position:relative;aspect-ratio:4/3;overflow:hidden;background:#000}
+.wt img,.wt video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.wt.big{grid-column:3/5;grid-row:1/3;aspect-ratio:auto}
+.wt figcaption{position:absolute;left:0;right:0;bottom:0;max-width:none;padding:28px 12px 10px;font-size:13px;line-height:1.25;color:#fff;background:linear-gradient(transparent,rgba(5,8,14,.94) 65%)}
+.wt figcaption b{font-weight:600}.wt figcaption span{color:#b9c5d9}
+.wt.big figcaption{font-size:15px;padding:40px 18px 14px}
+.wall-n{margin-top:22px;font-size:15px;color:var(--dim);max-width:46em}
+
+/* what your friends see */
+.band{margin-top:96px;background:var(--bg2);border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:80px 0 88px}
+.fr{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:36px 56px;align-items:start}
+.fr-head{grid-column:1/-1;grid-row:1}
+.fr-head .big{margin-top:16px;max-width:26em}
+.fr-m{grid-column:1;grid-row:2}
+.f-pho{grid-column:2;grid-row:2;max-width:560px;align-self:center}
+.pv{position:relative;aspect-ratio:var(--ar,16/9);background:#000;border:1px solid var(--line2);overflow:hidden}
+figcaption{font-size:14.5px;line-height:1.4;color:var(--mut);max-width:34em}
+figcaption b{color:var(--txt);font-weight:600}
+.pv+figcaption,.f-pho figcaption{margin-top:12px}
+.f-pho .scr{position:relative}
+.swap img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.swap img+img{animation:swp 9s ease-in-out infinite}
+@keyframes swp{0%,38%{opacity:0}50%,88%{opacity:1}100%{opacity:0}}
+
+/* comparison: a real table, Luma first so it is always on screen */
+.cmp h2{max-width:22em}
+.tw{margin-top:36px;overflow-x:auto;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
+.tw:focus-visible{outline-offset:-2px}
+.vs{width:100%;min-width:900px;border-collapse:collapse;table-layout:fixed}
+.vs th,.vs td{text-align:left;vertical-align:top;padding:18px 22px 18px 0;border-bottom:1px solid var(--line);font-size:16px;line-height:1.45;color:var(--mut);font-weight:400}
+.vs thead td{width:170px;border-bottom:1px solid var(--line2)}
+.vs thead th{font-size:15px;font-weight:600;color:var(--txt);padding-top:0;padding-bottom:14px;border-bottom:1px solid var(--line2);scroll-snap-align:start}
+.vs tbody th{font-weight:600;color:var(--txt);font-size:15px;width:170px;position:sticky;left:0;background:var(--bg);z-index:2;padding-right:16px}
+.vs .us+td,.vs .us+th{padding-left:22px}
+.vs .us{background:var(--bg2);color:var(--txt);padding-left:22px;border-left:3px solid var(--p1)}
+.vs thead .us{color:#fff;border-bottom-color:var(--p1)}
+.vs td.us b{font-weight:600}
+.vs td em{display:block;font-style:normal;font-size:14px;color:var(--dim);margin-top:4px}
+.cards{display:none}
+.cards details{margin-top:12px}
+.cards summary{cursor:pointer;padding:14px 0;font-weight:600;font-size:16px;color:var(--txt);text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:6px;text-decoration-thickness:2px}
+.cards summary:hover{text-decoration-color:var(--bl)}
+.cards details[open] summary{margin-bottom:6px}
+.cards details .vc+.vc{margin-top:12px}
+.vc{border:1px solid var(--line);padding:18px 18px 6px}
+.vc.us{border-color:var(--line2);border-left:3px solid var(--p1);background:var(--bg2)}
+.vc h3{font-size:18px;margin-bottom:6px}
+.vc dl div{padding:11px 0;border-top:1px solid var(--line)}
+.vc dt{font-size:12.5px;color:var(--dim);margin-bottom:2px}
+.vc dd{font-size:15.5px;line-height:1.45;color:var(--mut)}
+.vc.us dd{color:var(--txt)}.vc dd b{font-weight:600}
+.cmp-n{margin-top:26px;max-width:46em;color:var(--mut);font-size:16.5px}
+.cmp-n b{color:var(--txt);font-weight:600}
+
+/* the one ending: three plain steps on a wire */
+/* proof: one number that matters, the rest as a ledger */
+.pf2{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:28px 72px;align-items:end}
+.pf-say{font-size:clamp(26px,2.9vw,40px);line-height:1.3;font-weight:450;color:var(--mut);text-wrap:pretty}
+.pf-say b{color:var(--txt);font-weight:700}
+.pf-k{display:inline-block;font-stretch:125%;font-weight:700;letter-spacing:-.04em;font-size:1.9em;line-height:.9;color:var(--txt);vertical-align:-.12em;padding:0 .08em;border-bottom:4px solid var(--p1)}
+.pf-k small{font-size:.28em;letter-spacing:0;margin-left:.15em;color:var(--p1)}
+.pf-l{margin-top:18px;font-size:19px;color:var(--mut);max-width:30em}
+.pf-l b{color:var(--txt)}
+.pf-t{width:100%;border-collapse:collapse;font-size:16px}
+.pf-t caption{text-align:left;font-weight:700;color:var(--txt);padding-bottom:10px;font-size:15px}
+.pf-t th,.pf-t td{text-align:left;padding:9px 0;border-top:1px solid var(--line)}
+.pf-t th{font-weight:500;color:var(--dim);width:48%}
+.pf-t td{color:var(--txt);font-variant-numeric:tabular-nums}
+.pf-t td span{color:var(--dim)}
+.pf-safe{grid-column:1/-1;padding:16px 0 0;border-top:1px solid var(--line);font-size:17px;color:var(--mut)}
+.pf-safe b{color:var(--txt)}
+.pf-safe a{color:var(--bl)}
+.pf2 .pf-n{grid-column:1/-1;margin-top:0;font-size:14px;color:var(--dim);max-width:52em}
+/* the ending: the product, then the three steps */
+.fin-m{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px 56px;margin-top:36px;align-items:center}
+.fin-v .pv{border:1px solid var(--line2)}
+.fin-v figcaption{margin-top:10px;font-size:14px;color:var(--dim)}
+.fin-v figcaption b{color:var(--mut)}
+.flow2{counter-reset:f}
+.flow2 li{counter-increment:f;position:relative;padding:0 0 22px 46px;color:var(--mut);font-size:16.5px}
+.flow2 li::before{content:counter(f);position:absolute;left:0;top:-2px;width:30px;height:30px;display:grid;place-items:center;border:1px solid var(--line2);color:var(--txt);font:600 14px/1 var(--mono)}
+.flow2 li b{color:var(--txt)}
+.flow2 a{color:var(--bl)}
+@media (max-width:900px){.pf2,.fin-m{grid-template-columns:1fr}}
+
+/* every numbered thing is a seat chip, in player order: P1 blue, P2 coral, P3 green, P4 amber */
+.seq>:nth-child(4n+1){--k:var(--p1)}.seq>:nth-child(4n+2){--k:var(--p2)}.seq>:nth-child(4n+3){--k:var(--p3)}.seq>:nth-child(4n+4){--k:var(--p4)}
+.url{font:500 11px/1 var(--mono);color:var(--mut);background:#0b0f17;border:1px solid var(--line);padding:5px 8px;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-ligatures:none}
+.url::before{content:"\1F512\FE0E";margin-right:6px;font-size:9px;opacity:.7}
+.final{padding-top:104px}
+.fin{border-top:1px solid var(--line2);padding:56px 0 0}
+.final h2{max-width:24em}
+.flow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 56px;margin-top:44px;position:relative}
+.flow::before{content:"";position:absolute;left:0;right:0;top:6px;height:2px;background:var(--line2)}
+.flow li{position:relative;padding-top:36px}
+.flow li::before{content:"";position:absolute;left:0;top:0;width:14px;height:14px;background:var(--c)}
+.flow b{display:block;font-size:23px;font-weight:650;font-stretch:108%;line-height:1.2;letter-spacing:-.015em}
+.flow p{margin-top:9px;font-size:16.5px;color:var(--mut);max-width:23em}
+.fin .cta-row{margin-top:44px}
+.fin .note{margin-top:16px}
+
 @media (max-width:1100px){
-  .strip{grid-template-columns:repeat(3,1fr)}.strip li{border-top:1px solid var(--line)}.strip li:nth-child(3n+1){border-left:0}.strip li:nth-child(-n+3){border-top:0}
-  .demo .dwin,.demo:not(.r) .dwin{grid-column:1/8}.demo .dtext{grid-column:8/13}.demo.r .dtext{grid-column:1/6}.demo.r .dwin{grid-column:6/13}
-  .f-list,.f-sec{grid-column:1/13}
-  .stage{gap:0 40px}.devs{gap:24px}
-  .d5{grid-template-columns:1fr 1fr}.d5 .owner{grid-column:1/-1}
+  :root{--g:32px}
+  .stage{gap:0 40px}.devs{gap:28px}
+  .fr{gap:36px 44px}
 }
 @media (max-width:900px){
+  .sec{padding-top:80px}.final{padding-top:80px}
   .stage{grid-template-columns:1fr}
-  .hl h1{font-size:clamp(46px,13.2vw,110px)}
-  .pcwin{margin-top:44px;max-width:560px}
-  .devs{margin-top:72px;gap:10px;grid-template-columns:.62fr 1.15fr 1.3fr}
-  .why li{grid-template-columns:44px 1fr;gap:10px 14px}.why p{grid-column:2}
-  .shelf{grid-template-columns:1fr;gap:26px 0}.shelf .rule{height:1px;width:100%}
-  .cta .txt,.cta .acts{grid-column:1/-1}.cta{padding:30px 22px}
-  .demo,.demo.r{padding-top:60px;gap:20px}
-  .demo .dwin,.demo:not(.r) .dwin,.demo.r .dwin,.demo .dtext,.demo.r .dtext{grid-column:1/-1}
-  .demo .dtext,.demo.r .dtext{order:-1}
-  .sec{padding-top:76px}
+  .pcwrap{margin-top:48px;max-width:560px}
+  .devs{margin-top:96px;gap:18px;grid-template-columns:.95fr 1.05fr 1.15fr}
+  .band{margin-top:80px;padding:60px 0 64px}
+  .fr{grid-template-columns:1fr;gap:30px 0}
+  .fr-head,.fr-m,.f-pho{grid-column:1;grid-row:auto}
+  .wall-g{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .wt.big{grid-column:1/3;grid-row:auto/span 2}
+  .wall,.proof2{padding-top:80px}
+  .pf{grid-template-columns:1fr;gap:22px 0}
+}
+@media (max-width:760px){
+  .devs{grid-template-columns:1fr;margin-top:84px}
+  #dLap,#dTv{display:none}
+  .f-pho .phone{max-width:420px}
+  .flow{grid-template-columns:1fr;gap:30px 0}.flow::before{display:none}.flow li{padding-top:28px}
 }
 @media (max-width:700px){
-  .wrap{padding-left:16px;padding-right:16px}
-  .nav-in{flex-wrap:wrap;gap:6px 12px;padding-top:10px;padding-bottom:8px;min-height:0}
-  .brand{order:1;margin-right:auto}.signin{order:2}.nav .btn{order:3;height:34px;padding:0 12px;font-size:14px}.links{order:4;flex-basis:100%;margin:0 -12px}
-  .hero{padding-top:34px}
-  .lede{font-size:17px;margin-top:22px}
-  .strip{grid-template-columns:1fr}.strip li,.strip li:nth-child(n){border-left:0;border-top:1px solid var(--line)}.strip li:first-child{border-top:0}
-  .fl{grid-template-columns:1fr}.fl li:nth-last-child(2){border-bottom:1px solid var(--line)}
-  .dbody{padding:18px 14px}
-  .read{flex-direction:column;gap:8px;align-items:flex-start}.read b{text-align:left}
-  .d3,.d5{grid-template-columns:1fr}
-  .d4{grid-template-columns:repeat(4,1fr);gap:14px 4px}.dvs{display:contents}.d4-scr{grid-column:1/-1;order:-1}
-  .srow{grid-template-columns:50px 1fr 62px;gap:8px}
-  .q-stage{height:220px}.q-play{width:44%}.qp,.slot{width:42px;height:42px;margin-left:-21px}.slot,.qp{top:96px}.qp small{top:48px}
-  .steps li{padding:6px 6px;gap:8px}.steps b{font-size:14px}
-  .play2{aspect-ratio:auto;height:430px}.ovp{left:8px;top:8px;bottom:8px;width:72%;padding:4px}
-  .devs{gap:8px;margin-top:64px}
-  .cap{font-size:11.5px;white-space:normal;margin-top:7px}.cap b{display:block}
-  .tb{font-size:10px;gap:8px;padding:0 7px}.tb .end span{display:none}
-  .laptop .brw{padding:3px 5px;font-size:7px}.laptop .brw .nb{display:none}
-  .phone{border-radius:7px;padding:4px 3px 5px}.phone::before{height:2px;margin-bottom:3px}.phone .scr{border-radius:3px}
-  .legend{flex-wrap:wrap;gap:8px 18px}
-  .rt{flex-direction:column;gap:30px}
-  .nd.sm{max-width:none;width:100%;flex:none;padding:10px 8px}
-  .nd.big{width:min(216px,70%)}
-  .cn text{display:none}
-  .cgrid{gap:4px}
+  :root{--g:20px}
+  .nav-in{flex-wrap:wrap;gap:4px 12px;padding-top:10px;padding-bottom:6px;min-height:0}
+  .nav-in::before{content:"";order:3;flex-basis:100%;height:0}
+  .brand{order:1;margin-right:auto}.nav .btn{order:2;height:34px;padding:0 12px;font-size:14px;margin-bottom:4px}.links{order:4;flex:1 1 auto;margin:0 0 0 -12px}.signin{order:5;font-size:12.5px;padding:6px 0}
+  .xs{display:inline}.lg-only{display:none}
+  .hero{padding-top:30px}
+  .hl h1{font-size:clamp(30px,8.6vw,40px)}
+  .lede{font-size:16.5px;margin-top:16px}
+  .cta-row{margin-top:22px}
+  .cta-row .btn.lg{flex:1 1 100%;justify-content:flex-start}
+  .btn.dl.lg::before{margin-right:18px}
+  .friend{font-size:16px;margin-top:18px}
+  .proof{font-size:14px;margin-top:14px}
+  .pillcap{top:40px;font-size:11px;padding:4px 7px}
+  .wall-g{grid-template-columns:repeat(2,minmax(0,1fr));gap:2px}
+  .wt.big{grid-column:1/-1;grid-row:auto;aspect-ratio:10/7}
+  .wt:last-child{display:none}
+  .wt figcaption{font-size:12px;padding:22px 8px 7px}
+  .pcwrap{margin-top:34px}
+  .pcwrap .scr{--ar:16/10}
+  .phone{padding:9px 14px;border-radius:24px}
+  .abody{padding:18px 16px 22px}
+  .sec{padding-top:72px}.final{padding-top:72px}
+  .fin{padding:40px 0 0}
+  .tw{display:none}.cards{display:grid;gap:12px;margin-top:28px}
 }
 @media (prefers-reduced-motion:reduce){
   html{scroll-behavior:auto}
   *,*::before,*::after{transition:none!important;animation:none!important}
 }
-/* ---------- real pages: missing media, account panel ---------- */
-.nomedia{background:#000}
-video.gone,img.gone{display:none!important}
+/* ---------- account panel (opened from the footer) ---------- */
 body.checking main{visibility:hidden}
-[hidden]{display:none!important}
-.hl .priv{margin-top:20px;max-width:30em}
-.notice{border:1px dashed var(--line2);padding:14px 16px;font-size:15px;line-height:1.5;color:var(--mut);background:repeating-linear-gradient(135deg,transparent 0 6px,rgba(139,149,167,.06) 6px 7px)}
+.notice{border:1px solid var(--line2);padding:14px 16px;font-size:15px;line-height:1.5;color:var(--mut)}
 .notice strong{display:block;color:var(--txt);font-weight:600;margin-bottom:3px}
 .notice p{margin:0 0 8px}
 .notice a{color:var(--bl);font-weight:600}
-.now{margin-top:22px;border:1px solid var(--line);background:var(--win);padding:10px 14px;max-width:30em}
-.now ul{display:grid;gap:6px}
-.now li{display:flex;align-items:center;gap:10px;font-size:14.5px;color:var(--mut)}
-.now li::before{content:"";flex:none;width:7px;height:7px;border-radius:50%;background:var(--live);box-shadow:0 0 0 3px rgba(61,220,132,.16)}
 #access .win{max-width:640px}
-.abody{padding:22px 24px 26px}
+.abody{padding:24px 24px 26px}
 .abody h2{font-size:clamp(24px,2.4vw,32px);line-height:1.1;letter-spacing:-.03em}
 .abody .lead{margin-top:10px;color:var(--mut);font-size:16px}
 .abody form label{display:grid;gap:6px;margin-top:16px;font-size:14.5px;font-weight:600}
@@ -377,7 +389,7 @@ body.checking main{visibility:hidden}
 .abody textarea{min-height:96px;resize:vertical}
 .abody input::placeholder,.abody textarea::placeholder{color:var(--dim)}
 .abody input:focus,.abody textarea:focus{outline:none;border-color:var(--bl);box-shadow:0 0 0 1px var(--bl)}
-.count{justify-self:end;font:400 12px var(--mono);color:var(--dim)}
+.count{justify-self:end;font:400 12px var(--sans);color:var(--dim)}
 .status{margin-top:14px;font-size:14.5px;line-height:1.45}
 .status.bad{color:#ff8f86}
 .row{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap}
@@ -387,10 +399,6 @@ body.checking main{visibility:hidden}
 .done i{flex:none;width:8px;height:8px;margin-top:7px;background:var(--live)}
 .abody .acts{margin-top:16px;display:flex;gap:10px}
 .abody .notice{margin-top:16px}
-.handle{border:0;padding:0;background:none;color:var(--bl);font:inherit;font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
-.foot .kofi{color:var(--mut);font-weight:600;text-decoration-color:#ff5e5b;text-underline-offset:3px}
-@media (max-width:700px){.abody{padding:18px 16px 22px}.cta-row .btn.lg{flex:1 1 auto}}
-
 </style>
 </head>
 <body class="checking">
@@ -402,9 +410,10 @@ body.checking main{visibility:hidden}
     <nav class="links" aria-label="Pages">
       <a aria-current="page" href="/">Home</a>
       <a href="/howitworks/">How it works</a>
+      <a href="/docs/">Setup guide</a>
     </nav>
-    <a class="signin" href="/stream/">Sign in</a>
-    <a class="btn p" href="https://github.com/Luma-exe/luma-arcade">Set up your own</a>
+    <a class="signin" href="/stream/">Have an account? <u>Sign in</u></a>
+    <a class="btn p" href="https://github.com/Luma-exe/luma-arcade/releases/latest/download/LumaArcadeSetup.exe">Download for Windows</a>
   </div>
 </header>
 
@@ -412,131 +421,170 @@ body.checking main{visibility:hidden}
 
 <!-- ================================ HOME ================================ -->
   <div class="wrap hero">
-    <div class="stage" id="stage" role="group" aria-label="Systems diagram: a game runs on your PC. Blue lines carry the video out to a phone with touch controls, a laptop and a TV, all showing the same Mario Kart 64 footage in sync.">
+    <div class="stage" id="stage" role="group" aria-label="Diagram: a Rocket League match from Steam runs on your PC. When player 1 presses A on the phone, the press travels up the wire to the PC, and the frame travels back down to the phone, a laptop (player 2) and a TV that is only watching.">
 
       <div class="hl">
-        <h1><span>One PC<i class="pt" id="hdot"></i></span><span>Every screen<i class="pt"></i></span></h1>
-        <p class="lede">Luma Arcade runs on <b>your own gaming PC</b>. Friends open a link on a phone, laptop or TV and play from their own couch. Nothing to install.</p>
+        <h1 class="disp">Your PC runs the game. Your friends open a link.</h1>
+        <p class="lede">Luma Arcade turns a <b>gaming PC you already own</b> into an arcade for up to four players at once. They play from a phone, laptop or TV with nothing to install, and it <b>works over the internet too, no port forwarding</b>.</p>
         <div class="cta-row">
-          <a class="btn p lg" href="https://github.com/Luma-exe/luma-arcade">Set up your own</a>
-          <a class="btn lg" href="/stream/">Sign in</a>
-          <button class="btn lg req-open" type="button" aria-controls="access">Request an account</button>
+          <a class="btn p lg dl" href="https://github.com/Luma-exe/luma-arcade/releases/latest/download/LumaArcadeSetup.exe">Download for Windows</a>
+          <a class="tl" href="/howitworks/">See how it works</a>
         </div>
-        <p class="note">Our own instance is private, run for friends.</p>
-        <div class="notice priv" id="private-note" hidden>
-          <strong>This is a private arcade</strong>
-          <p>It runs on luma_exe's own PC for their friends, so it doesn't take account requests. Luma Arcade is free and open source: set it up on your own gaming PC and play with your friends.</p>
-          <a href="https://github.com/Luma-exe/luma-arcade" target="_blank" rel="noopener">Set up your own Luma Arcade <span aria-hidden="true">&rarr;</span></a>
-        </div>
+        <p class="friend"><b>Got a link from a friend?</b> Just open it. Nothing to download.</p>
+        <p class="proof">Free and open source, for Windows 10 and 11. Friends need only a browser.</p>
         <section class="now" id="now" aria-label="Now playing" aria-live="polite" hidden><ul id="now-list"></ul></section>
       </div>
 
-      <div class="win pcwin" id="pcWin">
-        <div class="tb"><span class="dots"><i></i><i></i><i></i></span><span class="t">your-pc</span><span class="end"><i class="dot"></i><span>hosting</span></span></div>
-        <div class="scr"><video class="v hv" id="hvPc" src="/landing-media/clips/mk64.mp4" poster="/landing-media/shots/mk64.png" autoplay muted loop playsinline preload="auto"></video></div>
+      <div class="pcwrap mon" id="pcWin">
+        <div class="bez"><div class="scr"><video class="v hv" src="/landing-media/clips/rocket-hd.mp4" poster="/landing-media/shots/rocket-hd.jpg" autoplay muted loop playsinline preload="auto"></video>
+          <div class="pill" aria-label="Luma's stats pill: Great, 62 frames per second, 22 milliseconds network round trip, 8.8 megabits per second"><span>Great</span><span>62 fps</span><span>22 ms</span><span>8.8 Mbps</span></div><div class="pillcap">a typical guest over the internet</div>
+          <div class="ptags" id="pcTags" aria-hidden="true"><b style="--c:var(--p1)">P1</b><b style="--c:var(--p2)">P2</b><b class="open" style="--c:var(--p3)">P3</b><b class="open" style="--c:var(--p4)">P4</b></div></div></div>
+        <div class="neck"></div><div class="foot2"></div>
       </div>
 
       <div class="devs" id="devs">
         <div class="dev" id="dPhone">
-          <div class="phone"><div class="scr"><video class="v hv" src="/landing-media/clips/mk64.mp4" poster="/landing-media/shots/mk64.png" autoplay muted loop playsinline preload="auto"></video>
-            <div class="tc"><i class="dp"></i><i class="ab s">B</i><i class="ab" id="aBtn">A</i></div></div></div>
-          <p class="cap"><b>phone</b>touch controls</p>
+          <div class="phone s1"><div class="scr" style="--c:var(--p1)"><video class="v hv" src="/landing-media/clips/rocket-hd.mp4" poster="/landing-media/shots/rocket-hd.jpg" autoplay muted loop playsinline preload="auto"></video>
+            <div class="tc"><i class="stk">L</i><i class="dpd"></i><i class="fb y">Y</i><i class="fb x">X</i><i class="fb b">B</i><i class="fb a" id="aBtn">A</i></div></div></div>
+          <p class="cap"><span class="chip" style="--c:var(--p1)">P1</span>phone <em>&middot; on-screen touch controls</em></p>
         </div>
-        <div class="dev laptop" id="dLap">
-          <div class="win body">
-            <div class="tb"><span class="dots"><i></i><i></i><i></i></span><span class="t">laptop</span></div>
-            <div class="brw"><span>arcade.lumaplayground.com/stream</span></div>
-            <div class="scr" style="--ar:16/10"><video class="v hv" src="/landing-media/clips/mk64.mp4" poster="/landing-media/shots/mk64.png" autoplay muted loop playsinline preload="auto"></video></div>
-          </div>
-          <div class="base"></div>
-          <p class="cap"><b>laptop</b>any browser</p>
+        <div class="dev" id="dLap">
+          <div class="lid s2"><div class="url" aria-hidden="true">arcade.your-domain.com</div><div class="scr" style="--ar:16/10;--c:var(--p2)"><canvas class="v mir" aria-hidden="true"></canvas></div></div>
+          <div class="deck"></div>
+          <p class="cap"><span class="chip" style="--c:var(--p2)">P2</span>laptop <em>&middot; any browser, keyboard or gamepad</em></p>
         </div>
-        <div class="dev tv" id="dTv">
-          <div class="win body">
-            <div class="tb"><span class="dots"><i></i><i></i><i></i></span><span class="t">tv</span></div>
-            <div class="scr" style="--ar:16/9"><video class="v fit hv" src="/landing-media/clips/mk64.mp4" poster="/landing-media/shots/mk64.png" autoplay muted loop playsinline preload="auto"></video></div>
-          </div>
-          <div class="stand"></div><div class="tvf"></div>
-          <p class="cap"><b>tv</b>the big screen</p>
+        <div class="dev" id="dTv">
+          <div class="tvb s3"><div class="url" aria-hidden="true">arcade.your-domain.com</div><div class="scr" style="--ar:16/9"><canvas class="v mir" aria-hidden="true"></canvas></div></div>
+          <div class="feet"><i></i><i></i></div>
+          <p class="cap"><span class="chip nb">watching</span>TV <em>&middot; spectators get the same picture</em></p>
         </div>
       </div>
-      <div class="legend" aria-hidden="true"><span><i></i>video frames out</span><span><i class="d"></i>button presses back</span></div>
+      <p class="legend"><b>Rocket League, from Steam, running on the PC.</b> The pill is Luma's own stats overlay. The same picture goes out to every screen, at the arcade's address.</p>
       <svg class="cn" id="cn" aria-hidden="true"></svg>
     </div>
   </div>
 
-  <section class="wrap sec" aria-labelledby="h-shelf">
-    <div class="sec-h"><h2 id="h-shelf">What's on it</h2></div>
-    <div class="shelf">
-      <div>
-        <h3>Retro, through ES-DE</h3>
-        <div class="cgrid g4">
-          <figure class="cv" tabindex="0"><img src="/landing-media/covers/smb.png" alt="Super Mario Bros. cover" loading="lazy"><figcaption>Super Mario Bros.</figcaption></figure>
-          <figure class="cv" tabindex="0"><img src="/landing-media/covers/smw.png" alt="Super Mario World cover" loading="lazy"><figcaption>Super Mario World</figcaption></figure>
-          <figure class="cv" tabindex="0"><img src="/landing-media/covers/dkc.png" alt="Donkey Kong Country cover" loading="lazy"><figcaption>Donkey Kong Country</figcaption></figure>
-          <figure class="cv" tabindex="0"><img src="/landing-media/covers/metroid.png" alt="Super Metroid cover" loading="lazy"><figcaption>Super Metroid</figcaption></figure>
-          <figure class="cv" tabindex="0"><img src="/landing-media/covers/sonic.png" alt="Sonic the Hedgehog cover" loading="lazy"><figcaption>Sonic the Hedgehog</figcaption></figure>
-          <figure class="cv" tabindex="0"><img src="/landing-media/covers/mk64.jpg" alt="Mario Kart 64 cover" loading="lazy"><figcaption>Mario Kart 64</figcaption></figure>
-          <figure class="cv" tabindex="0"><img src="/landing-media/covers/crash.png" alt="Crash Bandicoot cover" loading="lazy"><figcaption>Crash Bandicoot</figcaption></figure>
-          <figure class="cv" tabindex="0"><img src="/landing-media/covers/melee.png" alt="Super Smash Bros. Melee cover" loading="lazy"><figcaption>Super Smash Bros. Melee</figcaption></figure>
-        </div>
-      </div>
-      <div class="rule" aria-hidden="true"></div>
-      <div>
-        <h3>PC and modern, through Steam and the rest</h3>
-        <div class="cgrid g2">
-          <figure class="cv" tabindex="0"><img src="/landing-media/covers/burnout.png" alt="Burnout 3 cover" loading="lazy"><figcaption>Burnout 3</figcaption></figure>
-          <figure class="cv" tabindex="0"><img src="/landing-media/covers/forza.png" alt="Forza Horizon 2 cover" loading="lazy"><figcaption>Forza Horizon 2</figcaption></figure>
-          <figure class="cv" tabindex="0"><img src="/landing-media/covers/mk8.png" alt="Mario Kart 8 Deluxe cover" loading="lazy"><figcaption>Mario Kart 8 Deluxe</figcaption></figure>
-          <figure class="cv" tabindex="0"><img src="/landing-media/covers/rocket.png" alt="Rocket League cover" loading="lazy"><figcaption>Rocket League</figcaption></figure>
-        </div>
-      </div>
+  <section class="wall" aria-labelledby="h-wall">
+    <div class="wrap wall-h">
+      <h2 id="h-wall">Whatever is installed on your PC shows up in the lobby</h2>
+      <p class="big">Luma ships no games. Friends pick from what your PC already has: Steam and the other launchers, plus retro through ES-DE and emulators. Every frame below is real gameplay.</p>
     </div>
-    <p class="shelf-note">A few from our own shelf. Classic consoles run through emulators, for games you own.</p>
+    <div class="wall-g">
+      <figure class="wt big"><video class="v" id="sonicClip" src="/landing-media/clips/sonic.mp4" poster="/landing-media/shots/g-sonic.jpg" autoplay muted loop playsinline preload="metadata"></video><figcaption><b>Sonic the Hedgehog</b> <span>Mega Drive, moving</span></figcaption></figure>
+      <figure class="wt"><img src="/landing-media/shots/g-rocket.jpg" alt="Rocket League gameplay" width="640" height="480" loading="lazy"><figcaption><b>Rocket League</b> <span>Steam</span></figcaption></figure>
+      <figure class="wt"><img src="/landing-media/shots/g-halo3.jpg" alt="Halo 3 gameplay" width="640" height="480" loading="lazy"><figcaption><b>Halo 3</b> <span>Xbox 360</span></figcaption></figure>
+      <figure class="wt"><img src="/landing-media/shots/g-gt4.jpg" alt="Gran Turismo 4 gameplay" width="640" height="480" loading="lazy"><figcaption><b>Gran Turismo 4</b> <span>PS2</span></figcaption></figure>
+      <figure class="wt"><img src="/landing-media/shots/g-fifa23.jpg" alt="FIFA 23 gameplay" width="640" height="480" loading="lazy"><figcaption><b>FIFA 23</b> <span>Steam</span></figcaption></figure>
+      <figure class="wt"><img src="/landing-media/shots/g-sotn.jpg" alt="Castlevania: Symphony of the Night gameplay" width="640" height="480" loading="lazy"><figcaption><b>Castlevania: Symphony of the Night</b> <span>PS1</span></figcaption></figure>
+      <figure class="wt"><img src="/landing-media/shots/g-skate3.jpg" alt="skate 3 gameplay" width="640" height="480" loading="lazy"><figcaption><b>skate 3</b> <span>Xbox 360</span></figcaption></figure>
+      <figure class="wt"><img src="/landing-media/shots/g-sor.jpg" alt="Streets of Rage gameplay" width="640" height="480" loading="lazy"><figcaption><b>Streets of Rage</b> <span>Mega Drive</span></figcaption></figure>
+      <figure class="wt"><img src="/landing-media/shots/g-gtasa.jpg" alt="GTA: San Andreas gameplay" width="640" height="480" loading="lazy"><figcaption><b>GTA: San Andreas</b> <span>PS2</span></figcaption></figure>
+      <figure class="wt"><img src="/landing-media/shots/g-bloons.jpg" alt="Bloons TD 6 gameplay" width="640" height="480" loading="lazy"><figcaption><b>Bloons TD 6</b> <span>Steam</span></figcaption></figure>
+      <figure class="wt"><img src="/landing-media/shots/g-ctr.jpg" alt="Crash Team Racing gameplay" width="640" height="480" loading="lazy"><figcaption><b>Crash Team Racing</b> <span>PS1</span></figcaption></figure>
+      <figure class="wt"><img src="/landing-media/shots/g-crash.jpg" alt="Crash Bandicoot gameplay" width="640" height="480" loading="lazy"><figcaption><b>Crash Bandicoot</b> <span>PS1</span></figcaption></figure>
+    </div>
+    <div class="wrap"><p class="wall-n">Steam, Epic, the Xbox app, EA, GOG and Ubisoft games show up as apps. Classic consoles run through emulators, for games you own.</p></div>
   </section>
 
-  <section class="wrap sec" aria-labelledby="h-why">
-    <div class="sec-h"><h2 id="h-why">Why we built it this way</h2></div>
-    <ol class="why">
-      <li><span class="n">01</span><h3>It runs on your PC.</h3><p>Your games, your hardware, your saves. Nothing is rented, and nothing lives on a server you don't own.</p></li>
-      <li><span class="n">02</span><h3>Only a browser.</h3><p>Friends open a link. No client to install, no store account, nothing to update. Phone, tablet, laptop or TV.</p></li>
-      <li><span class="n">03</span><h3>Together, saves stay yours.</h3><p>Up to 4 players on one screen, each from their own couch. Every player gets their own saves, with snapshots.</p></li>
-    </ol>
-  </section>
-</section>
-
-<section class="wrap sec" aria-labelledby="h-stack">
-  <div class="sec-h" style="margin-bottom:28px"><h2 id="h-stack">Built on open-source parts.</h2></div>
-  <article class="win">
-    <div class="tb"><span class="dots"><i></i><i></i><i></i></span><span class="t">built-on.txt</span></div>
-    <ul class="strip">
-      <li><b>Sunshine</b><span>streaming host</span></li>
-      <li><b>WebRTC</b><span>the live link</span></li>
-      <li><b>H.265 / H.264</b><span>encoded on the GPU</span></li>
-      <li><b>ES-DE</b><span>console menu</span></li>
-      <li><b>Cloudflare Tunnel</b><span>the way in</span></li>
-    </ul>
-  </article>
-</section>
-
-<section class="wrap sec" aria-labelledby="h-cta">
-  <article class="win">
-    <div class="tb"><span class="dots"><i></i><i></i><i></i></span><span class="t">read-me-first.txt</span></div>
-    <div class="cta">
-      <div class="txt"><h2 id="h-cta">Put the arcade in your house.</h2><p>Free, open source and yours. Install it on the PC you already game on, then send your friends a link.</p></div>
-      <div class="acts">
-        <a class="btn p lg" href="https://github.com/Luma-exe/luma-arcade">Set up your own</a>
-        <a class="btn lg" href="/stream/">Sign in</a>
-        <button class="btn lg req-open" type="button" aria-controls="access">Request an account</button>
-        <small>github.com/Luma-exe/luma-arcade</small>
+  <section class="wrap proof2" aria-label="Usage from our own play log">
+    <div class="pf2">
+      <div class="pf-big">
+        <p class="pf-say">Friends playing on our arcade from <b>other houses</b> had a typical round trip of <span class="pf-k">22<small>ms</small></span> to the PC and back.</p>
+        <p class="pf-l">From our own arcade's play log. At home it was under 1 ms.</p>
       </div>
+      <table class="pf-t">
+        <caption>Our arcade, 28 Sep to 15 Nov 2026</caption>
+        <tbody>
+          <tr><th scope="row">Players</th><td>14</td></tr>
+          <tr><th scope="row">Play sessions</th><td>126 <span>(41 on guest links)</span></td></tr>
+          <tr><th scope="row">Time played</th><td>about 17 hours</td></tr>
+          <tr><th scope="row">Round trip at home</th><td>0.9 ms median</td></tr>
+          <tr><th scope="row">Picture</th><td>62 fps, 8.8 Mbps average</td></tr>
+          <tr><th scope="row">Frames dropped</th><td>0.4%</td></tr>
+        </tbody>
+      </table>
+      <p class="pf-safe"><b>And it stays your PC.</b> Friends reach the games and nothing else: not your files, your desktop or your saved passwords. <a href="/howitworks/">How that works</a></p>
+      <p class="pf-n">One gaming PC, aggregate numbers only. Round trip is the time for a packet to reach the browser and come back. It isn't input lag, which also includes the game and the screen.</p>
     </div>
-  </article>
-</section>
+  </section>
 
+  <section class="band" aria-labelledby="h-see">
+    <div class="wrap fr">
+      <div class="fr-head">
+        <h2 id="h-see">What a friend sees when they open your link</h2>
+        <p class="big">The arcade opens in their browser. They pick a game, the picture from your PC arrives, and their phone becomes the controller. These are Luma's own screens, recorded from the real app.</p>
+      </div>
+      <figure class="fr-m">
+        <div class="pv" style="--ar:720/406"><video class="v" id="sessClip" src="/landing-media/ui/session.mp4" poster="/landing-media/ui/session-poster.png" autoplay muted loop playsinline preload="metadata"></video></div>
+        <figcaption><b>In the game.</b> Forza Horizon 2 on the host PC, with Luma's quick controls open, then the Play together dialog: invite a friend as a player, or just to watch, or send a link.</figcaption>
+      </figure>
+      <figure class="f-pho">
+        <div class="phone"><div class="scr swap"><img src="/landing-media/ui/touch-pad.png" alt="Luma's gamepad touch layout on a phone: sticks, D-pad, A B X Y and bumpers." width="722" height="334" loading="lazy"><img src="/landing-media/ui/touch-racing.png" alt="Luma's racing touch layout on a phone, with analog Gas and Brake pedals and tilt to steer." width="722" height="334" loading="lazy"></div></div>
+        <figcaption><b>The phone is the controller.</b> The layout changes with the game: a gamepad, or analog Gas and Brake pedals with tilt to steer.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="wrap sec cmp" aria-labelledby="h-why">
+    <h2 id="h-why">Moonlight, Steam Link and Remote Play need an app on each screen. Luma needs a browser.</h2>
+    <div class="tw" tabindex="0" role="region" aria-label="Comparison table. Scrolls sideways on small screens.">
+      <table class="vs">
+        <thead><tr><td></td><th scope="col" class="us">Luma Arcade</th><th scope="col">Moonlight</th><th scope="col">Steam Link</th><th scope="col">Steam Remote Play Together</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">What a friend installs</th><td class="us"><b>Nothing.</b> They open a link in a browser.</td><td>The Moonlight app</td><td>The Steam Link app</td><td>Steam, or the Steam Link app</td></tr>
+          <tr><th scope="row">Which games</th><td class="us">Anything on the PC: Steam, other launchers, emulators</td><td>Anything on the PC</td><td>Steam games, plus anything you add to Steam</td><td>Only Steam games with local multiplayer</td></tr>
+          <tr><th scope="row">Players and saves</th><td class="us">Up to 4 players, separate saves for each, and a fair queue</td><td>No per-player saves or queue</td><td>No per-player saves or queue</td><td>No per-player saves or queue</td></tr>
+          <tr><th scope="row">Latency</th><td class="us">A browser is a step behind a native app; for competitive, twitchy play, use one.</td><td>Native, ahead of a browser</td><td>Native, ahead of a browser</td><td>Native Steam client, ahead of a browser</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="cards">
+      <article class="vc us"><h3>Luma Arcade</h3><dl>
+        <div><dt>What a friend installs</dt><dd><b>Nothing.</b> They open a link in a browser.</dd></div>
+        <div><dt>Which games</dt><dd>Anything on the PC: Steam, other launchers, emulators</dd></div>
+        <div><dt>Players and saves</dt><dd>Up to 4 players, separate saves for each, and a fair queue</dd></div>
+        <div><dt>Latency</dt><dd>A browser is a step behind a native app; for competitive, twitchy play, use one.</dd></div></dl></article>
+      <article class="vc"><h3>Moonlight</h3><dl>
+        <div><dt>What a friend installs</dt><dd>The Moonlight app</dd></div>
+        <div><dt>Which games</dt><dd>Anything on the PC</dd></div>
+        <div><dt>Players and saves</dt><dd>No per-player saves or queue</dd></div>
+        <div><dt>Latency</dt><dd>Native, ahead of a browser</dd></div></dl></article>
+      <details><summary>Compare Steam Link and Remote Play Together</summary>
+      <article class="vc"><h3>Steam Link</h3><dl>
+        <div><dt>What a friend installs</dt><dd>The Steam Link app</dd></div>
+        <div><dt>Which games</dt><dd>Steam games, plus anything you add to Steam</dd></div>
+        <div><dt>Players and saves</dt><dd>No per-player saves or queue</dd></div>
+        <div><dt>Latency</dt><dd>Native, ahead of a browser</dd></div></dl></article>
+      <article class="vc"><h3>Steam Remote Play Together</h3><dl>
+        <div><dt>What a friend installs</dt><dd>Steam, or the Steam Link app</dd></div>
+        <div><dt>Which games</dt><dd>Only Steam games with local multiplayer</dd></div>
+        <div><dt>Players and saves</dt><dd>No per-player saves or queue</dd></div>
+        <div><dt>Latency</dt><dd>Native Steam client, ahead of a browser</dd></div></dl></article>
+      </details>
+    </div>
+    <p class="cmp-n"><b>Native apps win on latency.</b> They are good tools, and if you are the only player, use one. Luma is for the group on your couch with a phone, a work laptop or a TV.</p>
+  </section>
+
+  <section class="wrap final" aria-labelledby="h-cta">
+    <div class="fin">
+      <h2 id="h-cta">Install it on your PC, then send your friends the address</h2>
+      <div class="fin-m">
+        <figure class="fin-v"><div class="pv" style="--ar:720/390"><img class="v" src="/landing-media/ui/friend-arrives.png" alt="ES-DE's game menu, streamed from the PC into a friend's browser" width="720" height="390" loading="lazy"></div><figcaption><b>What a friend gets:</b> the PC's game menu, in their browser. A frame from the real app.</figcaption></figure>
+        <ol class="flow2">
+          <li><b>Install it on the gaming PC.</b> One installer, about 20 minutes, mostly downloads. The <a href="/docs/">setup guide</a> pictures every page.</li>
+          <li><b>Pick the address.</b> At home it's your PC's name. For friends anywhere, add a free Cloudflare Tunnel and a domain you own. No router settings.</li>
+          <li><b>Send it.</b> Friends open it in a browser. Up to four play, anyone else can watch.</li>
+        </ol>
+      </div>
+      <div class="cta-row">
+        <a class="btn p lg" href="https://github.com/Luma-exe/luma-arcade/releases/latest/download/LumaArcadeSetup.exe">Download for Windows</a>
+        <a class="tl" href="https://github.com/Luma-exe/luma-arcade">View on GitHub</a>
+      </div>
+      <p class="note">v1.4.0 &middot; free and open source (GPL-3.0) &middot; Windows 10 and 11</p>
+    </div>
+  </section>
 <section class="wrap sec" id="access" aria-label="Account requests" hidden>
   <article class="win" id="request" aria-labelledby="request-title" hidden>
-    <div class="tb"><span class="dots"><i></i><i></i><i></i></span><span class="t">request-an-account.txt</span></div>
     <div class="abody">
       <h2 id="request-title">Request an account</h2>
       <p class="lead">An admin gets your request on Discord and sets you up. You can only send one, so say who you are.</p>
@@ -551,7 +599,6 @@ body.checking main{visibility:hidden}
   </article>
 
   <article class="win" id="requested" aria-live="polite" hidden>
-    <div class="tb"><span class="dots"><i></i><i></i><i></i></span><span class="t">request-sent.txt</span></div>
     <div class="abody">
       <div class="done"><i aria-hidden="true"></i><div><strong id="requested-title">Request sent</strong><span id="requested-text">An admin will get back to you. Once you have an account, come back here and sign in.</span></div></div>
       <div class="acts"><a class="btn" href="/stream/">Sign in</a></div>
@@ -559,7 +606,6 @@ body.checking main{visibility:hidden}
   </article>
 
   <article class="win" id="reset" aria-labelledby="reset-title" hidden>
-    <div class="tb"><span class="dots"><i></i><i></i><i></i></span><span class="t">forgot-password.txt</span></div>
     <div class="abody">
       <h2 id="reset-title">Forgot your password?</h2>
       <p class="lead">An admin gets your request on Discord and sets a new password for you.</p>
@@ -574,7 +620,6 @@ body.checking main{visibility:hidden}
   </article>
 
   <article class="win" id="reset-private" aria-labelledby="reset-private-title" hidden>
-    <div class="tb"><span class="dots"><i></i><i></i><i></i></span><span class="t">forgot-password.txt</span></div>
     <div class="abody">
       <h2 id="reset-private-title">Forgot your password?</h2>
       <p class="lead">This arcade is private, so passwords aren't reset from here. If luma_exe gave you an account, message them on Discord for a new one.</p>
@@ -586,7 +631,6 @@ body.checking main{visibility:hidden}
   </article>
 
   <article class="win" id="reset-sent" aria-live="polite" hidden>
-    <div class="tb"><span class="dots"><i></i><i></i><i></i></span><span class="t">request-sent.txt</span></div>
     <div class="abody">
       <div class="done"><i aria-hidden="true"></i><div><strong id="reset-sent-title">Request sent</strong><span id="reset-sent-text">An admin will send you a new password. Then sign in with it here.</span></div></div>
       <div class="acts"><a class="btn" href="/stream/">Sign in</a></div>
@@ -596,10 +640,11 @@ body.checking main{visibility:hidden}
 </main>
 
 <footer class="wrap foot">
-  Luma Arcade &middot; free and open source &middot; <a href="https://github.com/Luma-exe/luma-arcade">github.com/Luma-exe/luma-arcade</a><br>
-  Our own instance, <a href="/stream/">arcade.lumaplayground.com</a>, is private and run for friends. Bring games you own.<br>
-  Questions? Message <button class="handle" type="button" id="copy-handle" title="Copy">luma_exe</button> on Discord. <span id="copied" aria-live="polite"></span><br>
-  Enjoying Luma Arcade? <a class="kofi" href="https://ko-fi.com/lumaexe" target="_blank" rel="noopener">Support it on Ko-fi</a>
+  <p>Luma Arcade is made by luma_exe. Free and open source: <a href="https://github.com/Luma-exe/luma-arcade">github.com/Luma-exe/luma-arcade</a></p>
+  <p id="foot-access">Invited to a friend's arcade? <button class="handle req-open" type="button" aria-controls="access">Request an account</button></p>
+  <p id="private-note" hidden>arcade.lumaplayground.com is our own private arcade. Want one? <a href="https://github.com/Luma-exe/luma-arcade/releases/latest/download/LumaArcadeSetup.exe">Download Luma Arcade</a>.</p>
+  <p>Questions? Message <button class="handle" type="button" id="copy-handle" title="Copy">luma_exe</button> on Discord. <span id="copied" aria-live="polite"></span></p>
+  <p>Enjoying Luma Arcade? <a class="kofi" href="https://ko-fi.com/lumaexe" target="_blank" rel="noopener">Support it on Ko-fi</a></p>
 </footer>
 
 <script>
@@ -661,10 +706,19 @@ if(RM){
 },150);
 
 
-/* ---------- HERO: the systems diagram ---------- */
-var hv=$$('.hv'),stage=$('#stage');
+/* ---------- HERO: a button press, travelling ---------- */
+var hv=$$('.hv'),stage=$('#stage'),mirs=$$('.mir');
 group(hv,stage);
-var cn=$('#cn'),paths=[],aBtn=$('#aBtn'),stub=null;
+solo($('#sessClip'));
+solo($('#sonicClip'));
+/* the Forza clip opens on a dark frame: start (and restart) it a few seconds in */
+(function(){var v=$('#sessClip');if(!v)return;v.removeAttribute('loop');
+  function jump(){try{v.currentTime=2.6}catch(e){}}
+  if(v.readyState>=1)jump();else v.addEventListener('loadedmetadata',jump,{once:true});
+  v.addEventListener('ended',function(){jump();v.play().catch(function(){})})})();
+var CSS=getComputedStyle(D.documentElement),SEAT=[CSS.getPropertyValue('--p1').trim()||'#2f8cff',CSS.getPropertyValue('--p2').trim()||'#e8765c','#a9b4c8'];
+var cn=$('#cn'),paths=[],aBtn=$('#aBtn');
+var devScr=[$('#dPhone .scr'),$('#dLap .scr')],devTag=[$('#dPhone .chip')],pcChips=$$('#pcTags b');
 function rounded(p,r){var d='M'+p[0][0]+' '+p[0][1],i;
   for(i=1;i<p.length-1;i++){var a=p[i-1],b=p[i],c=p[i+1];
     var l1=Math.hypot(b[0]-a[0],b[1]-a[1]),l2=Math.hypot(c[0]-b[0],c[1]-b[1]),r1=Math.min(r,l1/2),r2=Math.min(r,l2/2);
@@ -674,54 +728,58 @@ function heroBuild(){
   if(!shown(stage))return;
   var sr=stage.getBoundingClientRect();
   function B(e){var r=e.getBoundingClientRect();return{l:r.left-sr.left,r:r.right-sr.left,t:r.top-sr.top,b:r.bottom-sr.top,cx:(r.left+r.right)/2-sr.left,cy:(r.top+r.bottom)/2-sr.top}}
-  var pc=B($('#pcWin')),dot=B($('#hdot')),ds=[B($('#dPhone .phone')),B($('#dLap .win')),B($('#dTv .win'))];
-  var vert=matchMedia('(max-width:900px)').matches,top=Math.min(ds[0].t,ds[1].t,ds[2].t);
+  var pc=B($('#pcWin'));
+  /* a device that is hidden at this width (laptop and TV on a phone) gets no wire */
+  var ds=[$('#dPhone .phone'),$('#dLap .lid'),$('#dTv .tvb')].map(function(e){return shown(e)?B(e):null});
+  var top=Math.min.apply(null,ds.filter(Boolean).map(function(d){return d.t}));
   while(cn.firstChild)cn.removeChild(cn.firstChild);
   cn.setAttribute('viewBox','0 0 '+sr.width+' '+sr.height);
   paths=[];
-  var busY=top-36;
-  /* the headline's first full stop is the source: a line runs from it into your-pc */
-  if(!vert){
-    var y=dot.cy,x0=dot.r+10;
-    el('path',{d:'M'+x0+' '+y+' L'+pc.l+' '+y,'class':'stub'},cn);
-    el('circle',{cx:pc.l,cy:y,r:3.6},cn);
-    stub=el('rect',{'class':'pk',x:-3,y:-3,width:6,height:6},cn);
-    stub.dataset.x0=x0;stub.dataset.x1=pc.l;stub.dataset.y=y;
-  }else stub=null;
+  var busY=pc.b+(top-pc.b)*.74;
   ds.forEach(function(d,i){
+    if(!d){paths.push(null);return}
     var pts=[[pc.cx,pc.b],[pc.cx,busY],[d.cx,busY],[d.cx,d.t]];
     pts=pts.filter(function(p,j){return !(j&&Math.abs(p[0]-pts[j-1][0])<.5&&Math.abs(p[1]-pts[j-1][1])<.5)});
-    var path=el('path',{d:rounded(pts,10),'class':'ln'},cn);
-    paths.push({p:path,L:path.getTotalLength(),pk:[],rk:null});
+    var dd=rounded(pts,10),path=el('path',{d:dd,'class':'ln',stroke:SEAT[i]},cn);
+    paths.push({p:path,pts:pts,L:path.getTotalLength(),dn:null,up:null});
   });
   paths.forEach(function(P,i){
-    el('circle',{cx:ds[i].cx,cy:ds[i].t,r:3.4},cn);
-    for(var j=0;j<3;j++)P.pk.push(el('rect',{'class':'pk',x:-3,y:-3,width:6,height:6},cn));
-  });
-  el('circle',{cx:pc.cx,cy:pc.b,r:3.6},cn);
-  paths[0].rk=el('rect',{'class':'rk',x:-4,y:-4,width:8,height:8,opacity:0},cn);
-  if(!vert){var lb=el('text',{x:ds[1].cx+14,y:busY-9},cn);lb.textContent='the live link: WebRTC, H.265 / H.264'}
-  frame(RM?3.2:(performance.now()-T0)/1000);
+    if(!P)return;
+    P.dn=el('path',{d:P.p.getAttribute('d'),'class':'pls dn',stroke:SEAT[i]},cn);
+    if(i===0)P.up=el('path',{d:rounded(P.pts.slice().reverse(),10),'class':'pls up'},cn)});
+  frame(RM?4.5:(performance.now()-T0)/1000);
 }
-var PER=8/3; /* the clip is 8 s: three presses per loop, so the press rhythm loops cleanly */
+/* one pulse: a bright run of the wire. k 0..1 is how far along it has gone */
+function pls(P,n,k){
+  if(!n)return;
+  if(k<=0||k>=1){n.style.opacity=0;return}
+  var S=Math.min(80,P.L*.3),h=k*(P.L+S);
+  n.style.strokeDasharray=S+' '+(P.L+S+20);n.style.strokeDashoffset=S-h;n.style.opacity=1}
+var CYC=6.8;
 function frame(t){
-  var ph=RM?0:(hv[0].currentTime%PER)/PER*1; /* 0..1 within one press cycle */
-  var age=RM?9:ph*PER;
-  aBtn.classList.toggle('down',age<.3);
-  paths.forEach(function(P,i){
-    for(var j=0;j<3;j++){
-      var u=((t*.22+j/3+i*.13)%1),pt=P.p.getPointAtLength(P.L*u);
-      P.pk[j].setAttribute('transform','translate('+pt.x+' '+pt.y+')')}
-  });
-  if(stub){var u2=(t*.3)%1,x0=+stub.dataset.x0,x1=+stub.dataset.x1;stub.setAttribute('transform','translate('+lp(x1,x0,u2)+' '+stub.dataset.y+')')}
-  var P=paths[0];if(P&&P.rk){
-    if(age<1.1){var pt=P.p.getPointAtLength(P.L*(1-eio(age/1.1)));P.rk.setAttribute('transform','translate('+pt.x+' '+pt.y+') rotate(45)');P.rk.setAttribute('opacity',1)}
-    else P.rk.setAttribute('opacity',0)}
+  if(RM)t=4.5;else t=((t%CYC)+CYC)%CYC;
+  var P0=paths[0];
+  var down=!RM&&t<.45;
+  if(aBtn)aBtn.classList.toggle('down',down);
+  if(devTag[0])devTag[0].classList.toggle('on',down);
+  if(devScr[0])devScr[0].classList.toggle('hit',down||(!RM&&t>3.1&&t<3.7));
+  if(P0)pls(P0,P0.up,eio(sg(t,.3,1.4)));
+  paths.forEach(function(P){if(P)pls(P,P.dn,eio(sg(t,1.95,3.05)))});
+  if(pcChips[0])pcChips[0].classList.toggle('on',!RM&&t>1.35&&t<2.1);
 }
-reg(stage,frame,3.2);
+reg(stage,frame,4.5);
 if('ResizeObserver' in window)new ResizeObserver(function(){heroBuild();if(RM)still()}).observe(stage);
 
 
+/* the laptop and the TV show the one decoded picture from the PC's video, so every screen is on the same frame */
+function drawMir(){var m=hv[0];if(!m||m.readyState<2||!m.videoWidth)return;
+  mirs.forEach(function(c){if(!shown(c))return;
+    var dpr=Math.min(devicePixelRatio||1,2),w=Math.round(c.clientWidth*dpr),h=Math.round(c.clientHeight*dpr);if(!w||!h)return;
+    if(c.width!==w||c.height!==h){c.width=w;c.height=h}
+    var vw=m.videoWidth,vh=m.videoHeight,k=Math.max(w/vw,h/vh),sw=w/k,sh=h/k;
+    try{c.getContext('2d').drawImage(m,(vw-sw)/2,(vh-sh)/2,sw,sh,0,0,w,h)}catch(e){}})}
+reg(stage,drawMir,0);
+if(hv[0]){['seeked','loadeddata','playing'].forEach(function(n){hv[0].addEventListener(n,drawMir)})}
 requestAnimationFrame(function(){heroBuild();still()});
 if(D.fonts&&D.fonts.ready)D.fonts.ready.then(function(){heroBuild();if(RM)still()});
 addEventListener('load',function(){heroBuild();still()});
@@ -744,7 +802,7 @@ still();
   const setOpeners = (text) => openers.forEach((b) => (b.textContent = text));
   // The owner's own arcade: no account requests or password resets, just "set up your own".
   const PRIVATE = document.body.classList.contains("private-server");
-  if (PRIVATE) { openers.forEach((b) => (b.hidden = true)); $("private-note").hidden = false; }
+  if (PRIVATE) { openers.forEach((b) => (b.hidden = true)); $("foot-access").hidden = true; $("private-note").hidden = false; }
 
   const remembered = () => { try { return localStorage.getItem(SENT_KEY); } catch { return null; } };
   const remember = (name) => { try { localStorage.setItem(SENT_KEY, name || "1"); } catch {} };

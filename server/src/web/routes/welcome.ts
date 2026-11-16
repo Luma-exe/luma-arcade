@@ -43,10 +43,14 @@ let page: string | null = null;
 /** /howitworks/: how the arcade works and everything it does, for visitors. */
 const HOW_PAGE = path.join(PAGES, "howitworks.html");
 let howPage: string | null = null;
+/** /docs/: the setup guide, with its own pictures in pages/docs-img/. */
+const DOCS_PAGE = path.join(PAGES, "docs.html");
+let docsPage: string | null = null;
+const DOCS_IMG = /^[a-z0-9][a-z0-9-]{0,40}\.(png|jpg|jpeg|webp)$/;
 
 /** The landing pages' gameplay clips and art live outside git (copyrighted),
  * in <data dir>/landing-media/<dir>/<file>. Other installs just don't have it. */
-const MEDIA_DIRS = new Set(["clips", "covers", "shots", "fanart", "marquees", "3dboxes", "physical"]);
+const MEDIA_DIRS = new Set(["clips", "covers", "shots", "fanart", "marquees", "3dboxes", "physical", "ui"]);
 const MEDIA_FILE = /^[a-z0-9][a-z0-9-]{0,40}\.(mp4|png|jpg|jpeg|webp)$/;
 const MEDIA_TYPES: Record<string, string> = { mp4: "video/mp4", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp" };
 /** Read per request so LUMA_DATA_DIR can be changed (tests). */
@@ -128,6 +132,39 @@ export async function registerWelcomeRoutes(app: FastifyInstance) {
       .header("cache-control", "no-cache")
       .type("text/html; charset=utf-8")
       .send(withPreview(howPage, request, "How Luma Arcade works", `${SLOGAN} How it streams a real gaming PC to your browser, and everything it does for the people playing.`));
+  });
+
+  // /docs/: the setup guide. Its pictures (installer pages, sign-in, touch
+  // controls) are Luma Arcade's own and ship in pages/docs-img/.
+  for (const alias of ["/docs", "/setup", "/setup/"]) app.get(alias, async (_request, reply) => reply.redirect("/docs/"));
+  app.get("/docs/", async (request, reply) => {
+    try {
+      docsPage ??= readFileSync(DOCS_PAGE, "utf8");
+    } catch {
+      return reply.redirect("/");
+    }
+    return reply
+      .header("cache-control", "no-cache")
+      .type("text/html; charset=utf-8")
+      .send(withPreview(docsPage, request, "Set up Luma Arcade", "Step by step: what your PC needs, every Setup page, signing in, adding games and inviting friends."));
+  });
+  app.get<{ Params: { file: string } }>("/docs/img/:file", async (request, reply) => {
+    const { file } = request.params;
+    if (!DOCS_IMG.test(file)) return reply.code(404).send({ error: "Not found" });
+    const full = path.join(PAGES, "docs-img", file);
+    let size: number;
+    try {
+      const st = statSync(full);
+      if (!st.isFile()) throw new Error("not a file");
+      size = st.size;
+    } catch {
+      return reply.code(404).send({ error: "Not found" });
+    }
+    return reply
+      .header("content-type", MEDIA_TYPES[file.slice(file.lastIndexOf(".") + 1)])
+      .header("cache-control", "public, max-age=86400")
+      .header("content-length", size)
+      .send(createReadStream(full));
   });
 
   // The landing pages' clips and art (see MEDIA_DIRS). Public; 404 when absent.

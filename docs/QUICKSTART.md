@@ -57,7 +57,7 @@ New installs start with **private mode on**. The front page doesn't offer a "req
 
 ### Landing page gameplay clips (optional)
 
-The front page (`/`) and `/howitworks/` show gameplay clips and cover art from `<data dir>/landing-media/` if it exists (on Windows, `C:\ProgramData\LumaArcade\landing-media\`). Without it the frames just stay empty and dark. The subfolders are `clips` (`.mp4`), `covers`, `shots` (poster stills), `fanart`, `marquees`, `3dboxes` and `physical` (images). Files are named by game id: `smb smw dkc metroid sonic mk64 crash melee burnout forza mk8 rocket`, for example `clips/mk64.mp4` and `covers/mk64.jpg`. The page uses `clips`, `covers` and `shots`. This footage is not part of the repository.
+The front page (`/`) and `/howitworks/` show gameplay clips and cover art from `<data dir>/landing-media/` if it exists (on Windows, `C:\ProgramData\LumaArcade\landing-media\`). Without it the frames just stay empty and dark. The subfolders are `clips` (`.mp4`), `covers`, `shots` (poster stills), `fanart`, `marquees`, `3dboxes`, `physical` (images) and `ui` (recordings of Luma's own screens). Files are named by game id: `smb smw dkc metroid sonic mk64 crash melee burnout forza mk8 rocket`, for example `clips/mk64.mp4` and `covers/mk64.jpg`. The page uses `clips`, `covers` and `shots`. This footage is not part of the repository.
 
 ## Getting help
 

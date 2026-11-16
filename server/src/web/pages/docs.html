@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Set up Luma Arcade</title>
+<meta name="description" content="Set up Luma Arcade on your gaming PC, step by step: what you need, every Setup page, signing in, adding games, playing from other devices and inviting friends.">
+<!--link-preview-->
+<link rel="icon" href="/stream/resources/luma-star-64.png" sizes="64x64" type="image/png">
+<link rel="icon" href="/stream/resources/luma-star-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/stream/resources/luma-star-apple-180.png">
+<meta name="theme-color" content="#090b10">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<!--
+  arcade.lumaplayground.com/docs/ (LumaArcade web/routes/welcome.ts): the setup guide.
+  Screenshots are Luma Arcade's own (installer pages, sign-in, touch controls) and
+  ship with the app in pages/docs-img/, served at /docs/img/. Keep it in step with
+  docs/QUICKSTART.md and installer/LumaArcade.nsi.
+-->
+<style>
+:root{
+  --bg:#090b10; --bg2:#0e131d; --win:#11151d; --win2:#171c27; --line:#232b3a; --line2:#3a4764;
+  --txt:#e9edf4; --mut:#b4bece; --dim:#97a4b9;
+  --b:#2f8cff; --b2:#1f6fd1; --b3:#1a5fb8; --bl:#8cc8ff;
+  --p1:#2f8cff; --p2:#e8765c; --p3:#4cc2a1; --p4:#e2b04a; --ink:#07101f;
+  --ok:#4cc2a1; --warn:#e2b04a;
+  --sans:"Archivo",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+  --max:1344px; --g:48px;
+}
+*{box-sizing:border-box}
+html{background:var(--bg);scroll-padding-top:84px;scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--bg);color:var(--txt);font:400 17px/1.6 var(--sans);-webkit-font-smoothing:antialiased;overflow-x:clip}
+h1,h2,h3,h4,p,ul,ol,dl,dd,figure{margin:0}
+ul,ol{padding:0;list-style:none}
+a{color:var(--bl);text-underline-offset:3px}
+img{display:block;max-width:100%;height:auto}
+code,kbd,.mono,.tree,.field{font-family:var(--mono);font-size:.86em;font-variant-ligatures:none}
+code{background:var(--win2);border:1px solid var(--line);padding:1px 6px;color:var(--txt);white-space:nowrap}
+kbd{background:var(--win2);border:1px solid var(--line2);border-bottom-width:3px;padding:0 6px;color:var(--txt)}
+::selection{background:var(--b);color:#fff}
+:focus-visible{outline:2px solid var(--bl);outline-offset:3px}
+.wrap{max-width:calc(var(--max) + var(--g)*2);margin:0 auto;padding:0 var(--g)}
+.skip{position:absolute;left:-999px;top:8px;background:var(--b2);color:#fff;padding:6px 10px;z-index:100}
+.skip:focus{left:8px}
+
+/* nav (same as the other pages) */
+.nav{position:sticky;top:0;z-index:60;background:rgba(9,11,16,.96);border-bottom:1px solid var(--line)}
+.nav-in{display:flex;align-items:center;gap:18px;min-height:62px}
+.brand{display:flex;align-items:center;gap:10px;font-stretch:125%;font-weight:700;font-size:17px;letter-spacing:-.02em;text-decoration:none;white-space:nowrap;color:var(--txt)}
+.brand img{width:26px;height:26px}
+.links{display:flex;gap:2px;margin-left:14px;margin-right:auto}
+.links a{padding:7px 12px;font-size:15px;color:var(--mut);text-decoration:none;border-bottom:2px solid transparent;transition:color .15s,border-color .15s}
+.links a:hover{color:var(--txt)}
+.links a[aria-current=page]{color:var(--txt);border-bottom-color:var(--b)}
+.signin{font-size:12.5px;color:var(--dim);text-decoration:none;padding:6px 4px;white-space:nowrap}
+.signin u{text-decoration:none}
+.signin:hover{color:var(--txt)}.signin:hover u{text-decoration:underline}
+.btn{display:inline-flex;align-items:center;justify-content:center;height:40px;padding:0 18px;border:1px solid var(--line2);border-radius:0;background:transparent;color:var(--txt);font:600 15px/1 var(--sans);text-decoration:none;cursor:pointer;white-space:nowrap;transition:background .15s,transform .08s,box-shadow .08s}
+.btn.p{background:var(--b);border:0;color:var(--ink);font-weight:700;box-shadow:0 4px 0 var(--b3)}
+.btn.p:hover{background:#5aa5ff}
+.btn.p:active{transform:translateY(3px);box-shadow:0 1px 0 var(--b3)}
+.nav .btn.p{box-shadow:0 3px 0 var(--b3)}
+.btn.lg{height:54px;padding:0 28px;font-size:17px}
+.xs{display:none}
+
+/* page head */
+.head{padding:64px 0 40px;border-bottom:1px solid var(--line)}
+.head h1{font-stretch:125%;font-weight:700;letter-spacing:-.025em;font-size:clamp(38px,5.4vw,68px);line-height:1.02;max-width:15ch}
+.head .lede{margin-top:20px;font-size:19px;color:var(--mut);max-width:60ch}
+.head .lede b{color:var(--txt)}
+.facts{display:flex;flex-wrap:wrap;gap:10px 26px;margin-top:26px;font-size:15px;color:var(--mut)}
+.facts span::before{content:"";display:inline-block;width:8px;height:8px;background:var(--b);margin-right:9px;vertical-align:1px}
+
+/* the route map: five stages, the page follows them */
+.route{display:grid;grid-template-columns:repeat(6,1fr);margin-top:40px;border:1px solid var(--line)}
+.route a{display:block;padding:16px 16px 18px;text-decoration:none;color:var(--txt);border-right:1px solid var(--line);position:relative;transition:background .15s}
+.route a:last-child{border-right:0}
+.route a:hover{background:var(--win)}
+.route a::before{content:"";position:absolute;left:0;right:0;top:-1px;height:2px;background:var(--line2)}
+.route a:hover::before{background:var(--b)}
+.route b{display:block;font-stretch:112%;font-weight:700;font-size:16px;letter-spacing:-.01em}
+.route small{display:block;margin-top:4px;font-size:13.5px;color:var(--dim);line-height:1.4}
+.route i{font-style:normal;font:600 12px/1 var(--mono);color:var(--dim);display:block;margin-bottom:12px}
+.paths{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);margin-top:34px}
+.path{display:block;background:var(--bg2);padding:18px 20px;text-decoration:none;color:var(--txt)}
+.path:hover{background:var(--win)}
+.path b{display:block;font-stretch:112%;font-size:18px;margin-bottom:6px}
+.path:first-child b::before{content:"";display:inline-block;width:10px;height:10px;background:var(--p3);margin-right:10px}
+.path:last-child b::before{content:"";display:inline-block;width:10px;height:10px;background:var(--p4);margin-right:10px}
+.path span{display:block;font-size:15.5px;color:var(--mut)}
+
+/* layout: contents rail + the guide */
+.doc{display:grid;grid-template-columns:220px minmax(0,1fr);gap:56px;padding-top:48px}
+.toc{position:sticky;top:86px;align-self:start;font-size:14px;max-height:calc(100vh - 100px);overflow:auto}
+.toc p{font-weight:700;color:var(--txt);margin-bottom:10px;font-size:13px;letter-spacing:.02em}
+.toc a{display:block;padding:5px 0 5px 12px;color:var(--dim);text-decoration:none;border-left:2px solid var(--line)}
+.toc a:hover{color:var(--txt)}
+.toc a.on{color:var(--txt);border-left-color:var(--b)}
+.toc a.sub{padding-left:24px;font-size:13px}
+
+section.part{padding-bottom:72px;margin-bottom:72px;border-bottom:1px solid var(--line)}
+section.part:last-of-type{border-bottom:0}
+.part-h{display:flex;align-items:baseline;gap:16px;margin-bottom:12px}
+.part-h .n{font:600 14px/1 var(--mono);color:var(--txt);border:1px solid var(--line2);padding:6px 8px;flex:none;transform:translateY(-6px)}
+h2{font-stretch:112%;font-weight:700;letter-spacing:-.02em;font-size:clamp(28px,3vw,38px);line-height:1.1}
+.intro{color:var(--mut);max-width:64ch;margin-bottom:32px;font-size:18px}
+h3{font-stretch:112%;font-weight:700;font-size:21px;letter-spacing:-.01em;line-height:1.25}
+h4{font-weight:700;font-size:15px;color:var(--txt)}
+p+p{margin-top:12px}
+.mut{color:var(--mut)}
+
+/* checklist of what you need */
+.need{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 48px;border-top:1px solid var(--line)}
+.need>div{padding:18px 0 20px 40px;border-bottom:1px solid var(--line);position:relative}
+.need>div::before{content:"";position:absolute;left:0;top:21px;width:20px;height:20px;border:2px solid var(--p3)}
+.need>div::after{content:"";position:absolute;left:6px;top:24px;width:6px;height:11px;border:solid var(--p3);border-width:0 2px 2px 0;transform:rotate(45deg)}
+.need svg{display:none}
+.need h3{margin-bottom:4px}
+.need h3{font-size:18px}
+.need p{font-size:15.5px;color:var(--mut);margin:0}
+.need .opt{color:var(--warn);font:600 12px/1 var(--sans);border:1px solid currentColor;padding:2px 5px;margin-left:8px;vertical-align:2px}
+
+/* steps with a screenshot */
+.step{display:grid;grid-template-columns:minmax(0,585px) minmax(0,1fr);gap:36px;align-items:start;padding:36px 0;border-top:1px solid var(--line)}
+.step:first-of-type{border-top:0;padding-top:8px}
+.step.mini{grid-template-columns:minmax(0,300px) minmax(0,1fr);padding:26px 0}
+.shot{position:relative;border:1px solid var(--line2);box-shadow:0 18px 40px -20px rgba(0,0,0,.8);background:#f0f0f0}
+.shot img{width:100%}
+.shot .pin{position:absolute;left:var(--x);top:var(--y);width:26px;height:26px;margin:-13px 0 0 -13px;display:grid;place-items:center;background:var(--b);color:var(--ink);font:800 13px/1 var(--sans);box-shadow:0 0 0 3px rgba(47,140,255,.35);animation:pin 2.4s ease-in-out infinite}
+.shot .pin.g::after{content:"";position:absolute;left:100%;top:50%;width:12px;height:2px;margin-top:-1px;background:var(--b)}
+@keyframes pin{50%{box-shadow:0 0 0 7px rgba(47,140,255,.12)}}
+@media (prefers-reduced-motion:reduce){.shot .pin{animation:none}}
+.shot figcaption{position:absolute;left:0;bottom:-26px;font-size:12.5px;color:var(--dim)}
+.say .page{font-size:14px;color:var(--dim);margin-bottom:6px}
+.say h3{margin-bottom:12px}
+.pick{margin:14px 0;padding:12px 14px;background:var(--win);border-left:3px solid var(--b)}
+.pick b{color:var(--txt)}
+.pick::before{content:"Pick";display:inline-block;vertical-align:2px;margin-right:10px;font:800 11px/1 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--ink);background:var(--b);padding:5px 6px}
+.say ol{counter-reset:n;margin-top:10px}
+.say ol li{counter-increment:n;position:relative;padding-left:34px;margin-top:10px;color:var(--mut);font-size:16px}
+.say ol li::before{content:counter(n);position:absolute;left:0;top:1px;width:22px;height:22px;display:grid;place-items:center;border:1px solid var(--b);color:var(--b);font:700 12px/1 var(--mono)}
+.say ol li b{color:var(--txt)}
+.tip{margin-top:14px;font-size:15px;color:var(--mut);padding-left:14px;border-left:2px solid var(--line2)}
+.tip b{color:var(--txt)}
+.warnbox{margin-top:14px;font-size:15px;color:var(--txt);padding:12px 14px;background:rgba(226,176,74,.08);border-left:3px solid var(--warn)}
+
+/* a short run of plain steps */
+.steps{counter-reset:s;display:grid;gap:0;border:1px solid var(--line)}
+.steps>li{counter-increment:s;display:grid;grid-template-columns:56px 1fr;gap:16px;padding:18px 20px;border-top:1px solid var(--line)}
+.steps>li:first-child{border-top:0}
+.steps>li::before{content:counter(s);width:34px;height:34px;display:grid;place-items:center;border:1px solid var(--line2);color:var(--txt);font:600 15px/1 var(--mono)}
+.steps h4{font-size:17px;margin-bottom:4px}
+.steps p{color:var(--mut);font-size:16px}
+
+/* drawn illustrations */
+.ill{border:1px solid var(--line);background:var(--bg2);padding:26px;position:relative}
+.ill .tag{position:absolute;right:10px;top:8px;font-size:11.5px;color:var(--dim)}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px;align-items:start}
+
+/* SmartScreen, drawn */
+.ss{background:#1f63b3;color:#fff;font-family:"Segoe UI",system-ui,sans-serif;padding:28px 30px 22px;max-width:520px}
+.ss h4{font:300 26px/1.2 "Segoe UI",system-ui,sans-serif;color:#fff;margin-bottom:14px}
+.ss p{font-size:14px;line-height:1.5;color:#eaf2ff;margin:0}
+.ss .mi{display:inline-block;margin-top:10px;color:#fff;text-decoration:underline;font-size:14px;position:relative}
+.ss .rows{margin-top:16px;font-size:13.5px;color:#eaf2ff}
+.ss .btns{display:flex;justify-content:flex-end;gap:10px;margin-top:22px}
+.ss .btns span{border:2px solid #fff;padding:6px 18px;font-size:14px}
+.ss .btns .ra{background:#fff;color:#1f63b3;font-weight:600;position:relative}
+.callout{position:absolute;display:grid;place-items:center;width:24px;height:24px;background:var(--p4);color:var(--ink);font:800 12px/1 var(--sans);text-decoration:none;right:-34px;top:50%;margin-top:-12px}
+.ss .ra .callout{right:auto;left:-34px}
+
+/* folder tree */
+.tree{font:500 14px/1.9 var(--mono);color:var(--mut)}
+.tree .tr{display:grid;grid-template-columns:minmax(0,300px) 1fr;gap:12px;white-space:pre}
+.tree .tr>span{overflow:hidden;text-overflow:ellipsis}
+.tree b{font-weight:400;color:var(--line2)}
+.tree .d{color:var(--txt)}
+.tree .y{color:var(--p4)}
+.tree .g{color:var(--p3)}
+.tree i{font-style:normal;color:var(--dim);font-family:var(--sans);font-size:13px;white-space:normal}
+@media (max-width:700px){.tree .tr{grid-template-columns:1fr}.tree i{display:none}}
+table.bios{width:100%;border-collapse:collapse;font-size:15px}
+.bios th,.bios td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+.bios th{color:var(--dim);font-weight:600;font-size:13px}
+.bios td:first-child{color:var(--txt);font-weight:600;white-space:nowrap}
+.bios td{color:var(--mut)}
+
+/* network diagram */
+.net svg{width:100%;height:auto}
+.net text{font-family:var(--sans)}
+
+/* cloudflare path */
+.crumbs{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:14.5px}
+.crumbs span{background:var(--win2);border:1px solid var(--line2);padding:5px 10px;color:var(--txt)}
+.crumbs em{font-style:normal;color:var(--dim)}
+.field{display:flex;margin-top:12px;border:1px solid var(--line2);font:500 13.5px/1 var(--mono)}
+.field span{padding:11px 12px;color:var(--dim);background:var(--win2);border-right:1px solid var(--line2);white-space:nowrap}
+.field b{padding:11px 12px;color:var(--txt);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* real UI pictures */
+.ui{border:1px solid var(--line2);background:#000}
+.cap{margin-top:10px;font-size:14px;color:var(--dim)}
+.cap b{color:var(--mut)}
+
+/* who gets in */
+.ways{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line)}
+.ways>div{background:var(--bg);padding:22px}
+.ways .chip{display:inline-block;font:800 12px/1 var(--sans);padding:5px 7px;background:var(--c);color:var(--ink);margin-bottom:12px}
+.ways h3{font-size:18px;margin-bottom:6px}
+.ways p{font-size:15.5px;color:var(--mut)}
+
+/* troubleshooting */
+details{border-top:1px solid var(--line)}
+details:last-of-type{border-bottom:1px solid var(--line)}
+summary{cursor:pointer;list-style:none;padding:18px 40px 18px 0;font-weight:600;font-size:17px;position:relative}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";position:absolute;right:6px;top:14px;font:400 26px/1 var(--sans);color:var(--b)}
+details[open] summary::after{content:"\2212"}
+details .body{padding:0 0 22px;color:var(--mut);max-width:70ch}
+details .body p+p{margin-top:10px}
+details .body b{color:var(--txt)}
+
+.end{display:flex;flex-wrap:wrap;align-items:center;gap:16px 28px;padding:36px;border:1px solid var(--line);background:var(--bg2)}
+.end h3{font-size:24px;margin-right:auto}
+.end a.tl{color:var(--txt);font-weight:600}
+
+/* browser warning, drawn */
+.cw{background:#fff;color:#202124;font-family:"Segoe UI",system-ui,sans-serif;max-width:520px}
+.cw-bar{background:#f1f3f4;padding:8px 10px;border-bottom:1px solid #dadce0}
+.cw-bar span{display:block;background:#fff;border:1px solid #dadce0;border-radius:14px;padding:4px 12px;font-size:12.5px;color:#c5221f}
+.cw-body{padding:22px 26px 24px}
+.cw-ico{width:30px;height:30px;display:grid;place-items:center;background:#c5221f;color:#fff;font-weight:700;margin-bottom:12px}
+.cw h4{font:400 22px/1.25 "Segoe UI",system-ui,sans-serif;color:#202124;margin-bottom:10px}
+.cw p{font-size:13.5px;color:#5f6368;line-height:1.5}
+.cw-btns{display:flex;justify-content:space-between;margin-top:18px}
+.cw-adv{position:relative;border:1px solid #dadce0;padding:7px 14px;font-size:13.5px;color:#1a73e8}
+.cw-back{background:#1a73e8;color:#fff;padding:7px 16px;font-size:13.5px}
+.cw-more{margin-top:16px}
+.cw-more u{position:relative;color:#5f6368}
+.cw .callout{right:auto;left:calc(100% + 8px);font-style:normal}
+/* Cloudflare steps: text left, a drawing right */
+.cf{counter-reset:c;border:1px solid var(--line)}
+.cf>li{counter-increment:c;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:26px;padding:22px 22px 22px 76px;border-top:1px solid var(--line);position:relative}
+.cf>li:first-child{border-top:0}
+.cf>li::before{content:counter(c);position:absolute;left:22px;top:22px;width:34px;height:34px;display:grid;place-items:center;border:1px solid var(--line2);color:var(--txt);font:600 15px/1 var(--mono)}
+.cf h4{font-size:17px;margin-bottom:6px}
+.cf p{color:var(--mut);font-size:16px}
+.mock{padding:34px 20px 18px;font-size:14px}
+.mock .callout{right:-30px}
+.mk-h{font-weight:700;margin-bottom:10px}
+.mk-in{position:relative;border:1px solid var(--line2);background:var(--win);padding:8px 10px;font:500 13.5px/1.3 var(--mono);color:var(--txt);font-variant-ligatures:none}
+.mk-row{display:flex;margin-top:10px}
+.mk-btn{position:relative;background:#f38020;color:#1b1b1b;font-weight:700;padding:8px 14px;font-size:13.5px}
+.mk-note{margin-top:12px;font-size:13px;color:var(--dim)}
+.mk-note b{color:var(--mut);font-weight:600}
+.mk-note i{font-style:normal}
+.mk-cmd{font:500 13px/1.6 var(--mono);color:var(--mut);background:#05070b;border:1px solid var(--line2);padding:12px;word-break:break-all;font-variant-ligatures:none}
+.mk-cmd mark{position:relative;background:rgba(226,176,74,.22);color:var(--txt);outline:1px solid var(--p4)}
+.mk-cmd .callout{display:none}
+.mk-grid{display:grid;grid-template-columns:110px 1fr;gap:8px 12px;align-items:center}
+.mk-grid label{color:var(--dim);font-size:13px}
+/* plain rows */
+.rows>li{padding:18px 0;border-top:1px solid var(--line)}
+.rows>li:first-child{border-top:0;padding-top:0}
+.rows h3{font-size:18px;margin-bottom:6px}
+.rows p{color:var(--mut);font-size:16px}
+.rows b{color:var(--txt)}
+@media (max-width:860px){.cf>li{grid-template-columns:1fr;padding-left:66px}.cf>li::before{left:16px}}
+@media (max-width:700px){.cf>li{padding:18px 16px 18px 58px}.cf>li::before{width:30px;height:30px;left:14px;top:18px;font-size:14px}.mock .callout,.cw .callout{display:none}}
+.about{margin-top:12px;background:#f3f3f3;color:#1b1b1b;font-family:"Segoe UI",system-ui,sans-serif;padding:12px 14px;max-width:320px;font-size:13px}
+.about span{display:block;font-weight:600;margin-bottom:8px}
+.about div{display:flex;justify-content:space-between;padding:4px 0;border-top:1px solid #e1e1e1}
+.about i{font-style:normal;color:#555}
+.about b{font-weight:600;outline:2px solid var(--p4);outline-offset:2px}
+.about div+div b{outline:0}
+.checkpoint{margin-top:30px;padding:16px 18px;border:1px solid var(--p3);background:rgba(76,194,161,.07);color:var(--mut)}
+.checkpoint b{color:var(--txt)}
+
+/* every numbered thing is a seat chip, in player order: P1 blue, P2 coral, P3 green, P4 amber */
+.seq>:nth-child(4n+1){--k:var(--p1)}.seq>:nth-child(4n+2){--k:var(--p2)}.seq>:nth-child(4n+3){--k:var(--p3)}.seq>:nth-child(4n+4){--k:var(--p4)}
+.nextrow{margin:28px 0 8px;padding:20px;border:1px solid var(--line);background:var(--bg2)}
+.nextrow>p{color:var(--mut)}
+.nextrow b{color:var(--txt)}
+.thumbs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
+.thumbs a{display:block;text-decoration:none;color:var(--mut);font-size:13.5px}
+.thumbs img{border:1px solid var(--line2);margin-bottom:6px}
+.say ul.plain li{position:relative;padding-left:16px;margin-top:9px;color:var(--mut);font-size:16px}
+.say ul.plain li::before{content:"";position:absolute;left:0;top:11px;width:6px;height:6px;background:var(--line2)}
+.say ul.plain li b{color:var(--txt)}
+.say .mk{display:inline-grid;place-items:center;width:20px;height:20px;background:var(--b);color:var(--ink);font:800 11px/1 var(--sans);margin-right:7px;vertical-align:1px}
+@media (max-width:700px){.thumbs{grid-template-columns:1fr 1fr}}
+.foot{padding-top:64px;padding-bottom:56px;font-size:14px;line-height:1.75;color:var(--dim)}
+.foot a{color:var(--mut)}
+.foot .kofi{color:var(--mut);font-weight:600;text-decoration-color:#ff5e5b}
+
+@media (max-width:1100px){
+  .doc{grid-template-columns:1fr;gap:0}
+  .toc{display:none}
+  .step{grid-template-columns:1fr;gap:22px}
+  .shot{max-width:585px}
+}
+@media (max-width:860px){
+  .paths{grid-template-columns:1fr}
+  .step.mini{grid-template-columns:1fr}
+  .route{grid-template-columns:1fr 1fr}
+  .route a{border-bottom:1px solid var(--line)}
+  .need,.two,.ways{grid-template-columns:1fr}
+}
+@media (max-width:700px){
+  :root{--g:20px}
+  .nav-in{flex-wrap:wrap;gap:4px 12px;padding-top:10px;padding-bottom:6px;min-height:0}
+  .nav-in::before{content:"";order:3;flex-basis:100%;height:0}
+  .brand{order:1;margin-right:auto}.nav .btn{order:2;height:34px;padding:0 12px;font-size:14px;margin-bottom:4px}.links{order:4;flex:1 1 auto;margin:0 0 0 -12px}.signin{order:5;padding:6px 0}
+  .lg-only{display:none}.xs{display:inline}
+  .head{padding-top:36px}
+  .route{grid-template-columns:1fr}
+  .ill{padding:18px}
+  .end{padding:22px}
+  .steps>li{grid-template-columns:44px 1fr;padding:16px}
+  code{white-space:normal;word-break:break-all}
+  .shot .pin{width:18px;height:18px;margin:-9px 0 0 -9px;font-size:10.5px;box-shadow:0 0 0 2px rgba(47,140,255,.35)}
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to the guide</a>
+
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="/"><img src="/stream/resources/luma-star-192.png" alt="" width="26" height="26">Luma Arcade</a>
+    <nav class="links" aria-label="Pages">
+      <a href="/">Home</a>
+      <a href="/howitworks/">How it works</a>
+      <a aria-current="page" href="/docs/">Setup guide</a>
+    </nav>
+    <a class="signin" href="/stream/">Have an account? <u>Sign in</u></a>
+    <a class="btn p" href="https://github.com/Luma-exe/luma-arcade/releases/latest/download/LumaArcadeSetup.exe">Download for Windows</a>
+  </div>
+</header>
+
+<main id="main">
+<div class="wrap">
+  <div class="head">
+    <h1>Set up Luma Arcade on your PC</h1>
+    <p class="lede">One installer does the work. You click <b>Next</b> about a dozen times, sign in once, and send your friends a link. Every page of Setup is pictured below, with what to pick.</p>
+    <div class="facts"><span>About 20 minutes, mostly downloads</span><span>Windows 10 or 11, 64-bit</span><span>Free and open source</span><span>Friends need only a browser</span></div>
+    <div class="paths">
+      <a href="#before" class="path"><b>Playing at home</b><span>Steps 1 to 4, then "At home" in step 5. About 20 minutes, no extra accounts. This is where most people start.</span></a>
+      <a href="#p-away" class="path"><b>Friends in other houses too</b><span>Add "Away from home" in step 5: a domain you own (about $10 a year) and 15 minutes in Cloudflare's website. Not confident? This is the part to hand to a techy friend.</span></a>
+    </div>
+    <nav class="route" aria-label="The six stages">
+      <a href="#before"><i>1</i><b>Check your PC</b><small>What it needs.</small></a>
+      <a href="#setup"><i>2</i><b>Run Setup</b><small>14 pages. Defaults are fine.</small></a>
+      <a href="#signin"><i>3</i><b>Sign in</b><small>On the PC, localhost:7777.</small></a>
+      <a href="#games"><i>4</i><b>Add games</b><small>Steam, launchers, your ROMs.</small></a>
+      <a href="#play"><i>5</i><b>Other devices</b><small>At home, then anywhere.</small></a>
+      <a href="#invite"><i>6</i><b>Invite friends</b><small>Accounts, links, play together.</small></a>
+    </nav>
+  </div>
+
+  <div class="doc">
+    <aside class="toc" aria-label="On this page">
+      <p>On this page</p>
+      <a href="#before">1. Check your PC</a>
+      <a href="#setup">2. Run Setup</a>
+      <a class="sub" href="#s-download">Download and open</a>
+      <a class="sub" href="#s-pages">The Setup pages</a>
+      <a href="#signin">3. Sign in</a>
+      <a href="#games">4. Add games</a>
+      <a href="#play">5. Play from anywhere</a>
+      <a class="sub" href="#p-home">At home</a>
+      <a class="sub" href="#p-away">Away from home</a>
+      <a href="#invite">6. Invite friends</a>
+      <a href="#after">7. Updates and extras</a>
+      <a href="#help">8. If something's wrong</a>
+    </aside>
+
+    <div class="guide">
+
+<!-- 1 ============================================================== -->
+<section class="part" id="before" style="--c:var(--p1)">
+  <div class="part-h"><span class="n">1</span><h2>Check your PC</h2></div>
+  <p class="intro">Luma Arcade runs on the PC you already game on. If it plays modern games, it almost certainly has everything below.</p>
+  <div class="need">
+    <div>
+      <svg viewBox="0 0 52 52" aria-hidden="true"><rect x="6" y="8" width="40" height="27" fill="none" stroke="#2f8cff" stroke-width="2.5"/><path d="M20 43h12M26 35v8" stroke="#2f8cff" stroke-width="2.5"/><path d="M14 16h10v6H14zM28 16h10v6H28zM14 25h24" stroke="#8cc8ff" stroke-width="1.5" fill="none"/></svg>
+      <h3>A Windows PC</h3>
+      <p>Windows 10 (version 2004 or newer) or Windows 11, 64-bit. Windows Server 2022 or 2025 works too. You need an administrator account to install.</p>
+    </div>
+    <div>
+      <svg viewBox="0 0 52 52" aria-hidden="true"><rect x="5" y="15" width="42" height="22" fill="none" stroke="#2f8cff" stroke-width="2.5"/><circle cx="18" cy="26" r="6" fill="none" stroke="#8cc8ff" stroke-width="1.8"/><circle cx="34" cy="26" r="6" fill="none" stroke="#8cc8ff" stroke-width="1.8"/><path d="M10 37v6M42 37v6" stroke="#2f8cff" stroke-width="2.5"/></svg>
+      <h3>A graphics card that can encode video</h3>
+      <p>NVIDIA (NVENC), AMD (VCE/VCN), or Intel Quick Sync on 6th-gen Core or newer. Nearly every gaming PC has one. Setup checks for you.</p>
+    </div>
+    <div>
+      <svg viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="18" fill="none" stroke="#2f8cff" stroke-width="2.5"/><path d="M8 26h36M26 8c-7 8-7 28 0 36M26 8c7 8 7 28 0 36" stroke="#8cc8ff" stroke-width="1.6" fill="none"/></svg>
+      <h3>Internet while installing</h3>
+      <p>Setup downloads Sunshine, ES-DE and the emulators from their official releases. For playing, plan on about <b>10 to 15 Mbps of upload per player</b>.</p>
+    </div>
+    <div>
+      <svg viewBox="0 0 52 52" aria-hidden="true"><rect x="17" y="5" width="18" height="34" fill="none" stroke="#2f8cff" stroke-width="2.5"/><path d="M23 33h6" stroke="#8cc8ff" stroke-width="2"/><rect x="4" y="40" width="44" height="7" fill="none" stroke="#8cc8ff" stroke-width="1.6"/></svg>
+      <h3>Friends: just a browser</h3>
+      <p>On a phone, tablet, laptop or TV. Chrome or Edge work best. Nothing to install on their side.</p>
+    </div>
+    <div>
+      <svg viewBox="0 0 52 52" aria-hidden="true"><path d="M14 36a10 10 0 0 1 1-20 13 13 0 0 1 25 4 8 8 0 0 1-1 16z" fill="none" stroke="#e2b04a" stroke-width="2.5"/><path d="M20 28l5 5 9-10" stroke="#e2b04a" stroke-width="2.2" fill="none"/></svg>
+      <h3>To play away from home <span class="opt">optional</span></h3>
+      <p>A free Cloudflare account and <b>a domain name you own</b> (any registrar; often about $10 a year). No router settings, no opened ports. Without it, everything still works on your home network, and you can add it later.</p>
+    </div>
+    <div>
+      <svg viewBox="0 0 52 52" aria-hidden="true"><rect x="6" y="10" width="40" height="32" fill="none" stroke="#2f8cff" stroke-width="2.5"/><path d="M6 18h40" stroke="#2f8cff" stroke-width="2"/><path d="M14 26h14M14 32h22" stroke="#8cc8ff" stroke-width="1.6"/></svg>
+      <h3>Games you own</h3>
+      <p>Steam and other launchers work as they are. For retro consoles you add your own games (ROMs) and BIOS files. Luma Arcade ships no games.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 2 ============================================================== -->
+<section class="part" id="setup" style="--c:var(--p2)">
+  <div class="part-h"><span class="n">2</span><h2>Run Setup</h2></div>
+  <p class="intro">Setup asks a few questions first, then installs everything in one go. Nothing is changed on your PC until you press <b>Install</b> on the last page.</p>
+
+  <h3 id="s-download" style="margin-bottom:16px">Download and open it</h3>
+  <div class="two">
+    <ol class="steps">
+      <li><div><h4>Download Setup</h4><p><a href="https://github.com/Luma-exe/luma-arcade/releases/latest/download/LumaArcadeSetup.exe">LumaArcadeSetup.exe</a> from the latest release, on the gaming PC itself.</p></div></li>
+      <li><div><h4>Double-click it</h4><p>Windows may show a blue box: <b>"Windows protected your PC"</b>. That's because Setup isn't code-signed yet, not because something's wrong. Click <b>More info</b>, then <b>Run anyway</b>.</p></div></li>
+      <li><div><h4>Say yes to the admin question</h4><p>Windows asks whether Setup may make changes. Click <b>Yes</b>. It needs admin rights to install drivers and services.</p></div></li>
+    </ol>
+    <figure class="ill" aria-label="Drawing of the Windows protected your PC message, with More info and Run anyway marked">
+      <span class="tag">Drawing of Windows' message</span>
+      <div class="ss">
+        <h4>Windows protected your PC</h4>
+        <p>Microsoft Defender SmartScreen prevented an unrecognised app from starting. Running this app might put your PC at risk.</p>
+        <span class="mi">More info<span class="callout">1</span></span>
+        <div class="rows">App: LumaArcadeSetup.exe<br>Publisher: Unknown publisher</div>
+        <div class="btns"><span class="ra">Run anyway<span class="callout">2</span></span><span>Don't run</span></div>
+      </div>
+    </figure>
+  </div>
+
+  <div class="checkpoint" style="margin-top:44px"><b>The fast path.</b> On almost every page the answer is just <b>Next</b>. The pages that need you: <a href="#pg8">8</a> (a password for the games account), <a href="#pg9">9</a> (your own name and password) and <a href="#pg10">10</a> (leave it as it is unless you have a Cloudflare token). Page 6 too, if the PC has no monitor.</div>
+
+  <h3 id="s-pages" style="margin:56px 0 4px">The Setup pages, one by one</h3>
+  <p class="mut" style="margin-bottom:12px">The numbered markers show what to look at. If a box is greyed out with "already installed", Setup found it on your PC and skips it.</p>
+
+  
+
+  
+
+  <div class="nextrow" aria-label="Pages where you just click Next">
+    <p><b>Four pages need nothing from you.</b> Welcome (page 1), License (2), the Luma Arcade folder (12) and You're all set (14). Click <b>Next</b>, <b>I Agree</b>, <b>Next</b> and <b>Finish</b>.</p>
+    <div class="thumbs">
+      <a href="/docs/img/setup-01-welcome.png"><img src="/docs/img/setup-01-welcome.png" alt="Page 1, Welcome" width="585" height="445" loading="lazy"><span>1 &middot; Next</span></a>
+      <a href="/docs/img/setup-02-license.png"><img src="/docs/img/setup-02-license.png" alt="Page 2, License" width="585" height="445" loading="lazy"><span>2 &middot; I Agree</span></a>
+      <a href="/docs/img/setup-12-folder.png"><img src="/docs/img/setup-12-folder.png" alt="Page 12, Luma Arcade folder" width="585" height="445" loading="lazy"><span>12 &middot; Next</span></a>
+      <a href="/docs/img/setup-14-done.png"><img src="/docs/img/setup-14-done.png" alt="Page 14, You're all set" width="585" height="445" loading="lazy"><span>14 &middot; Finish</span></a>
+    </div>
+    <p class="tip" style="margin-top:12px">After Finish: if you made a separate games account, <b>restart the PC</b> (or sign in to that account once), and keep your own account signed out while people play.</p>
+  </div>
+
+  <div class="step">
+    <figure class="shot"><img src="/docs/img/setup-03-type.png" alt="What do you want to install? Everything is selected" width="585" height="445" loading="lazy"><span class="pin g" style="--x:-2.6%;--y:27.2%">1</span></figure>
+    <div class="say"><p class="page">Page 3 of 14</p><h3>What do you want to install?</h3>
+      <div class="pick"><b>Everything: stream games to a web browser</b>. That's the arcade.</div>
+      <p class="mut" style="margin-top:12px">The other two are for other uses: <b style="color:var(--txt)">ES-DE and emulators</b> plays on this PC only (a TV and controller, no streaming), and <b style="color:var(--txt)">Just the emulators</b> is for people who already use another game menu.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <figure class="shot"><img src="/docs/img/setup-04-components.png" alt="Choose Components: Luma Arcade, ES-DE, Iconic theme, Emulators and Sunshine all ticked" width="585" height="445" loading="lazy"><span class="pin" style="--x:38.5%;--y:56.2%">1</span></figure>
+    <div class="say"><p class="page">Page 4 of 14</p><h3>Choose components</h3><p class="mut">The parts that make up the arcade:</p>
+      <ul class="plain"><li><b>Luma Arcade</b>: the website your friends open.</li><li><b>Sunshine</b>: turns the PC's screen into a video stream using the graphics card.</li><li><b>ES-DE</b> and its <b>Iconic theme</b>: the console-style game menu.</li><li><span class="mk">1</span><b>Emulators</b>: click the <kbd>+</kbd> to pick consoles. RetroArch covers NES, SNES, Mega Drive, Game Boy, N64 and more; there are separate ones for PlayStation 1 to 3, PSP and Vita, GameCube and Wii, Wii U, DS and 3DS, Dreamcast, and Xbox.</li></ul>
+      <div class="pick">Leave everything ticked unless you know you don't want something.</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <figure class="shot"><img src="/docs/img/setup-05-windows-home.png" alt="Which Windows is this? Windows 10 or 11 is detected and selected" width="585" height="445" loading="lazy"><span class="pin g" style="--x:-2.6%;--y:27.2%">1</span></figure>
+    <div class="say"><p class="page">Page 5 of 14</p><h3>Which Windows is this?</h3><p class="mut">Setup detects it and marks it "(detected)".</p><div class="pick">Keep the detected one.</div><p class="tip">On <b>Windows Server</b>, Setup also turns the sound on and offers the fixes Server needs. Some anti-cheat and Microsoft Store games won't run on Server.</p></div>
+  </div>
+
+  <div class="step">
+    <figure class="shot"><img src="/docs/img/setup-06-hardware.png" alt="This PC's hardware: the graphics card found, and the virtual display option" width="585" height="445" loading="lazy"><span class="pin g" style="--x:-2.6%;--y:26%">1</span><span class="pin g" style="--x:-2.6%;--y:41.6%">2</span></figure>
+    <div class="say"><p class="page">Page 6 of 14</p><h3>This PC's hardware</h3>
+      <ol><li>The <b>graphics card</b> Setup found. Sunshine uses it to encode the video, so streaming barely touches the processor.</li><li><b>Virtual display</b>: Sunshine can only stream a screen that's switched on. If the PC has no monitor plugged in (or it's often off), tick this.</li></ol>
+      <div class="pick">Tick <b>Virtual display</b> if there's no monitor. Otherwise Next.</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <figure class="shot"><img src="/docs/img/setup-07-controllers.png" alt="Controllers: Xbox 360 controllers recommended, with the controller drivers below" width="585" height="445" loading="lazy"><span class="pin g" style="--x:-2.6%;--y:36.4%">1</span><span class="pin g" style="--x:-2.6%;--y:67.4%">2</span></figure>
+    <div class="say"><p class="page">Page 7 of 14</p><h3>Controllers</h3><p class="mut">Each friend's controller (or their phone's on-screen buttons) shows up on your PC as if it were plugged in.</p>
+      <ol><li><b>Xbox 360 controllers</b> work in nearly every PC game and emulator.</li><li>The <b>drivers</b> below make that possible. Keep them ticked.</li></ol>
+      <div class="pick"><b>Xbox 360 controllers</b> (recommended).</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <figure class="shot"><img src="/docs/img/setup-08-account.png" alt="Which Windows account should run the games: a separate account named Arcade with a password" width="585" height="445" loading="lazy"><span class="pin g" style="--x:-2.6%;--y:46%">1</span><span class="pin g" style="--x:-2.6%;--y:57.2%">2</span><span class="pin g" style="--x:-2.6%;--y:69%">3</span></figure>
+    <div class="say"><p class="page" id="pg8">Page 8 of 14</p><h3>Which Windows account runs the games?</h3><p class="mut">Whoever is streaming sees and controls that account's desktop. A separate account keeps your files, browser and saved passwords out of reach.</p>
+      <ol><li><b>A separate account just for games</b>. Setup makes it for you, named "Arcade".</li><li>Give it a <b>password</b> (twice). You won't type it day to day.</li><li><b>Sign in automatically</b> lets the arcade come back on its own after a restart.</li></ol>
+      <div class="pick">The defaults: a separate account, signing in automatically.</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <figure class="shot"><img src="/docs/img/setup-09-admin.png" alt="Your admin account: name, password and again, with an example filled in" width="585" height="445" loading="lazy"><span class="pin g" style="--x:-2.6%;--y:48.6%">1</span><span class="pin g" style="--x:-2.6%;--y:69.6%">2</span></figure>
+    <div class="say"><p class="page" id="pg9">Page 9 of 14</p><h3>Your admin account</h3>
+      <ol><li>The <b>name and password you'll sign in to Luma Arcade with</b>. At least 8 characters; make it strong if the arcade will be on the internet.</li><li>Keep this ticked: Setup gives Sunshine the same sign-in and links the two, which saves three fiddly steps later.</li></ol>
+      <div class="pick">Choose a name and password, and <b>write them down</b>.</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <figure class="shot"><img src="/docs/img/setup-10-network.png" alt="Playing from other devices: HTTPS on the home network, and an optional tunnel token" width="585" height="445" loading="lazy"><span class="pin g" style="--x:-2.6%;--y:27%">1</span><span class="pin" style="--x:21%;--y:69%">2</span></figure>
+    <div class="say"><p class="page" id="pg10">Page 10 of 14</p><h3>Playing from other devices</h3>
+      <ol><li><b>HTTPS on the home network</b>. Browsers only allow controllers and full screen on secure pages, so keep it ticked.</li><li><b>Tunnel token</b> for playing away from home. Leave it empty for now if you like. <a href="#p-away">Getting a token</a> is explained below.</li></ol>
+      <div class="pick">Keep HTTPS on. Paste a token only if you have one.</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <figure class="shot"><img src="/docs/img/setup-11-seats.png" alt="Extra seats, unticked" width="585" height="445" loading="lazy"><span class="pin g" style="--x:-2.6%;--y:27%">1</span></figure>
+    <div class="say"><p class="page">Page 11 of 14</p><h3>Extra seats</h3><p class="mut">For several people playing <i>different</i> games at once, each on their own Windows inside the PC. It needs a powerful PC, a Windows .iso and about an hour per seat.</p><div class="pick">Leave it <b>off</b> to start with. You can add seats any time in Settings.</div></div>
+  </div>
+
+  
+
+  <div class="step">
+    <figure class="shot"><img src="/docs/img/setup-13-games-folder.png" alt="Games folder: C:\Games, with the Install button" width="585" height="445" loading="lazy"><span class="pin" style="--x:39%;--y:63%">1</span></figure>
+    <div class="say"><p class="page">Page 13 of 14</p><h3>Games folder</h3><p class="mut">ES-DE, the emulators and your retro games live here, so pick a drive with plenty of space. Every account on the PC can use it.</p><div class="pick"><code>C:\Games</code>, or a bigger drive like <code>D:\Games</code>. Then <b>Install</b>.</div><p class="tip">Installing takes a while: most of it is downloading. Leave the PC on and let it finish.</p></div>
+  </div>
+
+  
+</section>
+
+<!-- 3 ============================================================== -->
+<section class="part" id="signin" style="--c:var(--p3)">
+  <div class="part-h"><span class="n">3</span><h2>Sign in on the PC</h2></div>
+  <p class="intro">Open a browser on the gaming PC and go to <code>http://localhost:7777</code>. Sign in with the admin name and password from page 9.</p>
+  <div class="two">
+    <figure><img class="ui" src="/docs/img/signin.png" alt="Luma Arcade's sign-in page" width="1100" height="700" loading="lazy"><figcaption class="cap"><b>The sign-in page.</b> Your friends see this too, at your arcade's address.</figcaption></figure>
+    <div>
+      <h3 style="margin-bottom:12px">What's already done for you</h3>
+      <ol class="steps">
+        <li><div><h4>Sunshine is linked</h4><p>Setup paired Luma Arcade with Sunshine, so the PC shows up ready to play.</p></div></li>
+        <li><div><h4>Your games are listed</h4><p><b>ES-DE</b> (retro consoles), <b>Steam Big Picture</b> and the <b>Desktop</b> appear as things to play.</p></div></li>
+        <li><div><h4>It starts by itself</h4><p>Luma Arcade and Sunshine start whenever the games account signs in.</p></div></li>
+      </ol>
+      <details style="margin-top:20px">
+        <summary>Skipped the admin account, or the PC isn't listed?</summary>
+        <div class="body">
+          <p>Pair them by hand, once:</p>
+          <p><b>1.</b> Open <code>https://localhost:47990</code> on the PC (accept the certificate warning) and choose a name and password for Sunshine.</p>
+          <p><b>2.</b> Open <code>http://localhost:7777</code> and create an account. The first account becomes the admin.</p>
+          <p><b>3.</b> In Luma Arcade, add a PC with the address <code>localhost</code>. It shows a PIN: type it into Sunshine's page under <b>PIN</b>.</p>
+        </div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- 4 ============================================================== -->
+<section class="part" id="games" style="--c:var(--p4)">
+  <div class="part-h"><span class="n">4</span><h2>Add your games</h2></div>
+  <p class="intro">PC games need nothing extra. Retro games go in folders, one per console.</p>
+  <div class="two">
+    <div>
+      <h3 style="margin-bottom:10px">PC games</h3>
+      <p class="mut">Anything installed through Steam shows up in <b>Steam Big Picture</b>. Epic, GOG and other launchers work from the <b>Desktop</b>, or add them to Steam as non-Steam games so they appear in Big Picture.</p>
+      <h3 style="margin:28px 0 10px">Retro games</h3>
+      <p class="mut">Put each game file in <code>ES-DE\ROMs\</code> under the console's short name. ES-DE offers to create these folders the first time it starts. Restart ES-DE after adding games and they appear.</p>
+      <p class="tip" style="margin-top:16px">A file called <b>"READ ME - games setup.txt"</b> in your games folder lists exactly what Setup installed and where everything goes.</p>
+    </div>
+    <figure class="ill" aria-label="The games folder, drawn as a tree">
+      <span class="tag">Your games folder</span>
+<div class="tree" role="list"><div class="tr" role="listitem"><span><b></b><span class="d">C:\Games\</span></span><i></i></div><div class="tr" role="listitem"><span><b>├─ </b><span class="d">ES-DE\</span></span><i>the game menu</i></div><div class="tr" role="listitem"><span><b>│  ├─ </b><span class="d">ROMs\</span></span><i></i></div><div class="tr" role="listitem"><span><b>│  │  ├─ </b><span class="y">snes\</span></span><i>Super Nintendo games</i></div><div class="tr" role="listitem"><span><b>│  │  ├─ </b><span class="y">megadrive\</span></span><i>Mega Drive / Genesis</i></div><div class="tr" role="listitem"><span><b>│  │  ├─ </b><span class="y">psx\</span></span><i>PlayStation</i></div><div class="tr" role="listitem"><span><b>│  │  ├─ </b><span class="y">ps2\</span></span><i>PlayStation 2</i></div><div class="tr" role="listitem"><span><b>│  │  └─ </b><span class="y">…</span></span><i>one folder per console</i></div><div class="tr" role="listitem"><span><b>│  └─ </b><span class="d">Emulators\</span></span><i></i></div><div class="tr" role="listitem"><span><b>│     ├─ </b><span class="g">RetroArch-Win64\system\</span></span><i>BIOS</i></div><div class="tr" role="listitem"><span><b>│     ├─ </b><span class="g">PCSX2-Qt\bios\</span></span><i>BIOS</i></div><div class="tr" role="listitem"><span><b>│     └─ </b><span class="g">duckstation\bios\</span></span><i>BIOS</i></div><div class="tr" role="listitem"><span><b>├─ </b><span class="d">setup\</span></span><i>re-run to add emulators</i></div><div class="tr" role="listitem"><span><b>└─ </b><span class="">READ ME - games setup.txt</span></span><i>what went where</i></div></div>
+    </figure>
+  </div>
+
+  <details class="bios-d"><summary>BIOS files, for some retro consoles</summary>
+  <h3 style="margin:8px 0 6px">BIOS files</h3>
+  <p class="mut" style="margin-bottom:14px">Some consoles need their BIOS to start. They aren't included: copy them from consoles you own.</p>
+  <div style="overflow-x:auto">
+  <table class="bios">
+    <thead><tr><th>Emulator</th><th>Consoles</th><th>Where the BIOS goes</th></tr></thead>
+    <tbody>
+      <tr><td>RetroArch</td><td>PlayStation 1 cores, PC Engine CD and others</td><td><code>Emulators\RetroArch-Win64\system\</code></td></tr>
+      <tr><td>DuckStation</td><td>PlayStation</td><td><code>Emulators\duckstation\bios\</code></td></tr>
+      <tr><td>PCSX2</td><td>PlayStation 2</td><td><code>Emulators\PCSX2-Qt\bios\</code></td></tr>
+      <tr><td>RPCS3</td><td>PlayStation 3</td><td>In RPCS3: <b>File &gt; Install Firmware</b> (PS3UPDAT.PUP)</td></tr>
+      <tr><td>Vita3K</td><td>PS Vita</td><td>In Vita3K: install the firmware (PSVUPDAT.PUP)</td></tr>
+      <tr><td>xemu</td><td>Original Xbox</td><td>In xemu's settings: point it at your BIOS, MCPX and HDD image</td></tr>
+    </tbody>
+  </table>
+  </div>
+  </details>
+</section>
+
+<!-- 5 ============================================================== -->
+<section class="part" id="play" style="--c:var(--p1)">
+  <div class="part-h"><span class="n">5</span><h2>Play from other devices</h2></div>
+  <p class="intro">There are two addresses: one for devices in your house, and one for friends anywhere.</p>
+
+  <figure class="ill net" aria-label="Diagram: devices at home reach the PC directly on port 7778. Friends away from home reach it through a Cloudflare Tunnel at your own address, with no ports opened.">
+    <span class="tag">How devices reach your PC</span>
+    <svg viewBox="0 0 900 300" role="img" aria-hidden="true">
+      <rect x="10" y="20" width="520" height="260" fill="none" stroke="#3a4764" stroke-dasharray="6 6"/>
+      <text x="26" y="46" fill="#97a4b9" font-size="14">Your home network</text>
+      <rect x="330" y="100" width="170" height="110" fill="#11151d" stroke="#2f8cff" stroke-width="2"/>
+      <rect x="345" y="114" width="140" height="66" fill="#0e131d" stroke="#3a4764"/>
+      <path d="M407 122l16 9-16 9z" fill="#2f8cff"/><text x="415" y="166" fill="#8cc8ff" font-size="12.5" text-anchor="middle">Luma Arcade</text><text x="415" y="200" fill="#e9edf4" font-size="15" font-weight="700" text-anchor="middle">Your gaming PC</text>
+      <rect x="40" y="80" width="150" height="56" fill="#11151d" stroke="#4cc2a1" stroke-width="2"/>
+      <text x="115" y="104" fill="#e9edf4" font-size="14" font-weight="700" text-anchor="middle">TV or laptop</text>
+      <text x="115" y="124" fill="#97a4b9" font-size="12.5" text-anchor="middle">at home</text>
+      <rect x="40" y="180" width="150" height="56" fill="#11151d" stroke="#4cc2a1" stroke-width="2"/>
+      <text x="115" y="204" fill="#e9edf4" font-size="14" font-weight="700" text-anchor="middle">Phone on Wi-Fi</text>
+      <text x="115" y="224" fill="#97a4b9" font-size="12.5" text-anchor="middle">at home</text>
+      <path d="M190 108H330M190 208H330" stroke="#4cc2a1" stroke-width="2"/>
+      <text x="260" y="98" fill="#4cc2a1" font-size="12.5" text-anchor="middle" font-family="JetBrains Mono,monospace">https://gamingpc:7778</text>
+      <rect x="590" y="116" width="130" height="78" fill="#11151d" stroke="#e2b04a" stroke-width="2"/>
+      <text x="655" y="148" fill="#e9edf4" font-size="14" font-weight="700" text-anchor="middle">Cloudflare</text>
+      <text x="655" y="168" fill="#97a4b9" font-size="12.5" text-anchor="middle">Tunnel</text>
+      <path d="M500 155H590" stroke="#e2b04a" stroke-width="2"/>
+      <text x="545" y="145" fill="#97a4b9" font-size="11.5" text-anchor="middle">outgoing only</text>
+      <rect x="760" y="116" width="130" height="78" fill="#11151d" stroke="#e8765c" stroke-width="2"/>
+      <text x="825" y="148" fill="#e9edf4" font-size="14" font-weight="700" text-anchor="middle">A friend</text>
+      <text x="825" y="168" fill="#97a4b9" font-size="12.5" text-anchor="middle">anywhere</text>
+      <path d="M720 155H760" stroke="#e8765c" stroke-width="2"/>
+      <text x="740" y="232" fill="#e8765c" font-size="12.5" text-anchor="middle" font-family="JetBrains Mono,monospace">https://arcade.your-domain.com</text>
+    </svg>
+  </figure>
+
+  <p class="warnbox" style="margin-top:28px"><b>No domain?</b> Do "At home" and stop there. Everything works inside your house; you can add "Away from home" any time.</p>
+
+  <h3 id="p-home" style="margin:44px 0 14px">At home</h3>
+  <div class="two">
+    <ol class="steps">
+      <li><div><h4>Find the PC's name</h4><p>On the gaming PC: <b>Settings &gt; System &gt; About</b>. It's the "Device name". The IP address works too.</p><div class="about" aria-hidden="true"><span>Device specifications</span><div><i>Device name</i><b>GAMINGPC</b></div><div><i>Processor</i><b>…</b></div></div></div></li>
+      <li><div><h4>Open the secure address</h4><p>On the TV, laptop or phone, type <code>https://&lt;PC name&gt;:7778</code>, for example <code>https://gamingpc:7778</code>.</p></div></li>
+      <li><div><h4>Get past the warning, once per device</h4><p>The browser says the connection isn't private, because the certificate is made by your own PC. Click <b>Advanced</b>, then <b>Continue</b> (Edge) or <b>Proceed</b> (Chrome). That's safe here: the address is your own PC, on your own network.</p></div></li>
+    </ol>
+    <figure class="ill" aria-label="Drawing of the browser warning: Your connection isn't private, with Advanced and Continue marked">
+      <span class="tag">Drawing of the browser's warning</span>
+      <div class="cw">
+        <div class="cw-bar"><span>https://gamingpc:7778</span></div>
+        <div class="cw-body">
+          <div class="cw-ico">!</div>
+          <h4>Your connection isn't private</h4>
+          <p>Attackers might be trying to steal your information from <b>gamingpc</b>.</p>
+          <div class="cw-btns"><span class="cw-adv">Advanced<i class="callout">1</i></span><span class="cw-back">Go back</span></div>
+          <p class="cw-more">This server couldn't prove that it's gamingpc. <u>Continue to gamingpc (unsafe)<i class="callout">2</i></u></p>
+        </div>
+      </div>
+    </figure>
+  </div>
+  <p class="tip">Want the warning gone for good on a device? Open <code>http://&lt;PC&gt;:7777/luma-arcade.cer</code> on it and install the certificate. Plain <code>http://&lt;PC&gt;:7777</code> also works, but browsers block controllers and full screen there.</p>
+
+  <div class="checkpoint"><b>Checkpoint.</b> On your phone, open <code>https://&lt;PC name&gt;:7778</code>. If you see the Luma Arcade sign-in page, home play works. Playing only at home? <b>You're done</b>: skip to <a href="#invite">inviting friends</a>.</div>
+
+  <h3 id="p-away" style="margin:56px 0 6px">Away from home</h3>
+  <p class="mut" style="margin-bottom:8px">Only playing at home? <a href="#invite">Skip to inviting friends</a>.</p>
+  <p class="mut" style="margin-bottom:18px">Done once, on any computer, on Cloudflare's website. It needs a domain you own (any registrar, about $10 a year). It's the fiddliest part of the guide, so it's fine to ask a techy friend. Cloudflare moves its menus around now and then; the names stay close to these.</p>
+  <ol class="cf">
+    <li>
+      <div><h4>Put your domain on Cloudflare</h4><p>Sign up at cloudflare.com (free) and <b>add your domain</b>. Cloudflare tells you two "nameservers" to set where you bought the domain. It can take an hour to switch over. Already on Cloudflare? Skip this.</p></div>
+      <figure class="ill mock" aria-hidden="true"><span class="tag">Drawing</span>
+        <div class="mk-h">Add a domain</div><div class="mk-in">your-domain.com</div><div class="mk-row"><span class="mk-btn">Continue</span></div>
+        <div class="mk-note">Nameservers: <b>ada.ns.cloudflare.com</b>, <b>bob.ns.cloudflare.com</b> <i>(yours will differ)</i></div>
+      </figure>
+    </li>
+    <li>
+      <div><h4>Create a tunnel</h4><p>Open <b>Zero Trust</b>, then <b>Networks &gt; Tunnels</b>, and click <b>Create a tunnel</b>. Choose <b>Cloudflared</b> and name it anything, like <code>luma-arcade</code>.</p></div>
+      <figure class="ill mock" aria-hidden="true"><span class="tag">Drawing</span>
+        <div class="crumbs"><span>Zero Trust</span><em>›</em><span>Networks</span><em>›</em><span>Tunnels</span></div>
+        <div class="mk-row" style="margin-top:14px"><span class="mk-btn">+ Create a tunnel<i class="callout">1</i></span></div>
+        <div class="mk-in" style="margin-top:12px">Tunnel name: luma-arcade</div>
+      </figure>
+    </li>
+    <li>
+      <div><h4>Copy the token</h4><p>Cloudflare shows an install command for Windows. Don't run it. Copy only the long part after <code>--token</code>, then paste it on Setup's page 10. Already installed? Run Setup again, choose <b>Update</b>, and paste it there.</p></div>
+      <figure class="ill mock" aria-hidden="true"><span class="tag">Drawing</span>
+        <div class="mk-cmd">cloudflared.exe service install <mark>eyJhIjoiNGY3Y2…lots more…In0=<i class="callout">1</i></mark></div>
+        <div class="mk-note">Only the highlighted part. It's long: copy all of it.</div>
+      </figure>
+    </li>
+    <li>
+      <div><h4>Point a public hostname at the PC</h4><p>Next, add a public hostname: a subdomain you like, your domain, and the service <b>HTTP</b> with URL <code>localhost:7777</code>. Save. That's the address you send friends.</p></div>
+      <figure class="ill mock" aria-hidden="true"><span class="tag">Drawing</span>
+        <div class="mk-grid"><label>Subdomain</label><div class="mk-in">arcade</div><label>Domain</label><div class="mk-in">your-domain.com</div><label>Service type</label><div class="mk-in">HTTP<i class="callout">1</i></div><label>URL</label><div class="mk-in">localhost:7777<i class="callout">2</i></div></div>
+        <div class="mk-note">Friends open <b>https://arcade.your-domain.com</b></div>
+      </figure>
+    </li>
+  </ol>
+  <p class="tip">No ports are opened on your router: the PC connects out to Cloudflare, and friends come in through that connection.</p>
+</section>
+
+<!-- 6 ============================================================== -->
+<section class="part" id="invite" style="--c:var(--p2)">
+  <div class="part-h"><span class="n">6</span><h2>Invite friends</h2></div>
+  <p class="intro">Three ways in, depending on how often someone plays.</p>
+  <div class="two">
+    <ul class="rows">
+      <li><h3>Regulars: make them an account</h3><p>As the admin, create an account and send them the address, their name and a password. You can set play-time limits and which games each person sees.</p></li>
+      <li><h3>Once in a while: send a guest link</h3><p>No account needed. It works for the time you choose and ends by itself. You can see who's using one, message them, or switch it off.</p></li>
+      <li><h3>Right now: invite them into your game</h3><p>While playing, open <b>People</b> and invite someone straight in. Up to four players; their controller becomes the next player. Or make a link right there.</p></li>
+    </ul>
+    <figure><img class="ui" src="/landing-media/ui/invite.png" alt="The Play together dialog: invite friends by name as a player or to watch, or make a link" width="720" height="406" loading="lazy" onerror="this.closest('figure').hidden=true"><figcaption class="cap"><b>Play together</b>, inside a game: invite by name, to play or to watch, or make a link.</figcaption></figure>
+  </div>
+
+  <h3 style="margin:44px 0 14px">On a phone, the screen is the controller</h3>
+  <div class="two">
+    <figure><img class="ui" src="/docs/img/touch-pad.png" alt="Phone screen with on-screen gamepad: sticks, D-pad, face buttons and shoulder buttons" width="722" height="334" loading="lazy"><figcaption class="cap"><b>Standard pad.</b> Sticks, D-pad, face buttons, bumpers and triggers.</figcaption></figure>
+    <figure><img class="ui" src="/docs/img/touch-racing.png" alt="Phone screen with the racing layout: analog gas and brake pedals" width="722" height="334" loading="lazy"><figcaption class="cap"><b>Racing layout.</b> Analog gas and brake pedals; tilt the phone to steer.</figcaption></figure>
+  </div>
+  <p class="tip" style="margin-top:22px">Bluetooth and USB gamepads work in the browser too. Turn the phone sideways for the full picture.</p>
+</section>
+
+<!-- 7 ============================================================== -->
+<section class="part" id="after" style="--c:var(--p3)">
+  <div class="part-h"><span class="n">7</span><h2>Updates and extras</h2></div>
+  <ul class="rows" style="margin-top:22px">
+    <li><h3>Updating: run the new Setup</h3><p>Download the latest Setup and run it. It sees the arcade and offers <b>Update</b>, <b>Repair</b> or <b>Uninstall</b>. Accounts, settings, games and saves are kept.</p></li>
+    <li><h3>Private mode is on to start</h3><p>New arcades don't take account requests from visitors and store nothing from them. To let people ask for an account, turn it off in <b>Settings</b>.</p></li>
+    <li><h3>Extra seats, for more people at once</h3><p><b>Settings &gt; Extra seats</b>: "Get this PC ready", then "Add a seat" with a Windows 10 or 11 Pro .iso. Each seat needs about 6 GB of memory and builds itself in about an hour.</p></li>
+  </ul>
+</section>
+
+<!-- 8 ============================================================== -->
+<section class="part" id="help" style="--c:var(--p4)">
+  <div class="part-h"><span class="n">8</span><h2>If something's wrong</h2></div>
+  <p class="intro">Start with <b>Settings &gt; Host health</b> on the arcade. It checks Sunshine, the drivers and the helper scripts, and most problems show up there with a fix.</p>
+  <details>
+    <summary>"Windows protected your PC" when opening Setup</summary>
+    <div class="body"><p>Expected for now: Setup isn't code-signed yet. Click <b>More info</b>, then <b>Run anyway</b>. Download it only from the GitHub releases page.</p></div>
+  </details>
+  <details>
+    <summary>Black screen, or the stream stops straight away</summary>
+    <div class="body"><p>Nobody is signed in on the PC itself. Sunshine can only capture a signed-in desktop. Restart the PC so the games account signs in by itself, or sign in to it.</p><p>If you use Remote Desktop, connect with <code>mstsc /admin</code>. A normal Remote Desktop connection opens a separate session and leaves the PC's own screen empty.</p></div>
+  </details>
+  <details>
+    <summary>Controllers do nothing in games</summary>
+    <div class="body"><p>Open the arcade on the secure address (<code>https://…:7778</code>, or your tunnel address): browsers ignore controllers on plain http.</p><p>On <b>Windows Server</b>, there's no Xbox 360 controller driver by default. Re-run Setup, choose Update, and tick the Xbox 360 driver on the Controllers page, or choose PlayStation 4 controllers.</p></div>
+  </details>
+  <details>
+    <summary>The certificate warning keeps coming back</summary>
+    <div class="body"><p>Install the arcade's certificate on that device from <code>http://&lt;PC&gt;:7777/luma-arcade.cer</code>. Or use the Cloudflare address, which has a normal certificate.</p></div>
+  </details>
+  <details>
+    <summary>The picture is blocky or stutters</summary>
+    <div class="body"><p>Luma Arcade lowers the quality by itself when the connection dips, then raises it again. Wire the gaming PC to the router if you can: Wi-Fi on the PC's side matters most. Allow about 10 to 15 Mbps of upload per player.</p></div>
+  </details>
+  <details>
+    <summary>Other programs stop starting after a restart</summary>
+    <div class="body"><p>Windows signs in only one account by itself. Programs that need their own signed-in desktop won't start if the games account now owns it.</p></div>
+  </details>
+  <details>
+    <summary>Still stuck?</summary>
+    <div class="body"><p>In <b>Settings &gt; Host health</b>, click <b>Copy diagnostics</b> (names and IP addresses are taken out) and paste it into a <a href="https://github.com/Luma-exe/luma-arcade/issues/new?template=bug_report.yml">bug report on GitHub</a>.</p></div>
+  </details>
+
+  <div class="end" style="margin-top:48px">
+    <h3>Start on the gaming PC: download Setup.</h3>
+    <a class="btn p lg" href="https://github.com/Luma-exe/luma-arcade/releases/latest/download/LumaArcadeSetup.exe">Download for Windows</a>
+    <a class="tl" href="https://github.com/Luma-exe/luma-arcade">Source on GitHub</a>
+  </div>
+</section>
+
+    </div>
+  </div>
+</div>
+</main>
+
+<footer class="wrap foot">
+  <p>Luma Arcade is made by luma_exe. Free and open source: <a href="https://github.com/Luma-exe/luma-arcade">github.com/Luma-exe/luma-arcade</a></p>
+  <p>Enjoying Luma Arcade? <a class="kofi" href="https://ko-fi.com/lumaexe" target="_blank" rel="noopener">Support it on Ko-fi</a></p>
+</footer>
+
+<script>
+/* The contents rail follows the reader. */
+(function(){
+  var links=[].slice.call(document.querySelectorAll(".toc a"));
+  if(!links.length||!("IntersectionObserver" in window))return;
+  var byId={};links.forEach(function(a){byId[a.getAttribute("href").slice(1)]=a});
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){
+    if(e.isIntersecting){links.forEach(function(a){a.classList.remove("on")});var a=byId[e.target.id];if(a)a.classList.add("on")}})},
+    {rootMargin:"-30% 0px -60% 0px"});
+  Object.keys(byId).forEach(function(id){var el=document.getElementById(id);if(el)io.observe(el)});
+})();
+</script>
+</body>
+</html>

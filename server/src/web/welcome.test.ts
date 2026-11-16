@@ -67,6 +67,41 @@ describe("how it works page", () => {
   });
 });
 
+describe("setup guide", () => {
+  it("is public at /docs/, and /docs and /setup go there", async () => {
+    const page = await app.inject({ method: "GET", url: "/docs/" });
+    assert.equal(page.statusCode, 200);
+    assert.match(page.body, /Set up Luma Arcade/);
+    for (const url of ["/docs", "/setup", "/setup/"]) {
+      const r = await app.inject({ method: "GET", url });
+      assert.equal(r.statusCode, 302);
+      assert.equal(r.headers.location, "/docs/");
+    }
+  });
+
+  it("serves its own pictures, and nothing outside docs-img", async () => {
+    const img = await app.inject({ method: "GET", url: "/docs/img/setup-01-welcome.png" });
+    assert.equal(img.statusCode, 200);
+    assert.equal(img.headers["content-type"], "image/png");
+    for (const url of ["/docs/img/nope.png", "/docs/img/..%2Fdocs.html", "/docs/img/docs.html"]) {
+      assert.equal((await app.inject({ method: "GET", url })).statusCode, 404, url);
+    }
+  });
+
+  it("every picture the guide uses exists", async () => {
+    const page = await app.inject({ method: "GET", url: "/docs/" });
+    const srcs = [...page.body.matchAll(/src="(\/docs\/img\/[^"]+)"/g)].map((m) => m[1]);
+    assert.ok(srcs.length > 10);
+    for (const src of srcs) assert.equal((await app.inject({ method: "GET", url: src })).statusCode, 200, src);
+  });
+
+  it("is linked from the other pages", async () => {
+    for (const url of ["/", "/howitworks/"]) {
+      assert.match((await app.inject({ method: "GET", url })).body, /href="\/docs\/"/, url);
+    }
+  });
+});
+
 describe("welcome page", () => {
   it("is what / shows, and a / link with a query still goes to the arcade", async () => {
     const page = await app.inject({ method: "GET", url: "/" });
