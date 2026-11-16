@@ -1,9 +1,10 @@
 import type { FastifyInstance } from "fastify";
-import { readFileSync } from "node:fs";
+import { createReadStream, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getSetting } from "../../config/settings.js";
 import { getDb } from "../../db/index.js";
+import { dataPath } from "../../platform.js";
 import { MOONLIGHT_PATH_PREFIX } from "../../remote/moonlightWebStream.js";
 import { notify } from "../notify.js";
 import { clientIp } from "../requestOrigin.js";
@@ -42,6 +43,33 @@ let page: string | null = null;
 /** /howitworks/: how the arcade works and everything it does, for visitors. */
 const HOW_PAGE = path.join(PAGES, "howitworks.html");
 let howPage: string | null = null;
+
+/** The landing pages' gameplay clips and art live outside git (copyrighted),
+ * in <data dir>/landing-media/<dir>/<file>. Other installs just don't have it. */
+const MEDIA_DIRS = new Set(["clips", "covers", "shots", "fanart", "marquees", "3dboxes", "physical"]);
+const MEDIA_FILE = /^[a-z0-9][a-z0-9-]{0,40}\.(mp4|png|jpg|jpeg|webp)$/;
+const MEDIA_TYPES: Record<string, string> = { mp4: "video/mp4", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp" };
+/** Read per request so LUMA_DATA_DIR can be changed (tests). */
+const mediaFile = (dir: string, file: string) =>
+  process.env.LUMA_DATA_DIR ? path.join(process.env.LUMA_DATA_DIR, "landing-media", dir, file) : dataPath("landing-media", dir, file);
+
+/** One "bytes=a-b" range of `size` bytes: [start, end], or null when unsatisfiable. */
+export function parseRange(header: string, size: number): [number, number] | null {
+  const m = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
+  if (!m || (m[1] === "" && m[2] === "")) return null;
+  let start: number;
+  let end: number;
+  if (m[1] === "") {
+    const n = Number(m[2]); // the last n bytes
+    if (n === 0) return null;
+    start = Math.max(0, size - n);
+    end = size - 1;
+  } else {
+    start = Number(m[1]);
+    end = m[2] === "" ? size - 1 : Math.min(Number(m[2]), size - 1);
+  }
+  return start >= size || start > end ? null : [start, end];
+}
 
 /** What the request forms get back on a private arcade. */
 const PRIVATE_ERROR = "This arcade is private. Luma Arcade is free: set up your own at github.com/Luma-exe/luma-arcade";
@@ -100,6 +128,37 @@ export async function registerWelcomeRoutes(app: FastifyInstance) {
       .header("cache-control", "no-cache")
       .type("text/html; charset=utf-8")
       .send(withPreview(howPage, request, "How Luma Arcade works", `${SLOGAN} How it streams a real gaming PC to your browser, and everything it does for the people playing.`));
+  });
+
+  // The landing pages' clips and art (see MEDIA_DIRS). Public; 404 when absent.
+  app.get<{ Params: { dir: string; file: string } }>("/landing-media/:dir/:file", async (request, reply) => {
+    const { dir, file } = request.params;
+    if (!MEDIA_DIRS.has(dir) || !MEDIA_FILE.test(file)) return reply.code(404).send({ error: "Not found" });
+    let size: number;
+    const full = mediaFile(dir, file);
+    try {
+      const st = statSync(full);
+      if (!st.isFile()) throw new Error("not a file");
+      size = st.size;
+    } catch {
+      return reply.code(404).send({ error: "Not found" });
+    }
+    reply
+      .header("content-type", MEDIA_TYPES[file.slice(file.lastIndexOf(".") + 1)])
+      .header("cache-control", "public, max-age=86400")
+      .header("accept-ranges", "bytes");
+    const range = request.headers.range;
+    if (range && file.endsWith(".mp4")) {
+      const r = parseRange(range, size);
+      if (!r) return reply.code(416).header("content-range", `bytes */${size}`).send();
+      const [start, end] = r;
+      return reply
+        .code(206)
+        .header("content-range", `bytes ${start}-${end}/${size}`)
+        .header("content-length", end - start + 1)
+        .send(createReadStream(full, { start, end }));
+    }
+    return reply.header("content-length", size).send(createReadStream(full));
   });
 
   /** Has this visitor asked already? */

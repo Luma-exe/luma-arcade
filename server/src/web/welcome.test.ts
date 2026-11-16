@@ -1,5 +1,8 @@
 import { after, before, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
 import { getDb, initDb } from "../db/index.js";
 import { setSetting } from "../config/settings.js";
@@ -201,5 +204,68 @@ describe("the admin's Requests tab", () => {
 
   it("is admins only", async () => {
     assert.equal((await app.inject({ method: "GET", url: "/api/admin/requests" })).statusCode, 401);
+  });
+});
+
+describe("landing media", () => {
+  const prevDir = process.env.LUMA_DATA_DIR;
+  let tmp: string;
+  const clip = Buffer.from("0123456789abcdefghij"); // 20 bytes
+  before(() => {
+    tmp = mkdtempSync(path.join(os.tmpdir(), "luma-landing-"));
+    mkdirSync(path.join(tmp, "landing-media", "clips"), { recursive: true });
+    mkdirSync(path.join(tmp, "landing-media", "covers"), { recursive: true });
+    writeFileSync(path.join(tmp, "landing-media", "clips", "smb.mp4"), clip);
+    writeFileSync(path.join(tmp, "landing-media", "covers", "smb.png"), "png");
+    writeFileSync(path.join(tmp, "secret.png"), "nope");
+    process.env.LUMA_DATA_DIR = tmp;
+  });
+  after(() => {
+    if (prevDir === undefined) delete process.env.LUMA_DATA_DIR;
+    else process.env.LUMA_DATA_DIR = prevDir;
+    rmSync(tmp, { recursive: true, force: true });
+  });
+  const get = (url: string, headers: Record<string, string> = {}) => app.inject({ method: "GET", url, headers });
+
+  it("serves a file with its type and cache headers", async () => {
+    const res = await get("/landing-media/covers/smb.png");
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.headers["content-type"], "image/png");
+    assert.equal(res.headers["cache-control"], "public, max-age=86400");
+    const video = await get("/landing-media/clips/smb.mp4");
+    assert.equal(video.statusCode, 200);
+    assert.equal(video.headers["content-type"], "video/mp4");
+    assert.equal(video.headers["accept-ranges"], "bytes");
+    assert.equal(video.rawPayload.length, 20);
+  });
+
+  it("answers a range request with 206 and the right Content-Range", async () => {
+    const res = await get("/landing-media/clips/smb.mp4", { range: "bytes=5-9" });
+    assert.equal(res.statusCode, 206);
+    assert.equal(res.headers["content-range"], "bytes 5-9/20");
+    assert.equal(res.body, "56789");
+    const open = await get("/landing-media/clips/smb.mp4", { range: "bytes=15-" });
+    assert.equal(open.statusCode, 206);
+    assert.equal(open.headers["content-range"], "bytes 15-19/20");
+    const tail = await get("/landing-media/clips/smb.mp4", { range: "bytes=-4" });
+    assert.equal(tail.headers["content-range"], "bytes 16-19/20");
+    assert.equal(tail.body, "ghij");
+  });
+
+  it("refuses a range past the end with 416", async () => {
+    const res = await get("/landing-media/clips/smb.mp4", { range: "bytes=50-60" });
+    assert.equal(res.statusCode, 416);
+    assert.equal(res.headers["content-range"], "bytes */20");
+    assert.equal((await get("/landing-media/clips/smb.mp4", { range: "bytes=x-y" })).statusCode, 416);
+  });
+
+  it("404s traversal, unknown folders, bad names and missing files", async () => {
+    assert.equal((await get("/landing-media/clips/..%2F..%2Fsecret.png")).statusCode, 404);
+    assert.equal((await get("/landing-media/..%2F/secret.png")).statusCode, 404);
+    assert.equal((await get("/landing-media/clips/../secret.png")).statusCode, 404);
+    assert.equal((await get("/landing-media/other/smb.png")).statusCode, 404);
+    assert.equal((await get("/landing-media/clips/smb.exe")).statusCode, 404);
+    assert.equal((await get("/landing-media/clips/SMB.mp4")).statusCode, 404);
+    assert.equal((await get("/landing-media/clips/nothing.mp4")).statusCode, 404);
   });
 });

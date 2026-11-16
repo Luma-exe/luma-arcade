@@ -55,6 +55,10 @@ Skipped the admin account, or pairing didn't work? `NEXT-STEPS.txt` in the insta
 
 New installs start with **private mode on**. The front page doesn't offer a "request an account" or "forgot password" form, and nothing from visitors is stored. Only accounts and links you create work. To let visitors ask for an account, turn private mode off in **Settings** (as the admin). Their requests then reach you (and a Discord channel, if you set up a webhook). See [PRIVACY.md](PRIVACY.md) for what that stores.
 
+### Landing page gameplay clips (optional)
+
+The front page (`/`) and `/howitworks/` show gameplay clips and cover art from `<data dir>/landing-media/` if it exists (on Windows, `C:\ProgramData\LumaArcade\landing-media\`). Without it the frames just stay empty and dark. The subfolders are `clips` (`.mp4`), `covers`, `shots` (poster stills), `fanart`, `marquees`, `3dboxes` and `physical` (images). Files are named by game id: `smb smw dkc metroid sonic mk64 crash melee burnout forza mk8 rocket`, for example `clips/mk64.mp4` and `covers/mk64.jpg`. The page uses `clips`, `covers` and `shots`. This footage is not part of the repository.
+
 ## Getting help
 
 - **Troubleshooting** is in the [README](../README.md#troubleshooting). Host health in Settings (as the admin) checks Sunshine, the drivers and the helper scripts.
