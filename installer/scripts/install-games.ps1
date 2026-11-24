@@ -143,6 +143,107 @@ foreach ($key in $wanted) {
     }
 }
 
+# ES-DE has no Switch 2 system: add one (custom_systems) that starts Lichii,
+# its ROMs\switch2 folder, and Switch 2 pictures for the Iconic theme. Safe
+# to run again: it only adds what's missing.
+function Add-EsDeSwitch2 {
+    $esData = if (Test-Path (Join-Path $esdeDir 'portable.txt')) { Join-Path $esdeDir 'ES-DE' } else { Join-Path $env:USERPROFILE 'ES-DE' }
+    $custom = Join-Path $esData 'custom_systems'
+    New-Item -ItemType Directory -Force $custom | Out-Null
+
+    # Added as text before the closing tag, so the file (maybe edited by
+    # hand, with comments) keeps its own layout.
+    function Add-ToEsDeList([string]$File, [string]$Root, [string]$Find, [string]$Block) {
+        $text = if (Test-Path $File) { [IO.File]::ReadAllText($File) } else { "<?xml version=`"1.0`"?>`r`n<$Root>`r`n</$Root>`r`n" }
+        if ($text -match $Find) { return $false }
+        $end = $text.LastIndexOf("</$Root>")
+        if ($end -lt 0) { throw "$File has no </$Root>" }
+        $text = $text.Substring(0, $end).TrimEnd() + "`r`n" + $Block.Trim("`r`n") + "`r`n</$Root>" + $text.Substring($end + "</$Root>".Length)
+        [void][xml]$text
+        [IO.File]::WriteAllText($File, $text)
+        return $true
+    }
+
+    $file = Join-Path $custom 'es_systems.xml'
+    $added = Add-ToEsDeList $file 'systemList' '<name>\s*switch2\s*</name>' @'
+    <!-- switch2: added by Luma Arcade Setup. ES-DE has no Switch 2 system;
+         Lichii (Emulators\lichii) runs it. -->
+    <system>
+        <name>switch2</name>
+        <fullname>Nintendo Switch 2</fullname>
+        <path>%ROMPATH%\switch2</path>
+        <extension>.lnk .LNK .nca .NCA .nro .NRO .nso .NSO .nsp .NSP .xci .XCI</extension>
+        <command label="Lichii (Standalone)">%EMULATOR_LICHII% -f -g %ROM%</command>
+        <command label="Shortcut">%HIDEWINDOW% %ESCAPESPECIALS% %EMULATOR_OS-SHELL% /C %ROM%</command>
+        <platform>switch</platform>
+        <theme>switch2</theme>
+    </system>
+'@
+    if ($added) { Write-Note "ES-DE: added the Nintendo Switch 2 system ($file)" }
+
+    [void](Add-ToEsDeList (Join-Path $custom 'es_find_rules.xml') 'ruleList' '<emulator\s+name="LICHII"' @'
+    <emulator name="LICHII">
+        <!-- Nintendo Switch 2 emulator Lichii -->
+        <rule type="systempath">
+            <entry>lichii.exe</entry>
+        </rule>
+        <rule type="staticpath">
+            <entry>%ESPATH%\Emulators\lichii\lichii.exe</entry>
+            <entry>%ESPATH%\..\Emulators\lichii\lichii.exe</entry>
+        </rule>
+    </emulator>
+'@)
+
+    $roms = Join-Path $esdeDir 'ROMs'
+    if (Test-Path $roms) { New-Item -ItemType Directory -Force (Join-Path $roms 'switch2') | Out-Null }
+
+    # Iconic has Switch pictures but none for Switch 2: the same console
+    # pictures, a Switch 2 logo, and its own name and details.
+    $art = Join-Path $esdeDir 'themes\iconic-es-de\_inc\systems'
+    if (Test-Path $art) {
+        foreach ($dir in Get-ChildItem -Directory $art) {
+            $from = Join-Path $dir.FullName 'switch.webp'
+            $to = Join-Path $dir.FullName 'switch2.webp'
+            if ((Test-Path $from) -and -not (Test-Path $to)) { Copy-Item $from $to }
+        }
+        $logo = Join-Path $PSScriptRoot 'switch2.webp'
+        if (Test-Path $logo) { Copy-Item $logo (Join-Path $art 'carousel-icons\switch2.webp') -Force }
+        $meta = Join-Path $art 'metadata-global\switch.xml'
+        if (Test-Path $meta) {
+            $xml = Get-Content -Raw $meta
+            $xml = $xml -replace '<systemName>[^<]*', '<systemName>Nintendo Switch 2' `
+                        -replace '<systemDescription>[^<]*', '<systemDescription>The Nintendo Switch 2 is the successor to the Nintendo Switch: a hybrid console with a larger 1080p screen, magnetic Joy-Con 2 controllers that also work as a mouse, and up to 4K output on a TV. It plays most Switch games as well as its own. It was released worldwide on June 5, 2025, at a retail price of $449.99.' `
+                        -replace '<systemReleaseYear>[^<]*', '<systemReleaseYear>2025' `
+                        -replace '<systemReleaseDate>[^<]*', '<systemReleaseDate>2025-06-05' `
+                        -replace '<systemReleaseDateFormated>[^<]*', '<systemReleaseDateFormated>June 5, 2025'
+            Set-Content -Path (Join-Path $art 'metadata-global\switch2.xml') -Value $xml -Encoding UTF8
+        }
+        $meta = Join-Path $art 'metadata-custom\switch.xml'
+        if (Test-Path $meta) {
+            (Get-Content -Raw $meta) -replace '<text>Nintendo Switch</text>', '<text>Nintendo Switch 2</text>' |
+                Set-Content -Path (Join-Path $art 'metadata-custom\switch2.xml') -Encoding UTF8
+        }
+    }
+}
+
+if (-not $ListOnly -and $hasEsDe -and ($wanted -contains 'lichii') -and (Test-Path (Join-Path $emuRoot 'lichii\lichii.exe'))) {
+    Write-Step 'ES-DE: Nintendo Switch 2 system for Lichii'
+    try {
+        Add-EsDeSwitch2
+        # Eden's keys, when it's here, so Lichii doesn't ask for them again.
+        $keys = Join-Path $emuRoot 'eden\user\keys'
+        $lichiiKeys = Join-Path $emuRoot 'lichii\user\keys'
+        if ((Test-Path (Join-Path $keys 'prod.keys')) -and -not (Test-Path (Join-Path $lichiiKeys 'prod.keys'))) {
+            New-Item -ItemType Directory -Force $lichiiKeys | Out-Null
+            Copy-Item (Join-Path $keys '*') $lichiiKeys -Recurse -Force
+            Write-Note "copied Eden's keys"
+        }
+    } catch {
+        Write-Note "FAILED: $($_.Exception.Message)"
+        $failed += 'ES-DE Switch 2 system'
+    }
+}
+
 if ($ListOnly) {
     if ($failed) { Write-Output "Could not resolve: $($failed -join '; ')"; exit 1 }
     exit 0
@@ -205,6 +306,8 @@ BIOS and firmware are NOT included - dump them from consoles you own:
   - RPCS3 (PS3):   in RPCS3: File > Install Firmware (PS3UPDAT.PUP)
   - Vita3K:        in Vita3K: install the firmware (PSVUPDAT.PUP)
   - xemu (Xbox):   point xemu at your BIOS/MCPX/HDD image in its settings
+  - Lichii (Switch 2): in Lichii: Tools > Install Decryption Keys, then
+                   Tools > Install Firmware. Switch 2 games go in ROMs\switch2\
 
 To add or update emulators later, run as administrator:
   powershell -ExecutionPolicy Bypass -File "$GamesDir\setup\install-games.ps1" -GamesDir "$GamesDir"$(if ($hasEsDe) { ' -WithEsDe' }) -Emulators <names>

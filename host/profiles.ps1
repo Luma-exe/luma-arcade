@@ -129,6 +129,7 @@ $Slots = [ordered]@{
     'RPCS3-savedata'       = @("$E\RPCS3\dev_hdd0\home\00000001\savedata", $false)
     'Cemu-save'            = @("$CemuUser\mlc01\usr\save", $false)
     'Eden-save'            = @("$E\eden\user\nand\user\save", $false)
+    'Lichii-save'          = @("$E\lichii\user\nand\user\save", $false)
     'Vita3K-user'          = @("$E\Vita3K\ux0\user", $true)
     'Supermodel-NVRAM'     = @("$E\Supermodel\NVRAM", $false)
     'Supermodel-Saves'     = @("$E\Supermodel\Saves", $false)

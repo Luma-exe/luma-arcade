@@ -1,6 +1,6 @@
 {
   "comment": "Download versions the installer uses, checked by installer/scripts/update-versions.ps1. Change them with that script, not by hand.",
-  "updated": "2026-09-30",
+  "updated": "2026-11-24",
   "downloads": {
     "7zr": {
       "version": "26.03",
@@ -62,6 +62,13 @@
       "url": "https://codeload.github.com/Siddy212/iconic-es-de/zip/0a549ffbe5a392bd818ee4c11a7175b2372591e4",
       "sha256": "0CE20966027B6F367F75AB7E4029CC2D187DF7BFE0C3655D07594727ACBD14B5",
       "rolling": "true"
+    },
+    "lichii": {
+      "version": "build-386",
+      "name": "lichii-windows-x86_64-pgo.zip",
+      "url": "https://github.com/zortos293/Lichii/releases/download/build-386/lichii-windows-x86_64-pgo.zip",
+      "assetUrl": "https://api.github.com/repos/zortos293/Lichii/releases/assets/779049668",
+      "sha256": "9D47545D108D6D4A670B303F1F16D8A2C84B81142E431344DB1C16AB74E1132B"
     },
     "melonds": {
       "version": "1.1",

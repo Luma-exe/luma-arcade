@@ -43,6 +43,7 @@ if (-not $Watch) {
   # those settings' names.
   $emu = switch -Regex ($System) {
     '^switch$' { @{ Process = 'eden'; File = "$E\eden\user\config\window_state.ini"; Sections = @('General'); Keys = '^geometry(RenderWindow)?=' } }
+    '^switch2$' { @{ Process = 'lichii'; File = "$E\lichii\user\config\window_state.ini"; Sections = @('General'); Keys = '^geometry(RenderWindow)?=' } }
     '^(wii|gc|gamecube|wiiware)$' { @{ Process = 'Dolphin'; File = "$R\Dolphin Emulator\Config\Qt.ini"; Sections = @('mainwindow', 'renderwidget'); Keys = '^geometry=' } }
     '^ps2$' { @{ Process = 'pcsx2-qt'; File = "$documents\PCSX2\inis\PCSX2.ini"; Sections = @('UI'); Keys = '^(DisplayWindowGeometry|MainWindowGeometry)\s*=' } }
     '^ps3$' { @{ Process = 'rpcs3'; File = "$E\RPCS3\GuiConfigs\CurrentSettings.ini"; Sections = @('main_window', 'GSFrame'); Keys = '^geometry=' } }

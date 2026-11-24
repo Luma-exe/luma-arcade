@@ -35,7 +35,7 @@ person plays again. Log: `C:\ProgramData\LumaArcade\profiles\profiles.log`.
 Host Health's "Player saves" row shows who is loaded and any problem.
 
 Covered: RetroArch, Dolphin (GC/Wii), PCSX2, DuckStation, PPSSPP, RPCS3, Cemu,
-Eden (Switch), Vita3K, Supermodel, shadPS4, melonDS, Flycast, ScummVM, Azahar
+Eden (Switch), Lichii (Switch 2), Vita3K, Supermodel, shadPS4, melonDS, Flycast, ScummVM, Azahar
 (3DS: its virtual SD card; games run from .cci files, so it only holds saves),
 EasyRPG, DOSBox Staging, Xenia and xemu:
 
@@ -148,7 +148,7 @@ someone played at another size the next game opened off to the side. The
 ES-DE game-start script `00-emulator-window.bat` clears the saved place and
 size before the emulator starts, then watches in the background: a
 fullscreen window that doesn't cover the screen is put over the whole
-screen. Covered: Eden (switch), Dolphin (wii, gc), PCSX2 (ps2), RPCS3 (ps3),
+screen. Covered: Eden (switch), Lichii (switch2), Dolphin (wii, gc), PCSX2 (ps2), RPCS3 (ps3),
 DuckStation (psx), Azahar (n3ds), melonDS (nds), Vita3K (psvita), PPSSPP
 (psp) and Cemu (wiiu). Log: `C:\ProgramData\LumaArcade\home\emulator-window.log`.
 

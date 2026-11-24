@@ -156,7 +156,7 @@ if ($esDeData) {
         '@echo off'
         "rem Games on the standalone emulators fill the screen whatever size the last player streamed at, see $dataDir\emulator-window.ps1"
         'rem Runs without "start" so the saved window size is gone before the emulator starts.'
-        'for %%s in (switch wii gc gamecube wiiware ps2 ps3 psx n3ds nds psvita psp wiiu) do if /i "%~3"=="%%s" goto run'
+        'for %%s in (switch switch2 wii gc gamecube wiiware ps2 ps3 psx n3ds nds psvita psp wiiu) do if /i "%~3"=="%%s" goto run'
         'exit /b 0'
         ':run'
         "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$dataDir\emulator-window.ps1`" -System %3"

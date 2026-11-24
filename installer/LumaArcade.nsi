@@ -446,6 +446,8 @@ SectionGroup "Emulators" SEC_EMUS
   SectionEnd
   Section /o "shadPS4 - PS4 (experimental)" SEC_SHADPS4
   SectionEnd
+  Section /o "Lichii - Switch 2 (experimental)" SEC_LICHII
+  SectionEnd
 SectionGroupEnd
 
 !macro EmuArg SEC KEY
@@ -469,6 +471,7 @@ SectionGroupEnd
   !insertmacro ${MACRO} ${SEC_VITA3K} "vita3k" "Vita3K"
   !insertmacro ${MACRO} ${SEC_FLYCAST} "flycast" "flycast"
   !insertmacro ${MACRO} ${SEC_SHADPS4} "shadps4" "shadPS4"
+  !insertmacro ${MACRO} ${SEC_LICHII} "lichii" "lichii"
 !macroend
 
 !macro EmuArg3 SEC KEY FOLDER
@@ -806,6 +809,7 @@ FunctionEnd
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_VITA3K} "Vita3K: PS Vita, experimental - a growing list of games run. Needs the Vita firmware from Sony's website."
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_FLYCAST} "Flycast: Dreamcast, plus the Naomi and Atomiswave arcade boards. Runs on almost any PC."
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_SHADPS4} "shadPS4: PlayStation 4, experimental - many games don't run yet."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_LICHII} "Lichii: Nintendo Switch 2 (and Switch), very experimental - expect glitches and crashes. Adds a Switch 2 system to ES-DE. Needs keys and firmware from your own console."
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
 
 ; ---------------------------------------------------------------- init
@@ -832,6 +836,7 @@ Function .onInit
   File "scripts\*.mjs"
   File "scripts\versions.json"
   File "scripts\es-de.png"
+  File "scripts\switch2.webp"
 
   ReadEnvStr $CurrentUser "USERNAME"
   StrCpy $SetupType 0
@@ -1111,7 +1116,7 @@ Function SilentSetup
   ${GetOptions} $Opts "/EMULATORS=" $0
   ${IfNot} ${Errors}
     ${If} $0 == "all"
-      StrCpy $Str1 ",retroarch,dolphin,pcsx2,duckstation,ppsspp,rpcs3,xenia,xemu,cemu,azahar,melonds,vita3k,flycast,shadps4,"
+      StrCpy $Str1 ",retroarch,dolphin,pcsx2,duckstation,ppsspp,rpcs3,xenia,xemu,cemu,azahar,melonds,vita3k,flycast,shadps4,lichii,"
     ${Else}
       StrCpy $Str1 ",$0,"
     ${EndIf}
@@ -2103,6 +2108,9 @@ SectionGroup "un.Emulators" UN_EMUS
   Section /o "un.shadPS4 (PS4)" UN_SHADPS4
     SectionIn 2
   SectionEnd
+  Section /o "un.Lichii (Switch 2)" UN_LICHII
+    SectionIn 2
+  SectionEnd
 SectionGroupEnd
 Section /o "un.Virtual display driver" UN_VDD
   SectionIn 2
@@ -2156,6 +2164,7 @@ SectionEnd
   !insertmacro ${MACRO} ${UN_VITA3K} "vita3k" "Vita3K"
   !insertmacro ${MACRO} ${UN_FLYCAST} "flycast" "flycast"
   !insertmacro ${MACRO} ${UN_SHADPS4} "shadps4" "shadPS4"
+  !insertmacro ${MACRO} ${UN_LICHII} "lichii" "lichii"
 !macroend
 
 ; An emulator in the games folder stays listed ($Str1 counts them).

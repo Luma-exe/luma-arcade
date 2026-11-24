@@ -28,6 +28,10 @@ $Catalog = [ordered]@{
     vita3k      = @{ Name = 'Vita3K (PS Vita)'; Folder = 'Vita3K'; Exe = 'Vita3K.exe'; Repo = 'Vita3K/Vita3K'; Pattern = '^windows-latest\.zip$' }
     shadps4     = @{ Name = 'shadPS4 (PlayStation 4, experimental)'; Folder = 'shadPS4'; Exe = 'shadPS4.exe'; Repo = 'shadps4-emu/shadPS4'; Pattern = 'win64.*\.zip$' }
     flycast     = @{ Name = 'Flycast (Dreamcast, Naomi)'; Folder = 'flycast'; Exe = 'flycast.exe'; Repo = 'flyinghead/flycast'; Pattern = 'win64.*\.zip$' }
+    # Switch 2 (and Switch), very experimental. Its user\ folder keeps it
+    # portable and skips the first-start offer to import other emulators.
+    # ES-DE has no Switch 2 system of its own: install-games.ps1 adds one.
+    lichii      = @{ Name = 'Lichii (Nintendo Switch 2, experimental)'; Folder = 'lichii'; Exe = 'lichii.exe'; PortableDirs = @('user'); Repo = 'zortos293/Lichii'; Pattern = '^lichii-windows-x86_64-pgo\.zip$' }
 }
 
 # RetroArch cores for ES-DE's default emulator on each classic system,

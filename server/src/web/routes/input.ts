@@ -21,6 +21,7 @@ const EXE_SYSTEMS: Record<string, string> = {
   "yuzu.exe": "switch",
   "ryujinx.exe": "switch",
   "citron.exe": "switch",
+  "lichii.exe": "switch2",
   "cemu.exe": "wiiu",
   "rpcs3.exe": "ps3",
   "pcsx2-qt.exe": "ps2",
