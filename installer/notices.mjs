@@ -69,6 +69,7 @@ const APPS = {
   duckstation: ["DuckStation", "https://github.com/stenzek/duckstation", "see publisher"],
   esde: ["ES-DE (EmulationStation Desktop Edition)", "https://es-de.org/", "MIT"],
   flycast: ["Flycast", "https://github.com/flyinghead/flycast", "GPL-2.0-only"],
+  lichii: ["Lichii", "https://github.com/zortos293/Lichii", "GPL-3.0-or-later"],
   iconic: ["Iconic (ES-DE theme)", "https://github.com/Siddy212/iconic-es-de", "see publisher"],
   melonds: ["melonDS", "https://melonds.kuribo64.net/", "GPL-3.0-only"],
   mesa: ["Mesa 3D (mesa-dist-win)", "https://github.com/pal1000/mesa-dist-win", "MIT (Mesa); see publisher"],

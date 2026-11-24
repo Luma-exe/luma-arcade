@@ -384,10 +384,13 @@ Section "Luma Arcade" SEC_LUMA
   ${IfNot} ${FileExists} "$INSTDIR\moonlight-web-stream\server\config.json"
     CopyFiles /SILENT "$INSTDIR\moonlight-web-stream\server\config.default.json" "$INSTDIR\moonlight-web-stream\server\config.json"
   ${EndIf}
-  ; For the uninstaller.
+  ; For the uninstaller, and the Updates window (tray: Check for updates).
   SetOutPath "$INSTDIR\setup"
   File "scripts\common.ps1"
   File "scripts\uninstall-host.ps1"
+  File "scripts\catalog.ps1"
+  File "scripts\update-components.ps1"
+  File "scripts\versions.json"
 
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 

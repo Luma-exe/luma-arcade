@@ -2,6 +2,7 @@ import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest }
 import { requireAuth } from "./session.js";
 import { registerSettingsRoutes } from "./routes/settings.js";
 import { registerUpdateRoutes } from "./routes/update.js";
+import { registerUpdatesRoutes } from "./routes/updates.js";
 import { registerMoonlightRoutes } from "./routes/moonlight.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerSpeedtestRoutes } from "./routes/speedtest.js";
@@ -107,6 +108,7 @@ export async function createServer(opts: { port: number; serverDir: string }) {
 
   await registerSettingsRoutes(app);
   await registerUpdateRoutes(app);
+  await registerUpdatesRoutes(app);
   await registerMoonlightRoutes(app);
   await registerHealthRoutes(app);
   await registerSpeedtestRoutes(app);

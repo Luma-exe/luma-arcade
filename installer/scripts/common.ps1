@@ -56,6 +56,24 @@ function Get-GitHubAsset([string]$Repo, [string]$Pattern) {
     [pscustomobject]@{ Url = $asset.browser_download_url; AssetUrl = $asset.url; Name = $asset.name; Version = $version; Rolling = $rolling }
 }
 
+# What Setup and the Updates window installed, by download key: most
+# programs don't say their own version, so it's written down here.
+$script:InstalledFile = Join-Path $env:ProgramData 'LumaArcade\installed-versions.json'
+function Get-InstalledVersions {
+    try {
+        if (Test-Path $script:InstalledFile) { return Get-Content -Raw $script:InstalledFile | ConvertFrom-Json }
+    } catch { }
+    [pscustomobject]@{}
+}
+function Save-InstalledVersion([string]$Key, [string]$Version) {
+    try {
+        $all = Get-InstalledVersions
+        $all | Add-Member -NotePropertyName $Key -NotePropertyValue ([pscustomobject]@{ version = $Version; at = (Get-Date).ToString('s') }) -Force
+        New-Item -ItemType Directory -Force (Split-Path $script:InstalledFile) | Out-Null
+        $all | ConvertTo-Json -Depth 4 | Set-Content -Path $script:InstalledFile -Encoding UTF8
+    } catch { Write-Host "    couldn't note the version of ${Key}: $($_.Exception.Message)" }
+}
+
 function Get-PinnedVersions {
     if (-not $script:Pinned) {
         $script:Pinned = if (Test-Path $script:VersionsFile) {

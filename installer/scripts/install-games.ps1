@@ -65,6 +65,7 @@ if ($WithEsDe -and -not $script:SkipEsDe) {
         Write-Note "$($src.Name) ($($src.Version)$(if (-not $src.Pinned) { ', newest' }))"
         if (-not $ListOnly) {
             Expand-Download (Save-CatalogDownload 'esde' $src) $esdeDir
+            Save-InstalledVersion 'esde' $src.Version
             $installed += "ES-DE $($src.Version)"
         }
     } catch {
@@ -84,6 +85,7 @@ if ($Theme -and -not $ListOnly) {
             $src = Get-CatalogDownload 'iconic' -Latest:$Latest
             Write-Note "$($src.Name) ($($src.Version)$(if (-not $src.Pinned) { ', newest' }))"
             Expand-Download (Save-CatalogDownload 'iconic' $src) $themeDir
+            Save-InstalledVersion 'iconic' $src.Version
             $installed += "Iconic theme $($src.Version)"
         }
         # ES-DE's settings: in ES-DE\ES-DE for the portable ES-DE Setup installs.
@@ -121,21 +123,9 @@ foreach ($key in $wanted) {
         foreach ($f in @($entry.Portable)) { if ($f) { New-Item -ItemType File -Force (Join-Path $dir $f) | Out-Null } }
         foreach ($d in @($entry.PortableDirs)) { if ($d) { New-Item -ItemType Directory -Force (Join-Path $dir $d) | Out-Null } }
         if ($key -eq 'retroarch') {
-            try {
-                # Only the cores ES-DE uses, out of the stable bundle for this version.
-                $bundle = Get-CatalogDownload 'retroarch-cores' -Latest:$Latest
-                $file = Save-CatalogDownload 'retroarch-cores' $bundle
-                $cores = Join-Path $dir 'cores'
-                New-Item -ItemType Directory -Force $cores | Out-Null
-                $names = @($RetroArchCores | ForEach-Object { "$($_)_libretro.dll" })
-                & (Get-SevenZip) e $file "-o$cores" -y -r @names | Out-Null
-                if ($LASTEXITCODE) { throw "7-Zip couldn't unpack the cores" }
-                Remove-Item -Force $file
-                $missing = @($names | Where-Object { -not (Test-Path (Join-Path $cores $_)) })
-                if ($missing) { Write-Note "cores not in the bundle: $($missing -join ', ')" }
-                Write-Note "cores ($($bundle.Version)): $($RetroArchCores -join ', ')"
-            } catch { Write-Note "cores FAILED: $($_.Exception.Message)" }
+            try { Install-RetroArchCores $dir -Latest:$Latest } catch { Write-Note "cores FAILED: $($_.Exception.Message)" }
         }
+        Save-InstalledVersion $key $src.Version
         $installed += "$($entry.Name) $($src.Version)"
     } catch {
         Write-Note "FAILED: $($_.Exception.Message)"

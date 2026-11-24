@@ -5,6 +5,7 @@ import { initDb } from "./db/index.js";
 import { getAllSettings } from "./config/settings.js";
 import { createServer } from "./web/server.js";
 import { startTray } from "./tray/index.js";
+import { onUpdateCount, startDailyUpdateChecks, updatesKey } from "./updates/index.js";
 import { moonlightProcess, syncMoonlightWithSettings } from "./remote/moonlightWebStream.js";
 import { initPlayLog, nameUnnamedApps } from "./web/playLog.js";
 import { explainPortInUse } from "./portCheck.js";
@@ -88,13 +89,20 @@ async function main() {
   }
 
   // The tray icon is Windows-only; a Linux install runs as a service.
-  if (IS_WINDOWS) startTray({
-    portalUrl,
-    onQuit: () => {
-      moonlightProcess.stop();
-      process.exit(0);
-    },
-  });
+  if (IS_WINDOWS) {
+    const tray = startTray({
+      portalUrl,
+      updatesUrl: `${portalUrl}/updates/#k=${updatesKey}`,
+      onQuit: () => {
+        moonlightProcess.stop();
+        process.exit(0);
+      },
+    });
+    // Once a day the Updates window's check runs by itself; the tray icon
+    // gets a dot when something's ready.
+    onUpdateCount((count) => tray.setUpdateCount(count));
+    startDailyUpdateChecks();
+  }
 }
 
 // Ctrl+C, and systemd stopping the Linux service.

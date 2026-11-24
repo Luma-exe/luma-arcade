@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Luma Arcade · Updates</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%232f8cff' d='M8 0l1.8 6.2L16 8l-6.2 1.8L8 16l-1.8-6.2L0 8l6.2-1.8z'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#070d18; --panel:#0c1526; --panel-2:#101b30; --line:#1b2a44; --line-2:#24375a;
+  --text:#e8eefa; --muted:#8193b2; --dim:#5a6b8a;
+  --blue:#2f8cff; --blue-d:#1f6fd1; --blue-soft:rgba(47,140,255,.12);
+  --ok:#3ccf8e; --warn:#f2b441; --err:#ff6b6b;
+  --sans:"Schibsted Grotesk",system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--panel);color:var(--text);font-family:var(--sans);font-size:14px;-webkit-font-smoothing:antialiased}
+body{min-height:100vh;display:flex;flex-direction:column}
+header{display:flex;align-items:flex-end;gap:16px;padding:22px 24px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+header h1{margin:0;font-size:26px;font-weight:700;letter-spacing:-.01em}
+header .sub{color:var(--muted);margin-top:4px}
+.sp{flex:1}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+button{font:inherit;cursor:pointer;border-radius:0}
+.btn{height:36px;padding:0 16px;border:1px solid var(--line-2);background:var(--panel-2);color:var(--text);font-weight:600;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;text-decoration:none}
+.btn:hover:not(:disabled){border-color:var(--blue)}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn.primary:hover:not(:disabled){background:var(--blue-d)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.sm{height:30px;padding:0 12px;font-size:13px}
+.btn.ghost{background:transparent}
+.bar{display:flex;gap:18px;align-items:center;padding:12px 24px;border-bottom:1px solid var(--line);background:#0a1323;flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid var(--line-2)}
+.seg button{height:30px;padding:0 12px;border:0;background:transparent;color:var(--muted);font-weight:600;font-size:13px}
+.seg button.on{background:var(--blue-soft);color:var(--text);box-shadow:inset 0 -2px 0 var(--blue)}
+.bar .hint{color:var(--dim);font-size:12.5px;flex:1;min-width:220px}
+.chk{display:inline-flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;cursor:pointer;user-select:none}
+.notice{display:flex;gap:12px;align-items:flex-start;margin:16px 24px 0;padding:12px 14px;border:1px solid rgba(242,180,65,.35);background:rgba(242,180,65,.07);color:#f5d593;font-size:13px}
+.notice.err{border-color:rgba(255,107,107,.4);background:rgba(255,107,107,.07);color:#ffc2c2}
+.notice.info{border-color:rgba(47,140,255,.4);background:var(--blue-soft);color:#cfe3ff}
+.notice b{color:inherit;filter:brightness(1.15)}
+main{flex:1;padding-bottom:12px}
+section{padding:4px 24px}
+.sh{display:flex;align-items:center;gap:10px;margin:18px 0 6px}
+.sh h2{margin:0;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.09em}
+.sh .count{font-family:var(--mono);font-size:12px;color:var(--dim)}
+.sh .line{flex:1;height:1px;background:var(--line)}
+.row{display:grid;grid-template-columns:28px minmax(0,1.2fr) minmax(0,1.4fr) 180px 86px;align-items:center;gap:12px;padding:11px 0;border-top:1px solid var(--line)}
+.sh + .row{border-top:0}
+.name{font-weight:600}
+.what{color:var(--dim);font-size:12.5px;margin-top:2px}
+.ver{font-family:var(--mono);font-variant-ligatures:none;font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ver .arrow{color:var(--dim);margin:0 6px}
+.ver .new{color:var(--text)}
+.ver a{color:var(--blue);text-decoration:none;font-family:var(--sans);font-size:12px;margin-left:8px}
+.ver a:hover{text-decoration:underline}
+.status{font-size:13px;display:flex;align-items:center;gap:8px;min-width:0}
+.status span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dot{width:8px;height:8px;flex:none}
+.s-ok .dot{background:var(--ok)} .s-ok{color:#a9e9cb}
+.s-new .dot{background:var(--blue)} .s-new{color:#bcd8ff}
+.s-idle .dot{background:var(--dim)} .s-idle{color:var(--dim)}
+.s-err .dot{background:var(--err)} .s-err{color:#ffb3b3}
+.s-wait .dot{background:var(--warn)} .s-wait{color:#f5d593}
+.sub-note{color:var(--dim);font-size:11.5px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.act{text-align:right}
+.prog{height:3px;background:var(--line);margin-top:6px;position:relative;overflow:hidden}
+.prog i{position:absolute;top:0;bottom:0;width:35%;background:var(--blue);animation:slide 1.1s ease-in-out infinite}
+@keyframes slide{from{left:-35%}to{left:100%}}
+.spin{width:12px;height:12px;border:2px solid var(--line-2);border-top-color:var(--blue);border-radius:50%;animation:sp .8s linear infinite;flex:none}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin,.prog i{animation:none}.prog i{left:0;width:100%;opacity:.5}}
+input[type=checkbox]{appearance:none;width:16px;height:16px;border:1px solid var(--line-2);background:var(--bg);margin:0;display:grid;place-items:center;cursor:pointer}
+input[type=checkbox]:checked{background:var(--blue);border-color:var(--blue)}
+input[type=checkbox]:checked::after{content:"";width:8px;height:4px;border:2px solid #fff;border-top:0;border-right:0;transform:translateY(-1px) rotate(-45deg)}
+input[type=checkbox]:disabled{opacity:.3;cursor:default}
+input[type=checkbox]:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+footer{position:sticky;bottom:0;display:flex;gap:16px;align-items:center;padding:14px 24px;border-top:1px solid var(--line);background:#0a1323;flex-wrap:wrap}
+footer .sum{flex:1;color:var(--muted);font-size:13px;min-width:200px}
+footer .sum b{color:var(--text)}
+#log{display:none;margin:0 24px 16px;padding:12px;border:1px solid var(--line);background:var(--bg);color:var(--muted);font:12px/1.55 var(--mono);max-height:220px;overflow:auto;white-space:pre-wrap}
+#log.open{display:block}
+.empty{padding:40px 24px;color:var(--muted)}
+@media (max-width:640px){
+  .row{grid-template-columns:28px 1fr auto;grid-template-areas:"c n a" "c v v" "c s s"}
+  .row>:nth-child(1){grid-area:c} .row>:nth-child(2){grid-area:n} .row>:nth-child(3){grid-area:v}
+  .row>:nth-child(4){grid-area:s} .row>:nth-child(5){grid-area:a}
+  header,.bar,section,footer{padding-left:16px;padding-right:16px}
+  .notice{margin-left:16px;margin-right:16px}
+}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Updates</h1>
+    <div class="sub" id="sub">Loading…</div>
+  </div>
+  <span class="sp"></span>
+  <div class="actions">
+    <button class="btn" id="checkAll">Check all</button>
+    <button class="btn primary" id="updSel" disabled>Update selected</button>
+  </div>
+</header>
+<div class="bar">
+  <div class="seg" role="group" aria-label="Which versions">
+    <button class="on" data-mode="tested" aria-pressed="true">Tested versions</button>
+    <button data-mode="newest" aria-pressed="false">Newest</button>
+  </div>
+  <div class="hint" id="modeHint"></div>
+  <label class="chk"><input type="checkbox" id="selAll">Select all updates</label>
+</div>
+<div id="notices"></div>
+<main id="list"></main>
+<pre id="log" aria-label="Update log"></pre>
+<footer>
+  <div class="sum" id="sum"></div>
+  <button class="btn ghost sm" id="logBtn">Show log</button>
+  <button class="btn primary" id="updSel2" disabled>Update selected</button>
+</footer>
+<script>
+(() => {
+  const HINT = {
+    tested: "Versions Luma Arcade has checked work with the arcade. Safer.",
+    newest: "Each program's newest release, straight from its makers. Newer, less tested.",
+  };
+  // The tray opens this window with its key after the #. Kept for reloads, then out of the address bar.
+  let key = "";
+  try {
+    const m = /[#&]k=([\w-]+)/.exec(location.hash);
+    if (m) { key = m[1]; sessionStorage.setItem("lumaUpdatesKey", key); history.replaceState(null, "", location.pathname); }
+    else key = sessionStorage.getItem("lumaUpdatesKey") || "";
+  } catch {}
+
+  let mode = "tested";
+  try { if (localStorage.getItem("lumaUpdatesMode") === "newest") mode = "newest"; } catch {}
+  let data = null;           // the list: { mode, checkedAt, rows }
+  let job = null;            // the running update's status
+  let checkingAll = false;
+  const checking = new Set();
+  const selected = new Set();
+  const unselected = new Set();
+  let lostServer = false;
+  let error = "";
+
+  const $ = (id) => document.getElementById(id);
+  // Commit hashes (RPCS3, Xenia, the theme) read better short.
+  const short = (v) => String(v ?? "").replace(/\b(build-)?([0-9a-f]{7})[0-9a-f]{13,}\b/i, "$1$2");
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  async function api(method, url, body) {
+    const res = await fetch(url, {
+      method,
+      headers: { ...(key ? { "X-Updates-Key": key } : {}), ...(body ? { "Content-Type": "application/json" } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const e = new Error(json.error || `HTTP ${res.status}`);
+      e.status = res.status;
+      throw e;
+    }
+    return json;
+  }
+
+  const jobItem = (id) => job && job.items && job.items[id];
+  const updatable = (r) => (r.state === "new" || (r.state === "unknown" && r.target)) && !r.busy.length;
+  const isSelected = (r) => updatable(r) && !isBusyNow(r) && (selected.has(r.id) || (r.state === "new" && !unselected.has(r.id)));
+  const isBusyNow = (r) => { const j = jobItem(r.id); return checking.has(r.id) || checkingAll || (j && ["queued", "updating", "restarting"].includes(j.state)); };
+
+  function statusHTML(r) {
+    const j = jobItem(r.id);
+    if (j && (j.state === "updating" || j.state === "queued" || j.state === "restarting")) {
+      const label = j.state === "queued" ? (j.phase || "Waiting") : (j.phase || "Updating");
+      return `<div style="width:100%;min-width:0"><span class="status s-new"><span class="spin"></span><span>${esc(label)}…</span></span><div class="prog"><i></i></div>${j.message ? `<div class="sub-note" title="${esc(j.message)}">${esc(j.message)}</div>` : ""}</div>`;
+    }
+    if (j && j.state === "failed") return `<div style="min-width:0"><span class="status s-err" title="${esc(j.message)}"><span class="dot"></span><span>Update failed</span></span><div class="sub-note" title="${esc(j.message)}">${esc(j.message)}</div></div>`;
+    if (j && j.state === "done") return `<div style="min-width:0"><span class="status s-ok"><span class="dot"></span><span>Updated just now</span></span>${j.message ? `<div class="sub-note" title="${esc(j.message)}">${esc(j.message)}</div>` : ""}</div>`;
+    if (checking.has(r.id) || (checkingAll && r.id)) return `<span class="status s-idle"><span class="spin"></span><span>Checking…</span></span>`;
+    if (r.busy.length && (r.state === "new" || r.state === "unknown")) return `<div style="min-width:0"><span class="status s-wait"><span class="dot"></span><span>Close ${esc(r.busy.join(", "))} to update</span></span></div>`;
+    if (r.state === "new") return `<div style="min-width:0"><span class="status s-new"><span class="dot"></span><span>Update ready</span></span>${r.note ? `<div class="sub-note" title="${esc(r.note)}">${esc(r.note)}</div>` : ""}</div>`;
+    if (r.state === "ok") return `<span class="status s-ok"><span class="dot"></span><span>Up to date</span></span>`;
+    if (r.state === "manual") return `<div style="min-width:0"><span class="status s-new"><span class="dot"></span><span>Update ready</span></span><div class="sub-note">${esc(r.error)}</div></div>`;
+    if (r.state === "error") return `<div style="min-width:0"><span class="status s-err" title="${esc(r.error)}"><span class="dot"></span><span>Couldn't check</span></span><div class="sub-note" title="${esc(r.error)}">${esc(r.error)}</div></div>`;
+    if (r.target) return `<div style="min-width:0"><span class="status s-idle"><span class="dot"></span><span>Version unknown</span></span><div class="sub-note">Update to be sure it's ${esc(short(r.target))}</div></div>`;
+    return `<span class="status s-idle"><span class="dot"></span><span>Not checked</span></span>`;
+  }
+  function actHTML(r) {
+    if (isBusyNow(r)) return `<button class="btn sm ghost" disabled>${checking.has(r.id) || checkingAll ? "Checking" : "Updating"}</button>`;
+    if (r.state === "manual" && r.notesUrl) return `<a class="btn sm" href="${esc(r.notesUrl)}" target="_blank" rel="noopener">Get it</a>`;
+    if (updatable(r)) return `<button class="btn sm ${r.state === "new" ? "primary" : ""}" data-upd="${esc(r.id)}" ${job && job.running ? "disabled" : ""}>Update</button>`;
+    if (r.state === "error") return `<button class="btn sm" data-chk="${esc(r.id)}">Retry</button>`;
+    return `<button class="btn sm" data-chk="${esc(r.id)}" ${checkingAll ? "disabled" : ""}>Check</button>`;
+  }
+  function verHTML(r) {
+    const j = jobItem(r.id);
+    if (j && j.state === "done" && j.version) return esc(short(j.version));
+    const have = short(r.installed) || "?";
+    if ((r.state === "new" || r.state === "manual" || (r.state === "unknown" && r.target)) && r.target) {
+      return `${esc(have)}<span class="arrow">→</span><span class="new">${esc(short(r.target))}</span>${r.notesUrl ? `<a href="${esc(r.notesUrl)}" target="_blank" rel="noopener">What's new</a>` : ""}`;
+    }
+    return esc(short(r.installed) || "version unknown");
+  }
+
+  function render() {
+    const rows = data ? data.rows : [];
+    const groups = [];
+    for (const r of rows) {
+      let g = groups.find((x) => x.title === r.group);
+      if (!g) groups.push((g = { title: r.group, rows: [] }));
+      g.rows.push(r);
+    }
+    $("list").innerHTML = !data ? `<div class="empty">Loading…</div>` : !rows.length ? `<div class="empty">Nothing to show.</div>` :
+      groups.map((g) => {
+        const n = g.rows.filter((r) => r.state === "new").length;
+        return `<section><div class="sh"><h2>${esc(g.title)}</h2><span class="count">${n ? `${n} update${n > 1 ? "s" : ""}` : ""}</span><span class="line"></span></div>` +
+          g.rows.map((r) => `<div class="row">
+            <input type="checkbox" data-sel="${esc(r.id)}" ${isSelected(r) ? "checked" : ""} ${updatable(r) && !isBusyNow(r) && !(job && job.running) ? "" : "disabled"} aria-label="Update ${esc(r.name)}">
+            <div><div class="name">${esc(r.name)}</div><div class="what">${esc(r.what)}</div></div>
+            <div class="ver" title="${esc((r.installed || "?") + (r.target ? " → " + r.target : ""))}">${verHTML(r)}</div>
+            <div>${statusHTML(r)}</div>
+            <div class="act">${actHTML(r)}</div>
+          </div>`).join("") + `</section>`;
+      }).join("");
+
+    const ready = rows.filter((r) => r.state === "new");
+    const sel = rows.filter(isSelected);
+    const running = job && job.running;
+    for (const id of ["updSel", "updSel2"]) {
+      const b = $(id);
+      b.textContent = running ? "Updating…" : `Update selected${sel.length ? ` (${sel.length})` : ""}`;
+      b.disabled = running || !sel.length;
+    }
+    $("checkAll").disabled = checkingAll || running;
+    $("checkAll").textContent = checkingAll ? "Checking…" : "Check all";
+    const choosable = rows.filter((r) => updatable(r));
+    $("selAll").checked = choosable.length > 0 && choosable.every(isSelected);
+    $("selAll").disabled = !choosable.length || running;
+
+    const when = data && data.checkedAt ? new Date(data.checkedAt) : null;
+    const whenText = when ? `Last checked ${when.toDateString() === new Date().toDateString() ? "today" : when.toLocaleDateString()} at ${when.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "Not checked yet";
+    $("sub").textContent = `${whenText}${data && data.checkedAt ? ` · ${ready.length} update${ready.length === 1 ? "" : "s"} ready` : ""}`;
+    $("sum").innerHTML = !data || !data.checkedAt ? "Check to see what's new." :
+      ready.length ? `<b>${ready.length} update${ready.length > 1 ? "s" : ""} ready</b> · ${rows.filter((r) => r.state === "ok").length} up to date · settings and saves are kept` : `<b>Everything is up to date.</b>`;
+
+    const notes = [];
+    if (error) notes.push(`<div class="notice err"><span>!</span><div>${esc(error)}</div></div>`);
+    if (lostServer) notes.push(`<div class="notice info"><span class="spin"></span><div><b>Luma Arcade is restarting with the new version.</b> This takes a minute. When it's back, open <b>Check for updates…</b> from the tray icon again.</div></div>`);
+    const busy = rows.filter((r) => r.busy.length && (r.state === "new" || r.state === "unknown"));
+    if (busy.length) notes.push(`<div class="notice"><span>⚠</span><div><b>${esc([...new Set(busy.flatMap((r) => r.busy))].join(", "))} ${busy.flatMap((r) => r.busy).length > 1 ? "are" : "is"} open.</b> ${esc(busy.map((r) => r.name).join(", "))} can update once ${busy.flatMap((r) => r.busy).length > 1 ? "they close" : "it closes"}. Everything else can update now.</div></div>`);
+    $("notices").innerHTML = notes.join("");
+    $("modeHint").textContent = HINT[mode];
+    document.querySelectorAll("[data-mode]").forEach((b) => { b.classList.toggle("on", b.dataset.mode === mode); b.setAttribute("aria-pressed", b.dataset.mode === mode); });
+    if (job && job.log) $("log").textContent = job.log.join("\n") || "Nothing yet.";
+  }
+
+  function showError(e) {
+    error = e.status === 401 || e.status === 403
+      ? "Open this window from the tray: right-click the Luma Arcade icon, then Check for updates…"
+      : `Something went wrong: ${e.message}`;
+    render();
+  }
+
+  async function load() {
+    try {
+      data = await api("GET", `/api/updates?mode=${mode}`);
+      error = data.error ? `Couldn't list what's installed: ${data.error}` : "";
+      render();
+      if (!data.checkedAt || data.mode !== mode) await checkAll();
+    } catch (e) { showError(e); }
+  }
+
+  async function checkAll() {
+    checkingAll = true; error = ""; render();
+    try { data = await api("POST", "/api/updates/check", { mode }); }
+    catch (e) { showError(e); }
+    checkingAll = false; render();
+  }
+
+  async function checkOne(id) {
+    checking.add(id); render();
+    try { data = await api("POST", "/api/updates/check", { mode, ids: [id] }); error = ""; }
+    catch (e) { showError(e); }
+    checking.delete(id); render();
+  }
+
+  async function update(ids) {
+    if (!ids.length) return;
+    error = "";
+    try { job = await api("POST", "/api/updates/apply", { mode, ids }); }
+    catch (e) { showError(e); return; }
+    render();
+    poll(ids);
+  }
+
+  async function poll(ids) {
+    let misses = 0;
+    while (true) {
+      await new Promise((r) => setTimeout(r, 1000));
+      try {
+        job = await api("GET", "/api/updates/job");
+        misses = 0;
+      } catch (e) {
+        // The server went away: Luma Arcade's own update restarts it.
+        if (ids.includes("luma") && ++misses >= 2) { lostServer = true; render(); continue; }
+        if (e.status === 401 && lostServer) { render(); return; }
+        if (++misses > 30) { showError(e); return; }
+        continue;
+      }
+      if (lostServer) { lostServer = false; error = ""; }
+      render();
+      if (!job.running) break;
+    }
+    // The server looks again once it's done; pick that up.
+    for (const id of ids) unselected.delete(id), selected.delete(id);
+    await new Promise((r) => setTimeout(r, 1500));
+    try { data = await api("POST", "/api/updates/check", { mode, ids }); } catch {}
+    render();
+  }
+
+  document.addEventListener("click", (e) => {
+    const c = e.target.closest("[data-chk]");
+    const u = e.target.closest("[data-upd]");
+    const m = e.target.closest("[data-mode]");
+    if (c) checkOne(c.dataset.chk);
+    if (u) update([u.dataset.upd]);
+    if (m && m.dataset.mode !== mode) {
+      mode = m.dataset.mode;
+      try { localStorage.setItem("lumaUpdatesMode", mode); } catch {}
+      selected.clear(); unselected.clear();
+      load();
+    }
+  });
+  document.addEventListener("change", (e) => {
+    const id = e.target.dataset && e.target.dataset.sel;
+    if (id) {
+      if (e.target.checked) { selected.add(id); unselected.delete(id); } else { selected.delete(id); unselected.add(id); }
+      render();
+    }
+    if (e.target.id === "selAll") {
+      for (const r of (data ? data.rows : []).filter(updatable)) {
+        if (e.target.checked) { selected.add(r.id); unselected.delete(r.id); } else { selected.delete(r.id); unselected.add(r.id); }
+      }
+      render();
+    }
+  });
+  $("checkAll").onclick = checkAll;
+  for (const id of ["updSel", "updSel2"]) $(id).onclick = () => update((data ? data.rows : []).filter(isSelected).map((r) => r.id));
+  $("logBtn").onclick = () => {
+    const open = $("log").classList.toggle("open");
+    $("logBtn").textContent = open ? "Hide log" : "Show log";
+    if (open && !job) $("log").textContent = "Nothing has been updated in this window yet.";
+  };
+
+  // Pick up an update that was already running (window reopened mid-way).
+  api("GET", "/api/updates/job").then((j) => {
+    if (j && j.running) { job = j; poll(Object.keys(j.items)); }
+  }).catch(() => {});
+  render();
+  load();
+})();
+</script>
+</body>
+</html>

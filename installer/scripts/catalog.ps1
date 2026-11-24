@@ -76,6 +76,22 @@ $OtherDownloads = [ordered]@{
                                       @{ Url = 'https://www.7-zip.org/a/7zr.exe'; Name = '7zr.exe'; Version = $ver } } }
 }
 
+# Only the cores ES-DE uses, out of the stable bundle for this version,
+# into RetroArch's cores folder ($Dir: RetroArch's folder).
+function Install-RetroArchCores([string]$Dir, [switch]$Latest) {
+    $bundle = Get-CatalogDownload 'retroarch-cores' -Latest:$Latest
+    $file = Save-CatalogDownload 'retroarch-cores' $bundle
+    $cores = Join-Path $Dir 'cores'
+    New-Item -ItemType Directory -Force $cores | Out-Null
+    $names = @($RetroArchCores | ForEach-Object { "$($_)_libretro.dll" })
+    & (Get-SevenZip) e $file "-o$cores" -y -r @names | Out-Null
+    if ($LASTEXITCODE) { throw "7-Zip couldn't unpack the cores" }
+    Remove-Item -Force $file
+    $missing = @($names | Where-Object { -not (Test-Path (Join-Path $cores $_)) })
+    if ($missing) { Write-Note "cores not in the bundle: $($missing -join ', ')" }
+    Write-Note "cores ($($bundle.Version)): $($RetroArchCores -join ', ')"
+}
+
 function Get-CatalogEntry([string]$Key) {
     if ($Catalog.Contains($Key)) { return $Catalog[$Key] }
     if ($OtherDownloads.Contains($Key)) { return $OtherDownloads[$Key] }
