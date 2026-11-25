@@ -10,8 +10,13 @@ let app: FastifyInstance;
 
 before(async () => {
   initDb(":memory:");
-  // moonlight-web-stream's "who is this": nobody is signed in.
-  globalThis.fetch = (async () => new Response("", { status: 401 })) as typeof fetch;
+  // moonlight-web-stream's "who is this": the "admin-cookie" session is an admin, nobody else is signed in.
+  globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
+    const cookie = String((init?.headers as Record<string, string> | undefined)?.cookie ?? "");
+    return cookie.includes("mlSession=admin-cookie")
+      ? new Response(JSON.stringify({ id: 1, name: "boss", role: "Admin", role_id: 1 }), { status: 200 })
+      : new Response("", { status: 401 });
+  }) as typeof fetch;
   app = Fastify();
   await registerUpdatesRoutes(app);
 });
@@ -47,6 +52,15 @@ describe("updates window", () => {
     assert.equal(res.statusCode, 403);
   });
 
+  it("lets a signed-in admin in from anywhere (Settings, Server & updates)", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/updates/job",
+      headers: { cookie: "mlSession=admin-cookie", "cf-connecting-ip": "203.0.113.9" },
+    });
+    assert.equal(res.statusCode, 200);
+  });
+
   it("wants something to update", async () => {
     const headers = { "x-updates-key": updatesKey };
     for (const payload of [{}, { ids: [] }, { ids: ["../../x", "A B", 5] }]) {
@@ -71,6 +85,12 @@ describe("update rows", () => {
     assert.deepEqual(rowFromComponent({ ...base, busy: "Dolphin" }).busy, ["Dolphin"]);
     assert.deepEqual(rowFromComponent({ ...base, busy: ["ES-DE", "Dolphin"] }).busy, ["ES-DE", "Dolphin"]);
     assert.deepEqual(rowFromComponent(base).busy, []);
+  });
+
+  it("says when Windows will ask for permission on the PC", () => {
+    assert.equal(rowFromComponent({ ...base, admin: true }, false).needsPermission, true);
+    assert.equal(rowFromComponent({ ...base, admin: true }, true).needsPermission, false);
+    assert.equal(rowFromComponent(base, false).needsPermission, false);
   });
 
   it("counts what's ready for the tray", () => {

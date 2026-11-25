@@ -19,14 +19,17 @@ function sameKey(given: string): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-/** Home network only; and the tray window's key, or a signed-in admin. */
+/** A signed-in admin (Settings, Server & updates: also over the internet,
+ * like Apply update), or the tray window's key from this PC / home network. */
 async function guard(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  if (!isLocalRequest(request)) {
-    reply.code(403).send({ error: "Updates only work from this PC or the home network" });
-    return;
-  }
   const key = request.headers["x-updates-key"];
-  if (typeof key === "string" && sameKey(key)) return;
+  if (typeof key === "string" && key) {
+    if (!isLocalRequest(request)) {
+      reply.code(403).send({ error: "The tray window only works from this PC or the home network" });
+      return;
+    }
+    if (sameKey(key)) return;
+  }
   await requireAdmin(request, reply);
 }
 

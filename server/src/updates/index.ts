@@ -34,6 +34,8 @@ export interface UpdateRow {
   note: string | null;
   notesUrl: string | null;
   error: string | null;
+  /** Windows will ask for permission on the PC itself (Luma Arcade isn't running as administrator). */
+  needsPermission: boolean;
 }
 
 export interface UpdateList {
@@ -84,6 +86,12 @@ interface ScriptComponent {
   compare?: "same" | "older" | "newer" | "unknown";
   notes?: string | null;
   error?: string;
+  admin?: boolean;
+}
+
+interface ScriptOutput {
+  isAdmin?: boolean;
+  components?: ScriptComponent[];
 }
 
 function runScript(args: string[], timeoutMs: number): Promise<string> {
@@ -107,7 +115,7 @@ function toArray(v: string[] | string | null | undefined): string[] {
   return Array.isArray(v) ? v : [v];
 }
 
-export function rowFromComponent(c: ScriptComponent): UpdateRow {
+export function rowFromComponent(c: ScriptComponent, isAdmin = true): UpdateRow {
   let state: RowState = "unknown";
   if (c.error) state = "error";
   else if (c.compare === "older") state = "new";
@@ -124,6 +132,7 @@ export function rowFromComponent(c: ScriptComponent): UpdateRow {
     note: c.note ?? null,
     notesUrl: c.notes ?? null,
     error: c.error ?? null,
+    needsPermission: !!c.admin && !isAdmin,
   };
 }
 
@@ -132,7 +141,7 @@ function installedBySetup(): boolean {
   return existsSync(path.join(INSTALL_ROOT, "Uninstall.exe"));
 }
 
-async function lumaRow(): Promise<UpdateRow> {
+async function lumaRow(isAdmin = true): Promise<UpdateRow> {
   const s = await checkForUpdate();
   const canUpdate = s.canApply || installedBySetup();
   let state: RowState = s.error ? "error" : s.updateAvailable ? "new" : "ok";
@@ -149,6 +158,8 @@ async function lumaRow(): Promise<UpdateRow> {
     note: "Restarts Luma Arcade: players reconnect by themselves",
     notesUrl: s.downloadUrl,
     error: s.error ?? (state === "manual" ? "Update it with the installer from the release page" : null),
+    // Setup upgrades it and asks Windows first; building from source doesn't.
+    needsPermission: !s.canApply && installedBySetup() && !isAdmin,
   };
 }
 
@@ -198,9 +209,10 @@ export async function listInstalled(mode: Mode): Promise<UpdateList> {
   const cached = loadCache();
   if (cached && cached.mode === mode) return cached;
   try {
-    const out = JSON.parse(await runScript(["-Action", "list"], 60_000)) as { components: ScriptComponent[] };
-    const rows = (out.components ?? []).map((c) => ({ ...rowFromComponent(c), state: "unknown" as RowState }));
-    return { mode, checkedAt: null, rows: sortRows([await lumaRow(), ...rows]) };
+    const out = JSON.parse(await runScript(["-Action", "list"], 60_000)) as ScriptOutput;
+    const admin = out.isAdmin !== false;
+    const rows = (out.components ?? []).map((c) => ({ ...rowFromComponent(c, admin), state: "unknown" as RowState }));
+    return { mode, checkedAt: null, rows: sortRows([await lumaRow(admin), ...rows]) };
   } catch (err) {
     return { mode, checkedAt: null, rows: [], error: (err as Error).message };
   }
@@ -214,11 +226,10 @@ export function checkUpdates(mode: Mode, ids?: string[]): Promise<UpdateList> {
   const run = (async (): Promise<UpdateList> => {
     const args = ["-Action", "check"];
     if (mode === "newest") args.push("-Newest");
-    const [out, luma] = await Promise.all([
-      runScript(args, 5 * 60_000).then((s) => JSON.parse(s) as { components: ScriptComponent[] }),
-      lumaRow(),
-    ]);
-    const fresh = sortRows([luma, ...(out.components ?? []).map(rowFromComponent)]);
+    const out = JSON.parse(await runScript(args, 5 * 60_000)) as ScriptOutput;
+    const admin = out.isAdmin !== false;
+    const luma = await lumaRow(admin);
+    const fresh = sortRows([luma, ...(out.components ?? []).map((c) => rowFromComponent(c, admin))]);
     const previous = loadCache();
     const rows =
       ids && previous && previous.mode === mode
