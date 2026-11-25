@@ -12,6 +12,7 @@ const PAGE = path.join(__dirname, "..", "pages", "updates.html");
 let page: string | null = null;
 
 const ID = /^[a-z0-9-]{1,32}$/;
+const CHECK_WAIT_MS = 20_000;
 
 function sameKey(given: string): boolean {
   const a = Buffer.from(given);
@@ -52,11 +53,17 @@ export async function registerUpdatesRoutes(app: FastifyInstance) {
   app.post("/api/updates/check", { preHandler: guard }, async (request, reply) => {
     const body = (request.body ?? {}) as { mode?: string; ids?: unknown };
     const ids = Array.isArray(body.ids) ? body.ids.filter((i): i is string => typeof i === "string" && ID.test(i)) : undefined;
-    try {
-      return await checkUpdates(modeOf(body.mode), ids?.length ? ids : undefined);
-    } catch (err) {
-      reply.code(502).send({ error: (err as Error).message });
+    const mode = modeOf(body.mode);
+    const run = checkUpdates(mode, ids?.length ? ids : undefined);
+    run.catch(() => {});
+    // Cloudflare drops a request after 100 s, and a full check can take
+    // longer: past 20 s, answer "still checking" and let the page ask again.
+    const done = await Promise.race([run.then((l) => l, (e: Error) => e), new Promise<null>((r) => setTimeout(() => r(null), CHECK_WAIT_MS))]);
+    if (done instanceof Error) {
+      reply.code(502).send({ error: done.message });
+      return;
     }
+    return done ?? { ...(await listInstalled(mode)), checking: true };
   });
 
   app.post("/api/updates/apply", { preHandler: guard }, async (request, reply) => {

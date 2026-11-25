@@ -43,6 +43,8 @@ export interface UpdateList {
   checkedAt: string | null;
   rows: UpdateRow[];
   error?: string;
+  /** A check is still running: ask again in a moment (it can outlast a request through Cloudflare). */
+  checking?: boolean;
 }
 
 export interface JobItem {
@@ -207,18 +209,36 @@ export function onUpdateCount(fn: (count: number) => void): void {
 /** What's installed, with the last check's targets where there was one (no network). */
 export async function listInstalled(mode: Mode): Promise<UpdateList> {
   const cached = loadCache();
-  if (cached && cached.mode === mode) return cached;
+  const checkingNow = running > 0 ? { checking: true } : {};
+  const lastError = checkError && !running ? { error: `Couldn't check: ${checkError}` } : {};
+  if (cached && cached.mode === mode) return { ...cached, ...checkingNow, ...lastError };
+  // The other mode's last check: same programs, no targets yet (no script, no network).
+  if (cached) {
+    return {
+      mode,
+      checkedAt: null,
+      rows: cached.rows.map((r) => ({ ...r, target: null, notesUrl: r.id === "luma" ? r.notesUrl : null, state: "unknown" as RowState, error: null })),
+      ...checkingNow,
+    };
+  }
   try {
     const out = JSON.parse(await runScript(["-Action", "list"], 60_000)) as ScriptOutput;
     const admin = out.isAdmin !== false;
     const rows = (out.components ?? []).map((c) => ({ ...rowFromComponent(c, admin), state: "unknown" as RowState }));
     return { mode, checkedAt: null, rows: sortRows([await lumaRow(admin), ...rows]) };
   } catch (err) {
-    return { mode, checkedAt: null, rows: [], error: (err as Error).message };
+    return { mode, checkedAt: null, rows: [], error: `Couldn't list what's installed: ${(err as Error).message}` };
   }
 }
 
 let checking: Promise<UpdateList> | null = null;
+let running = 0;
+let checkError: string | null = null;
+
+/** Is a check running (all, or some)? */
+export function isChecking(): boolean {
+  return running > 0;
+}
 
 /** Looks up what each would update to. ids: only those (the rest keep the last answer). */
 export function checkUpdates(mode: Mode, ids?: string[]): Promise<UpdateList> {
@@ -239,6 +259,11 @@ export function checkUpdates(mode: Mode, ids?: string[]): Promise<UpdateList> {
     saveCache(list);
     return list;
   })();
+  running++;
+  run.then(
+    () => (checkError = null),
+    (err: Error) => (checkError = err.message),
+  ).finally(() => running--);
   if (!ids) {
     checking = run;
     run.finally(() => (checking = null)).catch(() => {});

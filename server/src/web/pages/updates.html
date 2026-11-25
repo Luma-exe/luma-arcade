@@ -267,22 +267,33 @@ footer .sum b{color:var(--text)}
   async function load() {
     try {
       data = await api("GET", `/api/updates?mode=${mode}`);
-      error = data.error ? `Couldn't list what's installed: ${data.error}` : "";
+      error = data.error || "";
       render();
-      if (!data.checkedAt || data.mode !== mode) await checkAll();
+      if (data.checking) { checkingAll = true; render(); await waitForCheck(); checkingAll = false; render(); }
+      else if (!data.checkedAt || data.mode !== mode) await checkAll();
     } catch (e) { showError(e); }
+  }
+
+  // A long check answers "still checking"; ask again until it's done.
+  async function waitForCheck() {
+    const m = mode;
+    for (let i = 0; i < 200 && data && data.checking && m === mode; i++) {
+      await new Promise((r) => setTimeout(r, 2500));
+      try { data = await api("GET", `/api/updates?mode=${m}`); } catch (e) { if (i > 20) throw e; }
+    }
+    if (data && data.error) error = data.error;
   }
 
   async function checkAll() {
     checkingAll = true; error = ""; render();
-    try { data = await api("POST", "/api/updates/check", { mode }); }
+    try { data = await api("POST", "/api/updates/check", { mode }); await waitForCheck(); }
     catch (e) { showError(e); }
     checkingAll = false; render();
   }
 
   async function checkOne(id) {
     checking.add(id); render();
-    try { data = await api("POST", "/api/updates/check", { mode, ids: [id] }); error = ""; }
+    try { data = await api("POST", "/api/updates/check", { mode, ids: [id] }); await waitForCheck(); error = ""; }
     catch (e) { showError(e); }
     checking.delete(id); render();
   }
